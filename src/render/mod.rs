@@ -233,7 +233,7 @@ fn draw_cell_bg(
         if !line.is_binded_to_item(col) {
             if bg != hl.bg() {
                 ctx.set_source_rgbo(bg, bg_alpha);
-                ctx.rectangle(line_x, line_y, char_width, line_height);
+                ctx.rectangle(line_x, line_y, char_width.ceil(), line_height);
                 ctx.fill().unwrap();
             }
         } else {
