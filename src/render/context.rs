@@ -87,7 +87,9 @@ struct FontMetrix {
 
 impl FontMetrix {
     pub fn new(pango_context: pango::Context, line_space: i32) -> Self {
-        let font_metrics = pango_context.metrics(None, None).unwrap();
+        let font_metrics = pango_context
+            .metrics(None, Some(&pango::Language::from_string("en_US")))
+            .unwrap();
         let font_desc = pango_context.font_description().unwrap();
 
         FontMetrix {
@@ -128,9 +130,8 @@ impl CellMetrics {
 
         let strikethrough_position =
             (f64::from(font_metrics.strikethrough_position()) / f64::from(pango::SCALE)).ceil();
-        let strikethrough_thickness = (f64::from(font_metrics.strikethrough_thickness())
-            / f64::from(pango::SCALE))
-        .ceil();
+        let strikethrough_thickness =
+            (f64::from(font_metrics.strikethrough_thickness()) / f64::from(pango::SCALE)).ceil();
 
         CellMetrics {
             pango_ascent: font_metrics.ascent(),
@@ -138,8 +139,7 @@ impl CellMetrics {
             pango_char_width: font_metrics.approximate_char_width(),
             ascent,
             line_height: ascent + descent + f64::from(line_space),
-            char_width: f64::from(font_metrics.approximate_char_width())
-                / f64::from(pango::SCALE),
+            char_width: f64::from(font_metrics.approximate_char_width()) / f64::from(pango::SCALE),
             underline_position: ascent - underline_position + underline_thickness / 2.0,
             underline_thickness,
             strikethrough_position: ascent - strikethrough_position + strikethrough_thickness / 2.0,
