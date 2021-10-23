@@ -252,6 +252,12 @@ impl Ui {
             clone!(shell_ref => move |args| set_completeopts(&*shell_ref, args)),
         );
 
+        let update_size = shell.state.borrow().subscribe(
+            SubscriptionKey::from("VimResized"),
+            &["&lines", "&columns"],
+            clone!(comps_ref, shell_ref => move |args| update_window_size(&*comps_ref, &*shell_ref, args)),
+        );
+
         window.connect_delete_event(clone!(comps_ref, shell_ref => move |_, _| {
             gtk_delete(&*comps_ref, &*shell_ref)
         }));
@@ -284,6 +290,7 @@ impl Ui {
                 &update_title,
                 &update_subtitle,
                 &update_completeopt,
+                &update_size,
                 &post_config_cmds,
                 mode,
             );
@@ -307,6 +314,7 @@ impl Ui {
         update_title: &SubscriptionHandle,
         update_subtitle: &Option<SubscriptionHandle>,
         update_completeopt: &SubscriptionHandle,
+        update_size: &SubscriptionHandle,
         post_config_cmds: &Option<Box<[String]>>,
         mode: StartMode,
     ) {
@@ -317,6 +325,7 @@ impl Ui {
         shell.set_autocmds();
         shell.run_now(&update_title);
         shell.run_now(&update_completeopt);
+        shell.run_now(&update_size);
         if let Some(ref update_subtitle) = update_subtitle {
             shell.run_now(&update_subtitle);
         }
@@ -550,7 +559,9 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
     about.set_transient_for(Some(window));
     about.set_program_name("NeovimGtk");
-    about.set_version(Some(crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION"))));
+    about.set_version(Some(
+        crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")),
+    ));
     about.set_logo_icon_name(Some("org.daa.NeovimGtk"));
     about.set_authors(&[env!("CARGO_PKG_AUTHORS")]);
     about.set_comments(Some(misc::about_comments().as_str()));
@@ -622,6 +633,26 @@ fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
     };
 
     window.set_title(filename);
+}
+
+fn update_window_size(comps: &UiMutex<Components>, shell: &RefCell<Shell>, args: Vec<String>) {
+    let lines = &args[0];
+    let cols = &args[1];
+
+    if let (Ok(lines), Ok(cols)) = (lines.parse::<usize>(), cols.parse::<usize>()) {
+        let state_ref = shell.borrow().state.clone();
+        let state = state_ref.borrow();
+
+        if state.should_resize(cols, lines) {
+            let (width, height) = state.calc_window_size(cols, lines);
+
+            let comps_ref = comps.clone();
+            let comps = comps_ref.borrow();
+            let window = comps.window.as_ref().unwrap();
+
+            window.resize(width as i32, height as i32);
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
