@@ -85,8 +85,14 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
     add_cb: Rc<F>,
 ) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
-    let row_container = gtk::Box::new(gtk::Orientation::Vertical, 5);
-    row_container.set_border_width(5);
+    let row_container = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(5)
+        .margin_start(5)
+        .margin_bottom(5)
+        .margin_top(5)
+        .margin_end(5)
+        .build();
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
     let label_box = create_plug_label(plug);
 

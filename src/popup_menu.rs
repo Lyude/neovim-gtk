@@ -81,7 +81,10 @@ impl State {
             .vexpand(true)
             .xalign(0.0)
             .yalign(0.0)
-            .margin(3)
+            .margin_top(3)
+            .margin_bottom(3)
+            .margin_start(3)
+            .margin_end(3)
             .build();
 
         let info_scroll = gtk::ScrolledWindow::builder()
