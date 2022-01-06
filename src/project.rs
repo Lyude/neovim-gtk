@@ -75,6 +75,15 @@ impl Projects {
             3,
         );
 
+        let vbox = gtk::Box::builder()
+            .orientation(Orientation::Vertical)
+            .spacing(5)
+            .margin_top(5)
+            .margin_bottom(5)
+            .margin_start(5)
+            .margin_end(5)
+            .build();
+
         let open_btn = MenuButton::builder()
             .can_focus(false)
             .sensitive(false)
@@ -103,10 +112,6 @@ impl Projects {
         projects
             .tree
             .set_grid_lines(gtk::TreeViewGridLines::Horizontal);
-
-        let vbox = gtk::Box::new(Orientation::Vertical, 5);
-        vbox.set_border_width(5);
-
         let search_box = gtk::Entry::new();
         search_box.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some("edit-find-symbolic"));
 

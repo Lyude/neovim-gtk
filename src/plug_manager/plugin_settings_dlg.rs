@@ -24,14 +24,25 @@ impl<'a> Builder<'a> {
         );
 
         let content = dlg.content_area();
-        let border = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        border.set_border_width(12);
+        let border = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .margin_start(12)
+            .margin_end(12)
+            .margin_top(12)
+            .margin_bottom(12)
+            .build();
 
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::None);
 
-        let path = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-        path.set_border_width(5);
+        let path = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(5)
+            .margin_start(5)
+            .margin_bottom(5)
+            .margin_top(5)
+            .margin_end(5)
+            .build();
         let path_lbl = gtk::Label::new(Some("Repo"));
         let path_e = gtk::Entry::new();
         path_e.set_placeholder_text(Some("user_name/repo_name"));
@@ -41,8 +52,14 @@ impl<'a> Builder<'a> {
 
         list.add(&path);
 
-        let name = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-        name.set_border_width(5);
+        let name = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(5)
+            .margin_start(5)
+            .margin_end(5)
+            .margin_top(5)
+            .margin_bottom(5)
+            .build();
         let name_lbl = gtk::Label::new(Some("Name"));
         let name_e = gtk::Entry::new();
 

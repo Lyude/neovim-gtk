@@ -88,8 +88,11 @@ impl FileBrowserWidget {
         let dir_list = gtk::ComboBox::builder()
             .can_focus(false)
             .focus_on_click(false)
-            .border_width(6)
             .wrap_width(1)
+            .margin_top(6)
+            .margin_bottom(6)
+            .margin_start(6)
+            .margin_end(6)
             .model(&dir_list_model)
             .build();
 

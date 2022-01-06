@@ -228,8 +228,14 @@ fn create_plug_row(
     manager: &Arc<UiMutex<manager::Manager>>,
 ) -> gtk::ListBoxRow {
     let row = gtk::ListBoxRow::new();
-    let row_container = gtk::Box::new(gtk::Orientation::Vertical, 5);
-    row_container.set_border_width(5);
+    let row_container = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(5)
+        .margin_top(5)
+        .margin_bottom(5)
+        .margin_start(5)
+        .margin_end(5)
+        .build();
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
     let label_box = create_plug_label(plug_info);
 
@@ -421,8 +427,13 @@ impl SettingsPages {
     ) {
         let row = gtk::ListBoxRow::new();
 
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        hbox.set_border_width(12);
+        let hbox = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .margin_top(12)
+            .margin_bottom(12)
+            .margin_start(12)
+            .margin_end(12)
+            .build();
         hbox.pack_start(label, false, true, 0);
         row.add(&hbox);
 
