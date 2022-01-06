@@ -5,14 +5,13 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::{env, thread};
 
-use gdk;
 use gio::prelude::*;
 use gio::{ApplicationCommandLine, Menu, MenuItem, SimpleAction};
 use glib::variant::FromVariant;
 use gtk::{
     self,
     prelude::*,
-    AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned,
+    AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned, Inhibit
 };
 
 use toml;
@@ -62,14 +61,16 @@ pub struct Ui {
 
 pub struct Components {
     window: Option<ApplicationWindow>,
-    window_state: WindowState,
+    window_state: ToplevelState,
+    title_label: Option<gtk::Label>,
 }
 
 impl Components {
     fn new() -> Components {
         Components {
             window: None,
-            window_state: WindowState::load(),
+            window_state: ToplevelState::load(),
+            title_label: None,
         }
     }
 
@@ -79,6 +80,13 @@ impl Components {
 
     pub fn window(&self) -> &ApplicationWindow {
         self.window.as_ref().unwrap()
+    }
+
+    pub fn set_title(&self, title: &str) {
+        self.window.as_ref().unwrap().set_title(Some(title));
+        if let Some(ref title_label) = self.title_label {
+            title_label.set_label(title);
+        }
     }
 }
 
@@ -138,9 +146,9 @@ impl Ui {
                 .map(|opt| opt.trim() == "1")
                 .unwrap_or(false);
             if prefer_dark_theme {
-                if let Some(settings) = window.settings() {
-                    settings.set_property("gtk-application-prefer-dark-theme", true);
-                }
+                window
+                    .settings()
+                    .set_property("gtk-application-prefer-dark-theme", true);
             }
 
             if restore_win_state {
@@ -194,17 +202,25 @@ impl Ui {
         );
         app.add_action(&show_sidebar_action);
 
-        window.connect_size_allocate(clone!(main, comps_ref => move |window, _| {
-            gtk_window_size_allocate(
+        window.connect_default_width_notify(clone!(main, comps_ref => move |window| {
+            gtk_window_resize(
                 window,
                 &mut *comps_ref.borrow_mut(),
                 &main,
+                gtk::Orientation::Horizontal,
+            );
+        }));
+        window.connect_default_height_notify(clone!(main, comps_ref => move |window| {
+            gtk_window_resize(
+                window,
+                &mut *comps_ref.borrow_mut(),
+                &main,
+                gtk::Orientation::Vertical,
             );
         }));
 
-        window.connect_window_state_event(clone!(comps_ref => move |_, event| {
-            gtk_window_state_event(event, &mut *comps_ref.borrow_mut());
-            Inhibit(false)
+        window.connect_maximized_notify(clone!(comps_ref => move |window| {
+            comps_ref.borrow_mut().window_state.is_maximized = window.is_maximized();
         }));
 
         window.connect_destroy(clone!(comps_ref => move |_| {
@@ -213,12 +229,11 @@ impl Ui {
 
         let shell = self.shell.borrow();
         let file_browser = self.file_browser.borrow();
-        main.pack1(&**file_browser, false, false);
-        main.pack2(&**shell, true, false);
+        main.set_start_child(&**file_browser);
+        main.set_end_child(&**shell);
+        window.set_child(Some(&main));
 
-        window.add(&main);
-
-        window.show_all();
+        window.show();
 
         if restore_win_state {
             // Hide sidebar, if it wasn't shown last time.
@@ -251,8 +266,8 @@ impl Ui {
             clone!(shell_ref => move |args| set_exit_status(&*shell_ref, args)),
         );
 
-        window.connect_delete_event(clone!(comps_ref, shell_ref => move |_, _| {
-            gtk_delete(&*comps_ref, &*shell_ref)
+        window.connect_close_request(clone!(comps_ref, shell_ref => move |_| {
+            gtk_close_request(&*comps_ref, &*shell_ref)
         }));
 
         shell.grab_focus();
@@ -411,10 +426,16 @@ impl Ui {
                 let comps = comps.borrow();
                 let window = comps.window.as_ref().unwrap();
 
-                let screen = window.screen().unwrap();
-                if screen.is_composited() {
-                    let enabled = shell.set_transparency(background_alpha, filled_alpha);
-                    window.set_app_paintable(enabled);
+                let display = window.display();
+                if display.is_composited() {
+                    /* TODO: This relied on gtk_set_app_paintable, but that has been removed in GTK4
+                     * with no direct replacement. This may still work anyway though since we can
+                     * probably just rely on the compositor to handle partially transparent
+                     * surfaces. Confirm that's the case before removing this comment.
+                     */
+                    shell.set_transparency(background_alpha, filled_alpha);
+                    // TODO: We probably don't need this anymore, confirm
+                    //window.set_app_paintable(enabled);
                 } else {
                     warn!("Screen is not composited");
                 }
@@ -423,9 +444,9 @@ impl Ui {
                 let comps = comps.borrow();
                 let window = comps.window.as_ref().unwrap();
 
-                if let Some(settings) = window.settings() {
-                    settings.set_property("gtk-application-prefer-dark-theme", prefer_dark_theme);
-                }
+                window
+                    .settings()
+                    .set_property("gtk-application-prefer-dark-theme", prefer_dark_theme);
             }
         }
     }
@@ -434,19 +455,39 @@ impl Ui {
         &self,
         app: &gtk::Application
     ) -> (SubscriptionHandle, Box<HeaderBarButtons>) {
-        let header_bar = HeaderBar::new();
-        let comps = self.comps.borrow();
+        let header_bar_title = gtk::Label::builder()
+            .css_classes(vec!["title".to_string()])
+            .vexpand(true)
+            .yalign(1.0)
+            .build();
+        let header_bar_subtitle = gtk::Label::builder()
+            .css_classes(vec!["subtitle".to_string()])
+            .vexpand(true)
+            .yalign(0.0)
+            .build();
+        let header_bar_box = gtk::Box::builder()
+            .orientation(Orientation::Vertical)
+            .build();
+        header_bar_box.append(&header_bar_title);
+        header_bar_box.append(&header_bar_subtitle);
+        let header_bar = HeaderBar::builder()
+            .title_widget(&header_bar_box)
+            .focusable(false)
+            .build();
+
+        let mut comps = self.comps.borrow_mut();
+        comps.title_label = Some(header_bar_title);
+
         let window = comps.window.as_ref().unwrap();
 
         let projects = self.projects.borrow();
         let open_btn = projects.open_btn();
         header_bar.pack_start(open_btn);
 
-        let new_tab_btn =
-            Button::from_icon_name(Some("tab-new-symbolic"), gtk::IconSize::SmallToolbar);
+        let new_tab_btn = Button::from_icon_name("tab-new-symbolic");
         let shell_ref = Rc::clone(&self.shell);
         new_tab_btn.connect_clicked(move |_| shell_ref.borrow_mut().new_tab());
-        new_tab_btn.set_can_focus(false);
+        new_tab_btn.set_focusable(false);
         new_tab_btn.set_tooltip_text(Some("Open a new tab"));
         new_tab_btn.set_sensitive(false);
         header_bar.pack_start(&new_tab_btn);
@@ -455,11 +496,10 @@ impl Ui {
         primary_menu_btn.set_sensitive(false);
         header_bar.pack_end(&primary_menu_btn);
 
-        let paste_btn =
-            Button::from_icon_name(Some("edit-paste-symbolic"), gtk::IconSize::SmallToolbar);
+        let paste_btn = Button::from_icon_name("edit-paste-symbolic");
         let shell = self.shell.clone();
         paste_btn.connect_clicked(move |_| shell.borrow_mut().edit_paste());
-        paste_btn.set_can_focus(false);
+        paste_btn.set_focusable(false);
         paste_btn.set_tooltip_text(Some("Paste from clipboard"));
         paste_btn.set_sensitive(false);
         header_bar.pack_end(&paste_btn);
@@ -467,11 +507,9 @@ impl Ui {
         let save_btn = Button::with_label("Save All");
         let shell = self.shell.clone();
         save_btn.connect_clicked(move |_| shell.borrow_mut().edit_save_all());
-        save_btn.set_can_focus(false);
+        save_btn.set_focusable(false);
         save_btn.set_sensitive(false);
         header_bar.pack_end(&save_btn);
-
-        header_bar.set_show_close_button(true);
 
         window.set_titlebar(Some(&header_bar));
 
@@ -480,9 +518,7 @@ impl Ui {
         let update_subtitle = shell.state.borrow().subscribe(
             SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
-            move |args| {
-                header_bar.set_subtitle(Some(&*args[0]));
-            },
+            move |args| header_bar_subtitle.set_label(&*args[0]),
         );
 
         (
@@ -503,12 +539,11 @@ impl Ui {
         window: &gtk::ApplicationWindow,
     ) -> gtk::MenuButton {
         let plug_manager = self.plug_manager.clone();
-        let btn = gtk::MenuButton::new();
-        btn.set_can_focus(false);
-        btn.set_image(Some(&gtk::Image::from_icon_name(
-            Some("open-menu-symbolic"),
-            gtk::IconSize::SmallToolbar,
-        )));
+        let btn = gtk::MenuButton::builder()
+            .focusable(false)
+            .focus_on_click(false)
+            .icon_name("open-menu-symbolic")
+            .build();
 
         // note actions created in application menu
         let menu = Menu::new();
@@ -548,17 +583,19 @@ impl Ui {
 fn on_help_about(window: &gtk::ApplicationWindow) {
     let about = AboutDialog::new();
     about.set_transient_for(Some(window));
-    about.set_program_name("NeovimGtk");
+    about.set_program_name(Some("NeovimGtk"));
     about.set_version(Some(crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION"))));
     about.set_logo_icon_name(Some("org.daa.NeovimGtk"));
     about.set_authors(env!("CARGO_PKG_AUTHORS").split(":").collect::<Vec<_>>().as_slice());
     about.set_comments(Some(misc::about_comments().as_str()));
 
-    about.connect_response(|about, _| about.close());
+    // TODO: Figure out if we need to rework this to GTK4, since GtkAboutDialog longer derives
+    // from GtkDialog
+    //about.connect_response(|about, _| about.close());
     about.show();
 }
 
-fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
+fn gtk_close_request(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
     if !shell.borrow().is_nvim_initialized() {
         return Inhibit(false);
     }
@@ -574,25 +611,24 @@ fn gtk_delete(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
     })
 }
 
-fn gtk_window_size_allocate(
+fn gtk_window_resize(
     app_window: &gtk::ApplicationWindow,
     comps: &mut Components,
     main: &Paned,
+    orientation: gtk::Orientation,
 ) {
     if !app_window.is_maximized() {
-        let (current_width, current_height) = app_window.size();
-        comps.window_state.current_width = current_width;
-        comps.window_state.current_height = current_height;
+        match orientation {
+            gtk::Orientation::Horizontal =>
+                comps.window_state.current_width = app_window.size(gtk::Orientation::Horizontal),
+            gtk::Orientation::Vertical =>
+                comps.window_state.current_height = app_window.size(gtk::Orientation::Vertical),
+            _ => unreachable!(),
+        }
     }
     if comps.window_state.show_sidebar {
         comps.window_state.sidebar_width = main.position();
     }
-}
-
-fn gtk_window_state_event(event: &gdk::EventWindowState, comps: &mut Components) {
-    comps.window_state.is_maximized = event
-        .new_window_state()
-        .contains(gdk::WindowState::MAXIMIZED);
 }
 
 fn set_completeopts(shell: &RefCell<Shell>, args: Vec<String>) {
@@ -618,7 +654,6 @@ fn set_background(shell: &RefCell<Shell>, args: Vec<String>) {
 fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
     let comps_ref = comps.clone();
     let comps = comps_ref.borrow();
-    let window = comps.window.as_ref().unwrap();
 
     let file_path = &args[0];
     let dir = Path::new(&args[1]);
@@ -634,7 +669,7 @@ fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
         &file_path
     };
 
-    window.set_title(filename);
+    comps.set_title(filename);
 }
 
 fn set_exit_status(shell: &RefCell<Shell>, args: Vec<String>) {
@@ -643,7 +678,7 @@ fn set_exit_status(shell: &RefCell<Shell>, args: Vec<String>) {
 }
 
 #[derive(Serialize, Deserialize)]
-struct WindowState {
+struct ToplevelState {
     current_width: i32,
     current_height: i32,
     is_maximized: bool,
@@ -651,9 +686,9 @@ struct WindowState {
     sidebar_width: i32,
 }
 
-impl Default for WindowState {
+impl Default for ToplevelState {
     fn default() -> Self {
-        WindowState {
+        ToplevelState {
             current_width: DEFAULT_WIDTH,
             current_height: DEFAULT_HEIGHT,
             is_maximized: false,
@@ -663,7 +698,7 @@ impl Default for WindowState {
     }
 }
 
-impl SettingsLoader for WindowState {
+impl SettingsLoader for ToplevelState {
     const SETTINGS_FILE: &'static str = "window.toml";
 
     fn from_str(s: &str) -> Result<Self, String> {

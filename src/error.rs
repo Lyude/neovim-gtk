@@ -16,11 +16,10 @@ impl ErrorArea {
     pub fn new() -> Self {
         let base = gtk::Box::new(gtk::Orientation::Horizontal, 0);
 
-        let label = gtk::Label::new(None);
-        label.set_line_wrap(true);
-        let error_image = gtk::Image::from_icon_name(Some("dialog-error"), gtk::IconSize::Dialog);
-        base.pack_start(&error_image, false, true, 10);
-        base.pack_start(&label, true, true, 1);
+        let label = gtk::Label::builder().wrap(true).build();
+        let error_image = gtk::Image::from_icon_name("dialog-error");
+        base.append(&error_image);
+        base.append(&label);
 
         ErrorArea { base, label }
     }
@@ -36,7 +35,7 @@ impl ErrorArea {
             encode_minimal(err),
             shell::MINIMUM_SUPPORTED_NVIM_VERSION
         ));
-        self.base.show_all();
+        self.base.show();
     }
 
     pub fn show_nvim_start_error(&self, err: &str, cmd: &str) {
@@ -54,7 +53,7 @@ impl ErrorArea {
             encode_minimal(err),
             shell::MINIMUM_SUPPORTED_NVIM_VERSION
         ));
-        self.base.show_all();
+        self.base.show();
     }
 }
 

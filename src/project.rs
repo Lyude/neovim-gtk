@@ -7,7 +7,7 @@ use gtk;
 use gtk::prelude::*;
 use gtk::{
     CellRendererPixbuf, CellRendererText, CellRendererToggle, ListStore, MenuButton, Orientation,
-    PolicyType, Popover, ScrolledWindow, TreeIter, TreeModel, TreeView, TreeViewColumn,
+    PolicyType, ScrolledWindow, TreeIter, TreeModel, TreeView, TreeViewColumn,
 };
 use glib;
 use pango;
@@ -65,16 +65,17 @@ pub struct Projects {
 
 impl Projects {
     pub fn new(shell: Rc<RefCell<Shell>>) -> Arc<UiMutex<Projects>> {
-        let popup = Popover::new(Option::<&MenuButton>::None);
-        let open_btn_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        open_btn_box.pack_start(&gtk::Label::new(Some("Open")), false, false, 3);
-        open_btn_box.pack_start(
-            &gtk::Image::from_icon_name(Some("pan-down-symbolic"), gtk::IconSize::Menu),
-            false,
-            false,
-            3,
-        );
-
+        let tree = gtk::TreeView::builder()
+            .activate_on_single_click(true)
+            .hover_selection(true)
+            .enable_grid_lines(gtk::TreeViewGridLines::Horizontal)
+            .build();
+        let scroll = ScrolledWindow::builder()
+            .hscrollbar_policy(PolicyType::Never)
+            .vscrollbar_policy(PolicyType::Automatic)
+            .has_frame(true)
+            .child(&tree)
+            .build();
         let vbox = gtk::Box::builder()
             .orientation(Orientation::Vertical)
             .spacing(5)
@@ -84,21 +85,24 @@ impl Projects {
             .margin_end(5)
             .build();
 
+        let popup = gtk::Popover::builder()
+            .child(&vbox)
+            .build();
         let open_btn = MenuButton::builder()
-            .can_focus(false)
+            .focusable(false)
+            .focus_on_click(false)
             .sensitive(false)
-            .child(&open_btn_box)
+            .always_show_arrow(true)
+            .label("Open")
+            .direction(gtk::ArrowType::Down)
             .popover(&popup)
             .build();
 
         let projects = Projects {
             shell,
             open_btn,
-            tree: TreeView::new(),
-            scroll: ScrolledWindow::new(
-                Option::<&gtk::Adjustment>::None,
-                Option::<&gtk::Adjustment>::None,
-            ),
+            tree,
+            scroll,
             store: None,
             name_renderer: CellRendererText::new(),
             path_renderer: CellRendererText::new(),
@@ -107,30 +111,14 @@ impl Projects {
 
         projects.setup_tree();
 
-        projects.tree.set_activate_on_single_click(true);
-        projects.tree.set_hover_selection(true);
-        projects
-            .tree
-            .set_grid_lines(gtk::TreeViewGridLines::Horizontal);
         let search_box = gtk::Entry::new();
         search_box.set_icon_from_icon_name(gtk::EntryIconPosition::Primary, Some("edit-find-symbolic"));
 
-        vbox.pack_start(&search_box, false, true, 0);
-
-        projects
-            .scroll
-            .set_policy(PolicyType::Never, PolicyType::Automatic);
-
-        projects.scroll.add(&projects.tree);
-        projects.scroll.set_shadow_type(gtk::ShadowType::In);
-
-        vbox.pack_start(&projects.scroll, true, true, 0);
+        vbox.append(&search_box);
+        vbox.append(&projects.scroll);
 
         let open_btn = gtk::Button::with_label("Other Documents…");
-        vbox.pack_start(&open_btn, true, true, 5);
-
-        vbox.show_all();
-        popup.add(&vbox);
+        vbox.append(&open_btn);
 
         let projects = Arc::new(UiMutex::new(projects));
         let projects_ref = projects.borrow();
@@ -159,7 +147,7 @@ impl Projects {
             .connect_row_activated(clone!(projects => move |tree, _, column| {
                 // Don't activate if the user clicked the checkbox.
                 let toggle_column = tree.column(2).unwrap();
-                if *column == toggle_column {
+                if column.as_deref() == Some(&toggle_column) {
                     return;
                 }
                 let selection = tree.selection();
@@ -195,10 +183,7 @@ impl Projects {
     fn toggle_stored(&mut self, path: &gtk::TreePath) {
         let list_store = self.get_list_store();
         if let Some(iter) = list_store.iter(path) {
-            let value: bool = list_store
-                .value(&iter, ProjectViewColumns::ProjectStored as i32)
-                .get()
-                .unwrap();
+            let value: bool = list_store.get(&iter, ProjectViewColumns::ProjectStored as i32);
 
             list_store.set_value(
                 &iter,
@@ -218,9 +203,7 @@ impl Projects {
                 &ToValue::to_value(pixbuf),
             );
 
-            let uri_value = list_store.value(&iter, ProjectViewColumns::Uri as i32);
-            let uri: String = uri_value.get().unwrap();
-
+            let uri: String = list_store.get(&iter, ProjectViewColumns::Uri as i32);
             let store = self.store.as_mut().unwrap();
             if let Some(entry) = store.find_mut(&uri) {
                 entry.stored = !value;
@@ -231,14 +214,8 @@ impl Projects {
     }
 
     fn open_uri(&self, model: &TreeModel, iter: &TreeIter) {
-        let uri: String = model
-            .value(iter, ProjectViewColumns::Uri as i32)
-            .get()
-            .unwrap();
-        let project: bool = model
-            .value(iter, ProjectViewColumns::Project as i32)
-            .get()
-            .unwrap();
+        let uri: String = model.get(iter, ProjectViewColumns::Uri as i32);
+        let project: bool = model.get(iter, ProjectViewColumns::Project as i32);
 
         let shell = self.shell.borrow();
         if project {
@@ -258,7 +235,7 @@ impl Projects {
     fn show_open_file_dlg(&self) {
         let window = self
             .open_btn
-            .toplevel()
+            .root()
             .unwrap()
             .downcast::<gtk::Window>()
             .ok();
@@ -266,20 +243,25 @@ impl Projects {
             Some("Open Document"),
             window.as_ref(),
             gtk::FileChooserAction::Open,
+            &[
+                ("_Open", gtk::ResponseType::Ok),
+                ("_Cancel", gtk::ResponseType::Cancel),
+            ]
         );
 
-        dlg.add_buttons(&[
-            ("_Open", gtk::ResponseType::Ok),
-            ("_Cancel", gtk::ResponseType::Cancel),
-        ]);
-        if dlg.run() == gtk::ResponseType::Ok {
-            if let Some(filename) = dlg.filename() {
-                if let Some(filename) = filename.to_str() {
-                    self.shell.borrow().open_file(filename);
+        let shell = self.shell.clone();
+        dlg.run_async(move |dlg, response| {
+            if response == gtk::ResponseType::Ok {
+                if let Some(filename) = dlg
+                    .file()
+                    .and_then(|f| f.path())
+                    .and_then(|f| f.to_str().map(|s| s.to_owned()))
+                {
+                    shell.borrow().open_file(&filename);
                 }
             }
-        }
-        dlg.close();
+            dlg.close();
+        });
     }
 
     pub fn before_show(&mut self) {
@@ -407,7 +389,13 @@ impl Projects {
          * idle callback
          */
         let open_btn = self.open_btn.clone();
-        glib::idle_add_local_once(move || open_btn.set_active(active));
+        glib::idle_add_local_once(move || {
+            if active {
+                open_btn.popup();
+            } else {
+                open_btn.popdown();
+            }
+        });
     }
 }
 
