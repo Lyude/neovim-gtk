@@ -62,25 +62,27 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
         ("_Cancel", gtk::ResponseType::Cancel),
     ]);
 
-    let res = match dlg.run() {
-        gtk::ResponseType::Yes => {
-            let state = shell.state.borrow();
-            let nvim = state.nvim().unwrap();
-            match nvim.block_timeout(nvim.command("wa")) {
-                Err(err) => {
-                    error!("Error: {}", err);
-                    false
+    glib::MainContext::new().block_on(async move {
+        let res = match dlg.run_future().await {
+            gtk::ResponseType::Yes => {
+                let state = shell.state.borrow();
+                let nvim = state.nvim().unwrap();
+                match nvim.block_timeout(nvim.command("wa")) {
+                    Err(err) => {
+                        error!("Error: {}", err);
+                        false
+                    }
+                    _ => true,
                 }
-                _ => true,
             }
-        }
-        gtk::ResponseType::No => true,
-        gtk::ResponseType::Cancel | _ => false,
-    };
+            gtk::ResponseType::No => true,
+            gtk::ResponseType::Cancel | _ => false,
+        };
 
-    dlg.close();
+        dlg.close();
 
-    res
+        res
+    })
 }
 
 fn get_changed_buffers(nvim: &NvimSession) -> Result<Vec<String>, SessionError> {

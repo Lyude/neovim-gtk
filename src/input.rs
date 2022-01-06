@@ -1,7 +1,6 @@
 
-use gtk::prelude::*;
+use gtk::Inhibit;
 use gdk;
-use gdk::EventKey;
 use phf;
 use crate::nvim::{NvimSession, ErrorReport};
 
@@ -18,7 +17,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
 
     // CTRL-^ and CTRL-@ don't work in the normal way.
     if state.contains(gdk::ModifierType::CONTROL_MASK) && !state.contains(gdk::ModifierType::SHIFT_MASK) &&
-        !state.contains(gdk::ModifierType::MOD1_MASK)
+        !state.contains(gdk::ModifierType::ALT_MASK)
     {
         if val == "6" {
             val = "^";
@@ -49,7 +48,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     if state.contains(gdk::ModifierType::CONTROL_MASK) {
         mod_chars.push("C");
     }
-    if state.contains(gdk::ModifierType::MOD1_MASK) {
+    if state.contains(gdk::ModifierType::ALT_MASK) {
         mod_chars.push("A");
     }
 
@@ -63,17 +62,15 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     }
 }
 
-pub fn convert_key(ev: &EventKey) -> Option<String> {
-    let keyval = ev.keyval();
-    let state = ev.state();
+pub fn convert_key(keyval: gdk::Key, modifiers: gdk::ModifierType) -> Option<String> {
     if let Some(ref keyval_name) = keyval.name() {
         if let Some(cnvt) = KEYVAL_MAP.get(keyval_name.as_str()).cloned() {
-            return Some(keyval_to_input_string(cnvt, state));
+            return Some(keyval_to_input_string(cnvt, modifiers));
         }
     }
 
     if let Some(ch) = keyval.to_unicode() {
-        Some(keyval_to_input_string(&ch.to_string(), state))
+        Some(keyval_to_input_string(&ch.to_string(), modifiers))
     } else {
         None
     }
@@ -94,9 +91,12 @@ pub fn im_input(nvim: &NvimSession, input: &str) {
         .expect("Failed to send input command to nvim");
 }
 
-pub fn gtk_key_press(nvim: &NvimSession, ev: &EventKey)
-    -> Inhibit {
-    if let Some(input) = convert_key(ev) {
+pub fn gtk_key_press(
+    nvim: &NvimSession,
+    keyval: gdk::Key,
+    modifiers: gdk::ModifierType
+) -> Inhibit {
+    if let Some(input) = convert_key(keyval, modifiers) {
         debug!("nvim_input -> {}", input);
         nvim
             .block_timeout(nvim.input(&input))
@@ -131,13 +131,13 @@ mod tests {
             "2" == "2";
             "<" == "<lt>";
             "", SHIFT_MASK == "S";
-            "", SHIFT_MASK | CONTROL_MASK | MOD1_MASK == "SCA";
+            "", SHIFT_MASK | CONTROL_MASK | ALT_MASK == "SCA";
             "a", SHIFT_MASK == "<S-a>";
-            "a", SHIFT_MASK | CONTROL_MASK | MOD1_MASK == "<S-C-A-a>";
+            "a", SHIFT_MASK | CONTROL_MASK | ALT_MASK == "<S-C-A-a>";
             "6", CONTROL_MASK == "<C-^>";
-            "6", CONTROL_MASK | MOD1_MASK == "<C-A-6>";
+            "6", CONTROL_MASK | ALT_MASK == "<C-A-6>";
             "2", CONTROL_MASK == "<C-@>";
-            "2", CONTROL_MASK | MOD1_MASK == "<C-A-2>";
+            "2", CONTROL_MASK | ALT_MASK == "<C-A-2>";
         }
     }
 }

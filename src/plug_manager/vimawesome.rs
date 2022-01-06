@@ -61,22 +61,20 @@ pub fn build_result_panel<F: Fn(PlugInfo) + 'static>(
     list: &DescriptionList,
     add_cb: F,
 ) -> gtk::ScrolledWindow {
-    let scroll = gtk::ScrolledWindow::new(
-        Option::<&gtk::Adjustment>::None,
-        Option::<&gtk::Adjustment>::None,
-    );
-    scroll.style_context().add_class("view");
     let panel = gtk::ListBox::new();
+    let scroll = gtk::ScrolledWindow::builder()
+        .child(&panel)
+        .css_classes(vec!["view".to_string()])
+        .build();
 
     let cb_ref = Rc::new(add_cb);
     for plug in list.plugins.iter() {
         let row = create_plug_row(plug, cb_ref.clone());
 
-        panel.add(&row);
+        panel.append(&row);
     }
 
-    scroll.add(&panel);
-    scroll.show_all();
+    scroll.show();
     scroll
 }
 
@@ -84,7 +82,6 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
     plug: &Description,
     add_cb: Rc<F>,
 ) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
     let row_container = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(5)
@@ -93,6 +90,9 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
         .margin_top(5)
         .margin_end(5)
         .build();
+    let row = gtk::ListBoxRow::builder()
+        .child(&row_container)
+        .build();
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
     let label_box = create_plug_label(plug);
 
@@ -100,13 +100,11 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
     button_box.set_halign(gtk::Align::End);
 
     let add_btn = gtk::Button::with_label("Install");
-    button_box.pack_start(&add_btn, false, true, 0);
+    button_box.append(&add_btn);
 
-    row_container.pack_start(&hbox, true, true, 0);
-    hbox.pack_start(&label_box, true, true, 0);
-    hbox.pack_start(&button_box, false, true, 0);
-
-    row.add(&row_container);
+    row_container.append(&hbox);
+    hbox.append(&label_box);
+    hbox.append(&button_box);
 
     add_btn.connect_clicked(clone!(plug => move |btn| {
         if let Some(ref github_url) = plug.github_url {
@@ -137,8 +135,8 @@ fn create_plug_label(plug: &Description) -> gtk::Box {
     }
     url_lbl.set_halign(gtk::Align::Start);
 
-    label_box.pack_start(&name_lbl, true, true, 0);
-    label_box.pack_start(&url_lbl, true, true, 0);
+    label_box.append(&name_lbl);
+    label_box.append(&url_lbl);
     label_box
 }
 

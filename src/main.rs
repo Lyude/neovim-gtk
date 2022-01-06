@@ -36,6 +36,7 @@ mod shell;
 mod shell_dlg;
 mod subscriptions;
 mod tabline;
+mod drawing_area;
 
 use gio::prelude::*;
 use gio::ApplicationCommandLine;

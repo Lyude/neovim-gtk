@@ -1,3 +1,4 @@
+use std;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -19,12 +20,15 @@ use tokio::sync::{
 use clap::{self, value_t};
 
 use cairo;
-use gdk;
-use gdk::{EventButton, EventMotion, EventScroll, EventType, ModifierType};
+use gdk::{
+    self,
+    prelude::*,
+    ModifierType,
+    Display,
+};
 use glib;
 use gio;
 use gio::ApplicationCommandLine;
-use gio::prelude::*;
 use gtk;
 use gtk::{Button, MenuButton, Notebook};
 use gtk::prelude::*;
@@ -48,6 +52,7 @@ use crate::{spawn_timeout, spawn_timeout_user_err};
 
 use crate::cmd_line::{CmdLine, CmdLineContext};
 use crate::cursor::{BlinkCursor, Cursor, CursorRedrawCb};
+use crate::drawing_area::DrawingArea;
 use crate::error;
 use crate::input;
 use crate::input::keyval_to_input_string;
@@ -217,11 +222,11 @@ pub struct State {
     resize_status: Arc<ResizeState>,
     focus_state: Arc<AsyncMutex<FocusState>>,
 
-    pub clipboard_clipboard: gtk::Clipboard,
-    pub clipboard_primary: gtk::Clipboard,
+    pub clipboard_clipboard: gdk::Clipboard,
+    pub clipboard_primary: gdk::Clipboard,
 
     stack: gtk::Stack,
-    pub drawing_area: gtk::DrawingArea,
+    pub drawing_area: DrawingArea,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
@@ -243,7 +248,7 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions)
         -> State {
-        let drawing_area = gtk::DrawingArea::new();
+        let drawing_area = DrawingArea::new();
 
         let pango_context = drawing_area.create_pango_context();
         pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
@@ -252,8 +257,10 @@ impl State {
         render_state.hl.set_use_cterm(options.cterm_colors);
         let render_state = Rc::new(RefCell::new(render_state));
 
-        let popup_menu = PopupMenu::new(&drawing_area);
+        let popup_menu = PopupMenu::new();
         let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
+
+        let display = Display::default().unwrap();
 
         State {
             grids: GridMap::new(),
@@ -279,8 +286,8 @@ impl State {
                 is_pending: false
             })),
 
-            clipboard_clipboard: gtk::Clipboard::get(&gdk::Atom::intern("CLIPBOARD")),
-            clipboard_primary: gtk::Clipboard::get(&gdk::Atom::intern("PRIMARY")),
+            clipboard_clipboard: display.clipboard(),
+            clipboard_primary: display.primary_clipboard(),
 
             // UI
             stack: gtk::Stack::new(),
@@ -499,9 +506,13 @@ impl State {
         }
     }
 
+    // TODO: Get rid of this once we have a better widget then DrawingArea
+    #[allow(unused)]
     fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, rect_list: &[M]) {
         // extends by items before, then after changes
 
+        // TODO: Replace drawing_area with a custom widget that supports partial screen redraws with
+        // cairo
         let rects: Vec<_> = rect_list
             .iter()
             .map(|rect| rect.as_ref().clone())
@@ -521,7 +532,10 @@ impl State {
 
             let (x, y, width, height) =
                 rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
-            self.drawing_area.queue_draw_area(x, y, width, height);
+            // TODO: Replace drawing_area with a custom widget that supports partial screen redraws
+            // with cairo
+            //self.drawing_area.queue_draw_area(x, y, width, height);
+            self.drawing_area.queue_draw();
         }
     }
 
@@ -785,8 +799,10 @@ pub struct UiState {
     mouse_pressed: bool,
     scroll_delta: (f64, f64),
 
-    // previous editor position (col, row)
-    prev_pos: (u64, u64),
+    /// Last reported editor position (col, row)
+    last_nvim_pos: (u64, u64),
+    /// Last reported motion position
+    last_pos: (f64, f64),
 
     mouse_cursor: MouseCursor,
 }
@@ -796,13 +812,14 @@ impl UiState {
         UiState {
             mouse_pressed: false,
             scroll_delta: (0.0, 0.0),
-            prev_pos: (0, 0),
+            last_nvim_pos: (0, 0),
+            last_pos: (0.0, 0.0),
 
             mouse_cursor: MouseCursor::None,
         }
     }
 
-    fn apply_mouse_cursor(&mut self, cursor: MouseCursor, window: Option<gdk::Window>) {
+    fn apply_mouse_cursor(&mut self, cursor: MouseCursor, window: Option<gtk::Window>) {
         if self.mouse_cursor == cursor {
             return;
         }
@@ -816,7 +833,7 @@ impl UiState {
                 MouseCursor::Text => "text",
             };
 
-            window.set_cursor(gdk::Cursor::from_name(&window.display(), cursor).as_ref());
+            window.set_cursor(gdk::Cursor::from_name(cursor, None).as_ref());
         }
     }
 }
@@ -880,6 +897,14 @@ impl ShellOptions {
         mem::take(&mut self.post_config_cmds)
     }
 }
+async fn gtk_drop_receive(drop: &gdk::Drop) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    Ok(
+        drop
+        .read_value_future(glib::ValueArray::static_type(), glib::PRIORITY_DEFAULT)
+        .await?
+        .get::<Vec<String>>()?
+    )
+}
 
 pub struct Shell {
     pub state: Arc<UiMutex<State>>,
@@ -915,214 +940,254 @@ impl Shell {
 
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
-        state.drawing_area.set_can_focus(true);
+        state.drawing_area.set_focusable(true);
+        state.drawing_area.set_focus_on_click(true);
+        state.drawing_area.set_receives_default(true);
+        state.drawing_area.set_completion_popover(&*state.popup_menu);
 
         state.im_context.set_use_preedit(false);
 
         let nvim_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-        nvim_box.pack_start(&*state.tabs, false, true, 0);
-        nvim_box.pack_start(&state.drawing_area, true, true, 0);
+        nvim_box.append(&*state.tabs);
+        nvim_box.append(&state.drawing_area);
 
-        state.stack.add_named(&nvim_box, "Nvim");
-        state.stack.add_named(&*state.error_area, "Error");
+        state.stack.add_named(&nvim_box, Some("Nvim"));
+        state.stack.add_named(&*state.error_area, Some("Error"));
 
-        self.widget.pack_start(&state.stack, true, true, 0);
+        self.widget.append(&state.stack);
 
-        state.drawing_area.add_events(
-            gdk::EventMask::BUTTON_RELEASE_MASK
-                | gdk::EventMask::BUTTON_PRESS_MASK
-                | gdk::EventMask::BUTTON_MOTION_MASK
-                | gdk::EventMask::SCROLL_MASK
-                | gdk::EventMask::SMOOTH_SCROLL_MASK
-                | gdk::EventMask::ENTER_NOTIFY_MASK
-                | gdk::EventMask::LEAVE_NOTIFY_MASK
-                | gdk::EventMask::POINTER_MOTION_MASK,
-        );
+        let state_ref = &self.state;
+        let ui_state_ref = &self.ui_state;
 
-        let menu = self.create_context_menu(&state);
-        let ref_state = self.state.clone();
-        let ref_ui_state = self.ui_state.clone();
-        state.drawing_area.connect_button_press_event(move |_, ev| {
-            gtk_button_press(&mut *ref_state.borrow_mut(), &ref_ui_state, ev, &menu)
-        });
+        fn get_window(controller: &impl glib::IsA<gtk::EventController>) -> Option<gtk::Window> {
+            controller.widget().root().map(|w| w.downcast().unwrap())
+        }
 
-        let ref_state = self.state.clone();
-        let ref_ui_state = self.ui_state.clone();
-        state
-            .drawing_area
-            .connect_button_release_event(move |_, ev| {
-                gtk_button_release(
-                    &mut *ref_state.borrow_mut(),
-                    &mut *ref_ui_state.borrow_mut(),
-                    ev,
-                )
-            });
+        let motion_controller = gtk::EventControllerMotion::new();
+        motion_controller.connect_motion(clone!(
+            state_ref, ui_state_ref => move |controller, x, y| {
+                let mut state = state_ref.borrow_mut();
+                let mut ui_state = ui_state_ref.borrow_mut();
 
-        let ref_state = self.state.clone();
-        let ref_ui_state = self.ui_state.clone();
-        state
-            .drawing_area
-            .connect_motion_notify_event(move |_, ev| {
+                ui_state.last_pos = (x, y);
                 gtk_motion_notify(
-                    &mut *ref_state.borrow_mut(),
-                    &mut *ref_ui_state.borrow_mut(),
-                    ev,
-                )
-            });
+                    &mut state,
+                    &mut ui_state,
+                    (x, y),
+                    controller.current_event_state()
+                );
+            }
+        ));
+        motion_controller.connect_enter(clone!(ui_state_ref => move |controller, x, y| {
+            let mut ui_state = ui_state_ref.borrow_mut();
+            ui_state.apply_mouse_cursor(MouseCursor::Text, get_window(controller));
+            ui_state.last_pos = (x, y);
+        }));
+        motion_controller.connect_leave(clone!(ui_state_ref => move |controller| {
+            ui_state_ref.borrow_mut().apply_mouse_cursor(
+                MouseCursor::Default,
+                get_window(controller)
+            );
+        }));
+        state.drawing_area.add_controller(&motion_controller);
 
-        let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_draw(move |_, ctx| gtk_draw(&ref_state, ctx));
+        let key_controller = gtk::EventControllerKey::new();
+        key_controller.set_im_context(&state.im_context);
+        key_controller.connect_key_pressed(clone!(
+            state_ref => move |_, key, _, modifiers| {
+                state_ref.borrow_mut().cursor.as_mut().unwrap().reset_state();
 
-        let ref_ui_state = self.ui_state.clone();
-        let ref_state = self.state.clone();
-        state.drawing_area.connect_key_press_event(move |_, ev| {
-            ref_state
-                .borrow_mut()
-                .cursor
-                .as_mut()
-                .unwrap()
-                .reset_state();
-
-            if ref_state.borrow().im_context.filter_keypress(ev) {
-                Inhibit(true)
-            } else {
-                let state = ref_state.borrow();
-                let nvim = state.nvim();
-                if let Some(mut nvim) = nvim {
-                    input::gtk_key_press(&mut nvim, ev)
-                } else {
-                    Inhibit(false)
+                match state_ref.borrow().nvim() {
+                    Some(nvim) => input::gtk_key_press(&nvim, key, modifiers),
+                    None => gtk::Inhibit(false),
                 }
             }
-        });
-        let ref_state = self.state.clone();
-        state.drawing_area.connect_key_release_event(move |da, ev| {
-            ref_state.borrow().im_context.filter_keypress(ev);
-            ref_ui_state
-                .borrow_mut()
-                .apply_mouse_cursor(MouseCursor::None, da.window());
-            Inhibit(false)
-        });
+        ));
+        key_controller.connect_key_released(clone!(ui_state_ref => move |controller, _, _, _| {
+            ui_state_ref.borrow_mut().apply_mouse_cursor(MouseCursor::None, get_window(controller));
+        }));
+        state.drawing_area.add_controller(&key_controller);
 
-        let ref_state = self.state.clone();
-        let ref_ui_state = self.ui_state.clone();
-        state.drawing_area.connect_scroll_event(move |_, ev| {
-            gtk_scroll_event(
-                &mut *ref_state.borrow_mut(),
-                &mut *ref_ui_state.borrow_mut(),
-                ev,
-            )
-        });
+        fn get_button(controller: &gtk::GestureClick) -> u32
+        {
+            match controller.current_button() {
+                0 => 1, // 0 == no button, e.g. it's a touch event, so map it to left click
+                button => button,
+            }
+        }
 
-        let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_focus_in_event(move |_, _| gtk_focus_in(&mut *ref_state.borrow_mut()));
+        let menu = self.create_context_menu();
+        state.drawing_area.set_popover_menu(&menu);
+        let click_controller = gtk::GestureClick::builder()
+            .n_points(1)
+            .button(0)
+            .build();
+        click_controller.connect_pressed(clone!(
+            state_ref, ui_state_ref, menu => move |controller, _, x, y| {
+                gtk_button_press(
+                    &mut *state_ref.borrow_mut(),
+                    &ui_state_ref,
+                    get_button(controller),
+                    x,
+                    y,
+                    controller.current_event_state(),
+                    &menu
+                )
+            }
+        ));
+        click_controller.connect_released(clone!(
+            state_ref, ui_state_ref => move |controller, _, x, y| {
+                gtk_button_release(
+                    &mut *state_ref.borrow_mut(),
+                    &mut *ui_state_ref.borrow_mut(),
+                    get_button(controller),
+                    x,
+                    y,
+                    controller.current_event_state(),
+                )
+            }
+        ));
+        state.drawing_area.add_controller(&click_controller);
 
-        let ref_state = self.state.clone();
-        state
-            .drawing_area
-            .connect_focus_out_event(move |_, _| gtk_focus_out(&mut *ref_state.borrow_mut()));
+        let long_tap_controller = gtk::GestureLongPress::builder()
+            .n_points(1)
+            .button(0)
+            .build();
+        long_tap_controller.connect_pressed(clone!(
+            state_ref, ui_state_ref => move |controller, x, y| {
+                gtk_button_press(
+                    &mut *state_ref.borrow_mut(),
+                    &ui_state_ref,
+                    3,
+                    x,
+                    y,
+                    controller.current_event_state(),
+                    &menu
+                )
+            }
+        ));
+        state.drawing_area.add_controller(&long_tap_controller);
 
-        let ref_state = self.state.clone();
-        state.drawing_area.connect_realize(move |w| {
+        let focus_controller = gtk::EventControllerFocus::new();
+        focus_controller.connect_enter(clone!(state_ref => move |_| {
+            gtk_focus_in(&mut *state_ref.borrow_mut())
+        }));
+        focus_controller.connect_leave(clone!(state_ref => move |_| {
+            gtk_focus_out(&mut *state_ref.borrow_mut())
+        }));
+        state.drawing_area.add_controller(&focus_controller);
+
+        let scroll_controller = gtk::EventControllerScroll::new(
+            gtk::EventControllerScrollFlags::BOTH_AXES
+        );
+        scroll_controller.connect_scroll(clone!(
+            state_ref, ui_state_ref => move |controller, dx, dy| {
+                gtk_scroll_event(
+                    &mut *state_ref.borrow_mut(),
+                    &mut *ui_state_ref.borrow_mut(),
+                    (dx, dy),
+                    controller.current_event_state()
+                );
+
+                gtk::Inhibit(false)
+            }
+        ));
+        scroll_controller.connect_scroll_end(clone!(ui_state_ref => move |_| {
+            // Clear accumulated scroll delta
+            ui_state_ref.borrow_mut().scroll_delta = (0.0, 0.0);
+        }));
+        state.drawing_area.add_controller(&scroll_controller);
+
+        state.drawing_area.set_draw_func(
+            clone!(state_ref => move |_, ctx, _, _| gtk_draw(&state_ref, ctx))
+        );
+
+        state.drawing_area.connect_realize(clone!(state_ref => move |w| {
             // sometime set_client_window does not work without idle_add
             // and looks like not enabled im_context
-            glib::idle_add_local_once(clone!(ref_state, w => move || {
-                ref_state.borrow().im_context.set_client_window(
-                    w.window().as_ref(),
+            glib::idle_add_local_once(clone!(state_ref, w => move || {
+                state_ref.borrow().im_context.set_client_widget(
+                    w.root().map(|r| r.downcast::<gtk::Window>().unwrap()).as_ref()
                 );
             }));
-        });
+        }));
 
-        let ref_state = self.state.clone();
         state
             .im_context
-            .connect_commit(move |_, ch| ref_state.borrow().im_commit(ch));
+            .connect_commit(clone!(state_ref => move |_, ch| state_ref.borrow().im_commit(ch)));
 
-        let ref_state = self.state.clone();
-        state.drawing_area.connect_configure_event(move |_, ev| {
-            debug!("configure_event {:?}", ev.size());
+        state.drawing_area.connect_resize(clone!(state_ref => move |_, w, h| {
+            debug!("Resize event {}x{}", w, h);
 
-            let mut state = ref_state.borrow_mut();
-            state.try_nvim_resize();
+            state_ref.borrow_mut().try_nvim_resize();
+        }));
 
-            false
-        });
+        state.drawing_area.connect_map(clone!(state_ref => move |_| init_nvim(&state_ref)));
 
-        let ref_state = self.state.clone();
-        state.drawing_area.connect_size_allocate(move |_, _| {
-            init_nvim(&ref_state);
-        });
+        let context = glib::MainContext::default();
+        let dnd_target = gtk::DropTargetAsync::new(
+            Some(&gdk::ContentFormats::new(&["text/uri-list"])),
+            gdk::DragAction::COPY
+        );
+        dnd_target.connect_accept(clone!(state_ref => move |controller, drop| {
+            let (nvim, action_widgets) = {
+                let state = state_ref.borrow();
+                let nvim = match state.nvim() {
+                    Some(nvim) => nvim,
+                    None => return false,
+                };
 
-        let ref_state = self.state.clone();
-        let targets = vec![gtk::TargetEntry::new(
-            "text/uri-list",
-            gtk::TargetFlags::OTHER_APP,
-            0,
-        )];
-        state
-            .drawing_area
-            .drag_dest_set(gtk::DestDefaults::ALL, &targets, gdk::DragAction::COPY);
-        state
-            .drawing_area
-            .connect_drag_data_received(move |_, _, _, _, s, _, _| {
-                let uris = s.uris();
-                let command = uris.iter().filter_map(|uri| decode_uri(uri)).fold(
-                    ":ar".to_owned(),
-                    |command, filename| {
-                        let filename = escape_filename(&filename);
-                        command + " " + &filename
-                    },
-                );
+                (nvim, state.action_widgets())
+            };
 
-                let state = ref_state.borrow_mut();
-                let nvim = state.nvim().unwrap();
-                let action_widgets = state.action_widgets();
+            action_widgets.borrow().as_ref().unwrap().set_enabled(false);
 
-                action_widgets.borrow().as_ref().unwrap().set_enabled(false);
-
-                nvim.clone().spawn(async move {
-                    let res = nvim.command(&command).await;
-
-                    glib::idle_add_once(move || {
+            // TODO: Need to check that there's no data left after we've read (as it's probably less
+            // unpredictable to just reject the drop in that case, and maybe even print an errorr
+            let controller = controller.clone();
+            let drop = drop.clone();
+            context.spawn_local(async move {
+                let input = match gtk_drop_receive(&drop).await {
+                    Ok(input) => input,
+                    Err(e) => {
+                        nvim.timeout(nvim.err_writeln(&format!("Drag and drop failed: {}", e)))
+                            .await
+                            .report_err();
+                        controller.reject_drop(&drop);
                         action_widgets.borrow().as_ref().unwrap().set_enabled(true);
-                    });
+                        return;
+                    },
+                };
 
-                    if let Err(e) = res {
-                        if let Ok(e) = NormalError::try_from(&*e) {
-                            // Filter out errors we get if the user is presented with a prompt
+                let res = nvim.command(
+                    input
+                    .into_iter()
+                    .filter_map(|uri| decode_uri(&uri))
+                    .fold(
+                        "ar".to_owned(),
+                        |command, filename| format!("{} {}", command, escape_filename(&filename)),
+                    )
+                    .as_str()
+                ).await;
+                if let Err(e) = res {
+                    match NormalError::try_from(&*e) {
+                        Ok(e) => {
                             if !e.has_code(325) {
                                 e.print(&nvim).await;
                             }
-                            return;
-                        }
-                        e.print();
-                    }
-                });
+                        },
+                        Err(_) => e.print(),
+                    };
+                };
+
+                action_widgets.borrow().as_ref().unwrap().set_enabled(true);
             });
-
-        let ui_state_ref = self.ui_state.clone();
-        state.drawing_area.connect_enter_notify_event(move |_, ev| {
-            ui_state_ref
-                .borrow_mut()
-                .apply_mouse_cursor(MouseCursor::Text, ev.window());
-            gtk::Inhibit(false)
-        });
-
-        let ui_state_ref = self.ui_state.clone();
-        state.drawing_area.connect_leave_notify_event(move |_, ev| {
-            ui_state_ref
-                .borrow_mut()
-                .apply_mouse_cursor(MouseCursor::Default, ev.window());
-            gtk::Inhibit(false)
-        });
+            true
+        }));
     }
 
-    fn create_context_menu(&self, state: &State) -> gtk::PopoverMenu {
+    fn create_context_menu(&self) -> gtk::PopoverMenu {
         let state_ref = &self.state;
 
         let action_group = gio::SimpleActionGroup::new();
@@ -1143,10 +1208,9 @@ impl Shell {
 
         let popover = gtk::PopoverMenu::builder()
             .position(gtk::PositionType::Bottom)
-            .relative_to(&state.drawing_area)
+            .menu_model(&menu)
             .build();
         popover.insert_action_group("menu", Some(&action_group));
-        popover.bind_model(Some(&menu), Some("menu"));
 
         popover
     }
@@ -1250,92 +1314,79 @@ struct FocusState {
     is_pending: bool,
 }
 
-fn gtk_focus_in(state: &mut State) -> Inhibit {
+fn gtk_focus_in(state: &mut State) {
     state.focus_update(true);
     state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
     state.queue_redraw_cursor();
-
-    Inhibit(false)
 }
 
-fn gtk_focus_out(state: &mut State) -> Inhibit {
+fn gtk_focus_out(state: &mut State) {
     state.focus_update(false);
     state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
     state.queue_redraw_cursor();
-
-    Inhibit(false)
 }
 
-fn gtk_scroll_event(state: &mut State, ui_state: &mut UiState, ev: &EventScroll) -> Inhibit {
+fn gtk_scroll_event(
+    state: &mut State,
+    ui_state: &mut UiState,
+    (dx, dy): (f64, f64),
+    modifier_state: ModifierType,
+) {
     if !state.mouse_enabled && !state.nvim.is_initializing() {
-        return Inhibit(false);
+        return;
     }
 
     state.close_popup_menu();
 
-    match ev.direction() {
-        gdk::ScrollDirection::Right => {
-            mouse_input(state, "wheel", "right", ev.state(), ev.position())
-        }
-        gdk::ScrollDirection::Left => {
-            mouse_input(state, "wheel", "left", ev.state(), ev.position())
-        }
-        gdk::ScrollDirection::Up => {
-            mouse_input(state, "wheel", "up", ev.state(), ev.position())
-        }
-        gdk::ScrollDirection::Down => {
-            mouse_input(state, "wheel", "down", ev.state(), ev.position())
-        }
-        gdk::ScrollDirection::Smooth => {
-            // Remember and accumulate scroll deltas, so slow scrolling still
-            // works.
-            ui_state.scroll_delta.0 += ev.as_ref().delta_x;
-            ui_state.scroll_delta.1 += ev.as_ref().delta_y;
-            // Perform scroll action for deltas with abs(delta) >= 1.
-            let x = ui_state.scroll_delta.0 as isize;
-            let y = ui_state.scroll_delta.1 as isize;
-            for _ in 0..x {
-                mouse_input(state, "wheel", "right", ev.state(), ev.position())
-            }
-            for _ in 0..-x {
-                mouse_input(state, "wheel", "left", ev.state(), ev.position())
-            }
-            for _ in 0..y {
-                mouse_input(state, "wheel", "down", ev.state(), ev.position())
-            }
-            for _ in 0..-y {
-                mouse_input(state, "wheel", "up", ev.state(), ev.position())
-            }
-            // Subtract performed scroll deltas.
-            ui_state.scroll_delta.0 -= x as f64;
-            ui_state.scroll_delta.1 -= y as f64;
-        }
-        _ => (),
+    // Remember and accumulate scroll deltas, so slow scrolling still
+    // works.
+    ui_state.scroll_delta.0 += dx;
+    ui_state.scroll_delta.1 += dy;
+
+    // Perform scroll action for deltas with abs(delta) >= 1.
+    let x = ui_state.scroll_delta.0 as isize;
+    let y = ui_state.scroll_delta.1 as isize;
+    for _ in 0..x {
+        mouse_input(state, "wheel", "right", modifier_state, ui_state.last_pos)
     }
-    Inhibit(false)
+    for _ in 0..-x {
+        mouse_input(state, "wheel", "left", modifier_state, ui_state.last_pos)
+    }
+    for _ in 0..y {
+        mouse_input(state, "wheel", "down", modifier_state, ui_state.last_pos)
+    }
+    for _ in 0..-y {
+        mouse_input(state, "wheel", "up", modifier_state, ui_state.last_pos)
+    }
+    // Subtract performed scroll deltas.
+    ui_state.scroll_delta.0 -= x as f64;
+    ui_state.scroll_delta.1 -= y as f64;
 }
 
 fn gtk_button_press(
     shell: &mut State,
     ui_state: &Rc<RefCell<UiState>>,
-    ev: &EventButton,
+    button: u32,
+    x: f64,
+    y: f64,
+    modifier_state: ModifierType,
     menu: &gtk::PopoverMenu,
-) -> Inhibit {
-    if ev.event_type() != EventType::ButtonPress {
-        return Inhibit(false);
-    }
-
+) {
     if shell.mouse_enabled {
         ui_state.borrow_mut().mouse_pressed = true;
 
-        match ev.button() {
-            1 => mouse_input(shell, "left", "press", ev.state(), ev.position()),
-            2 => mouse_input(shell, "middle", "press", ev.state(), ev.position()),
+        match button {
+            1 => mouse_input(shell, "left", "press", modifier_state, (x, y)),
+            2 => mouse_input(shell, "middle", "press", modifier_state, (x, y)),
             3 => {
-                let (x, y) = ev.position();
-                menu.set_pointing_to(&gdk::Rectangle::new(x.round() as i32, y.round() as i32, 0, 0));
+                menu.set_pointing_to(Some(&gdk::Rectangle::new(
+                    x.round() as i32,
+                    y.round() as i32,
+                    0,
+                    0
+                )));
 
                 // Popping up the menu will trigger a focus event, so handle this in the idle loop
                 // to avoid a double borrow_mut()
@@ -1344,7 +1395,6 @@ fn gtk_button_press(
             _ => (),
         }
     }
-    Inhibit(false)
 }
 
 fn mouse_input(
@@ -1379,36 +1429,48 @@ fn mouse_coordinates_to_nvim(shell: &State, position: (f64, f64)) -> (u64, u64) 
     (col, row)
 }
 
-fn gtk_button_release(shell: &mut State, ui_state: &mut UiState, ev: &EventButton) -> Inhibit {
+fn gtk_button_release(
+    shell: &mut State,
+    ui_state: &mut UiState,
+    button: u32,
+    x: f64,
+    y: f64,
+    modifier_state: ModifierType,
+) {
     ui_state.mouse_pressed = false;
 
     if shell.mouse_enabled && !shell.nvim.is_initializing() {
-        match ev.button() {
-            1 => mouse_input(shell, "left", "release", ev.state(), ev.position()),
-            2 => mouse_input(shell, "middle", "release", ev.state(), ev.position()),
-            3 => mouse_input(shell, "right", "release", ev.state(), ev.position()),
+        match button {
+            1 => mouse_input(shell, "left", "release", modifier_state, (x, y)),
+            2 => mouse_input(shell, "middle", "release", modifier_state, (x, y)),
+            3 => mouse_input(shell, "right", "release", modifier_state, (x, y)),
             _ => (),
         }
     }
-
-    Inhibit(false)
 }
 
-fn gtk_motion_notify(shell: &mut State, ui_state: &mut UiState, ev: &EventMotion) -> Inhibit {
+fn gtk_motion_notify(
+    shell: &mut State,
+    ui_state: &mut UiState,
+    position: (f64, f64),
+    modifier_state: ModifierType,
+) {
     if shell.mouse_enabled && ui_state.mouse_pressed {
-        let ev_pos = ev.position();
-        let pos = mouse_coordinates_to_nvim(shell, ev_pos);
+        let pos = mouse_coordinates_to_nvim(shell, position);
 
         // if we fire LeftDrag on the same coordinates multiple times, then
         // we get: https://github.com/daa84/neovim-gtk/issues/185
-        if pos != ui_state.prev_pos {
-            mouse_input(shell, "left", "drag", ev.state(), ev_pos);
-            ui_state.prev_pos = pos;
+        if pos != ui_state.last_nvim_pos {
+            mouse_input(shell, "left", "drag", modifier_state, position);
+            ui_state.last_nvim_pos = pos;
         }
     }
 
-    ui_state.apply_mouse_cursor(MouseCursor::Text, shell.drawing_area.window());
-    Inhibit(false)
+    ui_state.last_pos = position;
+    ui_state.apply_mouse_cursor(
+        MouseCursor::Text,
+        shell.drawing_area.root().map(|r| r.downcast().unwrap()),
+    );
 }
 
 fn draw_content(state: &State, ctx: &cairo::Context) {
@@ -1433,15 +1495,13 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
     ctx.paint().unwrap();
 }
 
-fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) -> Inhibit {
+fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
     let state = state_arc.borrow();
     if state.nvim.is_initialized() {
         draw_content(&*state, ctx);
     } else if state.nvim.is_initializing() {
         draw_initializing(&*state, ctx);
     }
-
-    Inhibit(false)
 }
 
 fn show_nvim_start_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {

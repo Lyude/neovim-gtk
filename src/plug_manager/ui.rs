@@ -5,8 +5,11 @@ use std::sync::Arc;
 
 use crate::ui::UiMutex;
 
-use gtk;
-use gtk::prelude::*;
+use gtk::{
+    self,
+    prelude::*,
+    Inhibit,
+};
 
 use super::manager;
 use super::plugin_settings_dlg;
@@ -37,9 +40,16 @@ impl<'a> Ui<'a> {
         );
 
         dlg.set_default_size(800, 600);
+        dlg.set_modal(true);
         let content = dlg.content_area();
 
-        let header_bar = gtk::HeaderBar::new();
+        let header_bar_title = gtk::Label::builder()
+            .label("Plug")
+            .css_classes(vec!["title".to_string()])
+            .build();
+        let header_bar = gtk::HeaderBar::builder()
+            .title_widget(&header_bar_title)
+            .build();
 
         let add_plug_btn = gtk::Button::with_label("Add..");
         add_plug_btn
@@ -49,13 +59,8 @@ impl<'a> Ui<'a> {
 
         let enable_swc = gtk::Switch::new();
         enable_swc.set_valign(gtk::Align::Center);
-        enable_swc.show();
 
         header_bar.pack_end(&enable_swc);
-
-        header_bar.set_title(Some("Plug"));
-        header_bar.set_show_close_button(true);
-        header_bar.show();
 
         dlg.set_titlebar(Some(&header_bar));
 
@@ -106,47 +111,41 @@ impl<'a> Ui<'a> {
             show_add_plug_dlg(&dlg, &manager_ref, &plugs_panel);
         }));
 
-        content.pack_start(&*pages, true, true, 0);
-        content.show_all();
+        content.append(&*pages);
 
-        if dlg.run() == gtk::ResponseType::Ok {
-            let mut manager = self.manager.borrow_mut();
-            manager.clear_removed();
-            manager.save();
-            if let Some(config_path) = NvimConfig::new(manager.generate_config()).generate_config()
-            {
-                if let Some(path) = config_path.to_str() {
-                    manager.vim_plug.reload(path);
+        let manager = self.manager.clone();
+        dlg.run_async(move |dlg, id| {
+            if id == gtk::ResponseType::Ok {
+                let mut manager = manager.borrow_mut();
+                manager.clear_removed();
+                manager.save();
+                if let Some(path) = NvimConfig::new(manager.generate_config())
+                    .generate_config()
+                    .and_then(|config_path| Some(config_path))
+                {
+                    manager.vim_plug.reload(path.to_str().unwrap());
                 }
             }
-        }
 
-        dlg.close();
+            dlg.close();
+        });
     }
 
     fn fill_plugin_list(&self, panel: &gtk::Box, store: &Store) -> gtk::ListBox {
-        let scroll = gtk::ScrolledWindow::new(
-            Option::<&gtk::Adjustment>::None,
-            Option::<&gtk::Adjustment>::None,
-        );
-        scroll.style_context().add_class("view");
         let plugs_panel = gtk::ListBox::new();
+        let scroll = gtk::ScrolledWindow::builder()
+            .css_classes(vec!["view".to_string()])
+            .child(&plugs_panel)
+            .build();
 
         for (idx, plug_info) in store.get_plugs().iter().enumerate() {
             let row = create_plug_row(idx, plug_info, &self.manager);
 
-            plugs_panel.add(&row);
+            plugs_panel.append(&row);
         }
 
-        scroll.add(&plugs_panel);
-        panel.pack_start(&scroll, true, true, 5);
-
-        panel.pack_start(
-            &create_up_down_btns(&plugs_panel, &self.manager),
-            false,
-            true,
-            0,
-        );
+        panel.append(&scroll);
+        panel.append(&create_up_down_btns(&plugs_panel, &self.manager));
 
         plugs_panel
     }
@@ -157,8 +156,8 @@ fn create_up_down_btns(
     manager: &Arc<UiMutex<manager::Manager>>,
 ) -> gtk::Box {
     let buttons_panel = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    let up_btn = gtk::Button::from_icon_name(Some("go-up-symbolic"), gtk::IconSize::Button);
-    let down_btn = gtk::Button::from_icon_name(Some("go-down-symbolic"), gtk::IconSize::Button);
+    let up_btn = gtk::Button::from_icon_name("go-up-symbolic");
+    let down_btn = gtk::Button::from_icon_name("go-down-symbolic");
 
     up_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
         if let Some(row) = plugs_panel.selected_row() {
@@ -187,8 +186,8 @@ fn create_up_down_btns(
         }
     }));
 
-    buttons_panel.pack_start(&up_btn, false, true, 0);
-    buttons_panel.pack_start(&down_btn, false, true, 0);
+    buttons_panel.append(&up_btn);
+    buttons_panel.append(&down_btn);
     buttons_panel.set_halign(gtk::Align::Center);
 
     buttons_panel
@@ -204,18 +203,18 @@ fn populate_get_plugins(
     let get_plugins = UiMutex::new(get_plugins.clone());
     vimawesome::call(query, move |res| {
         let panel = get_plugins.borrow();
-        for child in panel.children() {
-            panel.remove(&child);
-        }
+        while let Some(ref child) = panel.first_child() {
+            panel.remove(child);
+        };
         match res {
             Ok(list) => {
                 let result = vimawesome::build_result_panel(&list, move |new_plug| {
                     add_plugin(&manager, &*plugs_panel.borrow(), new_plug);
                 });
-                panel.pack_start(&result, true, true, 0);
+                panel.append(&result);
             }
             Err(e) => {
-                panel.pack_start(&gtk::Label::new(Some(format!("{}", e).as_str())), false, true, 0);
+                panel.append(&gtk::Label::new(Some(format!("{}", e).as_str())));
                 error!("{}", e)
             }
         }
@@ -227,7 +226,6 @@ fn create_plug_row(
     plug_info: &PlugInfo,
     manager: &Arc<UiMutex<manager::Manager>>,
 ) -> gtk::ListBoxRow {
-    let row = gtk::ListBoxRow::new();
     let row_container = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(5)
@@ -245,23 +243,24 @@ fn create_plug_row(
     let exists_button_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
 
     let remove_btn = gtk::Button::with_label("Remove");
-    exists_button_box.pack_start(&remove_btn, false, true, 0);
+    exists_button_box.append(&remove_btn);
 
     let undo_btn = gtk::Button::with_label("Undo");
 
-    row_container.pack_start(&hbox, true, true, 0);
-    hbox.pack_start(&label_box, true, true, 0);
-    button_box.pack_start(&exists_button_box, false, true, 0);
-    hbox.pack_start(&button_box, false, true, 0);
+    row_container.append(&hbox);
+    hbox.append(&label_box);
+    button_box.append(&exists_button_box);
+    hbox.append(&button_box);
 
-    row.add(&row_container);
+    let row = gtk::ListBoxRow::builder()
+        .child(&row_container)
+        .build();
 
     remove_btn.connect_clicked(
         clone!(manager, label_box, button_box, exists_button_box, undo_btn => move |_| {
             label_box.set_sensitive(false);
             button_box.remove(&exists_button_box);
-            button_box.pack_start(&undo_btn, false, true, 0);
-            button_box.show_all();
+            button_box.append(&undo_btn);
             manager.borrow_mut().store.remove_plug(plug_idx);
         }),
     );
@@ -270,8 +269,7 @@ fn create_plug_row(
         clone!(manager, label_box, button_box, exists_button_box, undo_btn => move |_| {
             label_box.set_sensitive(true);
             button_box.remove(&undo_btn);
-            button_box.pack_start(&exists_button_box, false, true, 0);
-            button_box.show_all();
+            button_box.append(&exists_button_box);
             manager.borrow_mut().store.restore_plug(plug_idx);
         }),
     );
@@ -297,8 +295,7 @@ fn add_plugin(
     let row = create_plug_row(manager.borrow().store.plugs_count(), &new_plugin, manager);
 
     if manager.borrow_mut().add_plug(new_plugin) {
-        row.show_all();
-        plugs_panel.add(&row);
+        plugs_panel.append(&row);
         true
     } else {
         let dlg = gtk::MessageDialog::new(
@@ -308,8 +305,7 @@ fn add_plugin(
             gtk::ButtonsType::Ok,
             "Plugin with this name or path already exists",
         );
-        dlg.run();
-        dlg.close();
+        dlg.run_async(|dlg, _| dlg.close());
         false
     }
 }
@@ -323,8 +319,8 @@ fn create_plug_label(plug_info: &PlugInfo) -> gtk::Box {
     let url_lbl = gtk::Label::new(Some(plug_info.get_plug_path().as_str()));
     url_lbl.set_halign(gtk::Align::Start);
 
-    label_box.pack_start(&name_lbl, true, true, 0);
-    label_box.pack_start(&url_lbl, true, true, 0);
+    label_box.append(&name_lbl);
+    label_box.append(&url_lbl);
     label_box
 }
 
@@ -345,15 +341,15 @@ fn add_vimawesome_tab(
     );
     let search_entry = gtk::SearchEntry::new();
 
-    get_plugins.pack_start(&link_button, false, true, 10);
-    get_plugins.pack_start(&search_entry, false, true, 5);
-    get_plugins.pack_start(&list_panel, true, true, 0);
-    list_panel.pack_start(&spinner, true, true, 0);
+    get_plugins.append(&link_button);
+    get_plugins.append(&search_entry);
+    get_plugins.append(&list_panel);
+    list_panel.append(&spinner);
     spinner.start();
 
     search_entry.connect_activate(clone!(list_panel, manager, plugs_panel => move |se| {
         let spinner = gtk::Spinner::new();
-        list_panel.pack_start(&spinner, false, true, 5);
+        list_panel.append(&spinner);
         spinner.show();
         spinner.start();
         populate_get_plugins(
@@ -373,7 +369,7 @@ fn add_help_tab(pages: &SettingsPages, markup: &str) {
     let help = gtk::Box::new(gtk::Orientation::Vertical, 3);
     let label = gtk::Label::new(None);
     label.set_markup(markup);
-    help.pack_start(&label, true, false, 0);
+    help.append(&label);
 
     let help_lbl = gtk::Label::new(Some("Help"));
     pages.add_page(&help_lbl, &help, "help");
@@ -396,8 +392,8 @@ impl SettingsPages {
         let rows: Rc<RefCell<Vec<(gtk::ListBoxRow, &'static str)>>> =
             Rc::new(RefCell::new(Vec::new()));
 
-        content.pack_start(&categories, false, true, 0);
-        content.pack_start(&stack, true, true, 0);
+        content.append(&categories);
+        content.append(&stack);
 
         categories.connect_row_selected(
             clone!(stack, rows => move |_, row| if let Some(row) = row {
@@ -425,8 +421,6 @@ impl SettingsPages {
         widget: &W,
         name: &'static str,
     ) {
-        let row = gtk::ListBoxRow::new();
-
         let hbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .margin_top(12)
@@ -434,11 +428,14 @@ impl SettingsPages {
             .margin_start(12)
             .margin_end(12)
             .build();
-        hbox.pack_start(label, false, true, 0);
-        row.add(&hbox);
+        hbox.append(label);
 
-        self.categories.add(&row);
-        self.stack.add_named(widget, name);
+        let row = gtk::ListBoxRow::builder()
+            .child(&hbox)
+            .build();
+
+        self.categories.append(&row);
+        self.stack.add_named(widget, Some(name));
         self.rows.borrow_mut().push((row, name));
     }
 }
