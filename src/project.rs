@@ -92,11 +92,19 @@ impl Projects {
             .focusable(false)
             .focus_on_click(false)
             .sensitive(false)
-            .always_show_arrow(true)
             .label("Open")
             .direction(gtk::ArrowType::Down)
             .popover(&popup)
             .build();
+
+        /* Make sure the child button isn't focusable either, without breaking keyboard focus on the
+         * popup */
+        open_btn
+            .first_child()
+            .unwrap()
+            .downcast::<gtk::ToggleButton>()
+            .unwrap()
+            .set_focusable(false);
 
         let projects = Projects {
             shell,

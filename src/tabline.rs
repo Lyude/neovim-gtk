@@ -56,7 +56,7 @@ impl Tabline {
     pub fn new() -> Self {
         let tabs = gtk::Notebook::new();
 
-        tabs.set_focusable(false);
+        tabs.set_can_focus(false);
         tabs.set_scrollable(true);
         tabs.set_show_border(false);
         //tabs.set_border_width(0); FIXME: figure out if we need to clear all of the margins on this
@@ -115,22 +115,24 @@ impl Tabline {
         if count < tabs.len() {
             for _ in count..tabs.len() {
                 let empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                let title = gtk::Label::new(None);
-                title.set_ellipsize(pango::EllipsizeMode::Middle);
-                title.set_width_chars(25);
+                let title = gtk::Label::builder()
+                    .ellipsize(pango::EllipsizeMode::Middle)
+                    .width_chars(25)
+                    .hexpand(true)
+                    .build();
+
                 let close_btn = gtk::Button::from_icon_name("window-close-symbolic");
-                close_btn.set_has_frame(true);
-                close_btn.style_context().add_class("small-button");
+                close_btn.set_has_frame(false);
                 close_btn.set_focus_on_click(false);
-                let label_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+
+                let label_box = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Horizontal)
+                    .hexpand(true)
+                    .build();
                 label_box.append(&title);
                 label_box.append(&close_btn);
-                title.show();
-                close_btn.show();
+
                 self.tabs.append_page(&empty, Some(&label_box));
-                // FIXME: Set something up so we set hexpand on each child tab I guess (using
-                // observe_children)
-                //self.tabs.set_child_tab_expand(&empty, true); // TODO: Figure out an equivalent for this?
 
                 let tabs = self.tabs.clone();
                 let state_ref = Rc::clone(&self.state);
@@ -159,8 +161,7 @@ impl Tabline {
                 .unwrap()
                 .downcast::<gtk::Box>()
                 .unwrap()
-                .observe_children()
-                .item(0)
+                .first_child()
                 .unwrap()
                 .downcast::<gtk::Label>()
                 .unwrap();
