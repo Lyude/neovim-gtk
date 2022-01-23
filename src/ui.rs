@@ -458,15 +458,17 @@ impl Ui {
         let header_bar_title = gtk::Label::builder()
             .css_classes(vec!["title".to_string()])
             .vexpand(true)
-            .yalign(1.0)
+            .valign(gtk::Align::End)
             .build();
         let header_bar_subtitle = gtk::Label::builder()
             .css_classes(vec!["subtitle".to_string()])
             .vexpand(true)
-            .yalign(0.0)
+            .valign(gtk::Align::Start)
             .build();
         let header_bar_box = gtk::Box::builder()
             .orientation(Orientation::Vertical)
+            .vexpand(true)
+            .valign(gtk::Align::Center)
             .build();
         header_bar_box.append(&header_bar_title);
         header_bar_box.append(&header_bar_subtitle);
@@ -541,9 +543,16 @@ impl Ui {
         let plug_manager = self.plug_manager.clone();
         let btn = gtk::MenuButton::builder()
             .focusable(false)
-            .focus_on_click(false)
             .icon_name("open-menu-symbolic")
             .build();
+
+        // Make sure the child button isn't focusable either
+        btn
+            .first_child()
+            .unwrap()
+            .downcast::<gtk::ToggleButton>()
+            .unwrap()
+            .set_focusable(false);
 
         // note actions created in application menu
         let menu = Menu::new();

@@ -93,7 +93,7 @@ impl FileBrowserWidget {
             glib::Type::STRING,
         ]);
         let dir_list = gtk::ComboBox::builder()
-            .focusable(false)
+            .can_focus(false)
             .focus_on_click(false)
             .margin_top(6)
             .margin_bottom(6)
