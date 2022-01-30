@@ -1,21 +1,28 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{
+    rc::Rc,
+    convert::*,
+    cell::RefCell,
+    sync::Arc,
+};
 
 use gtk;
 use gtk::prelude::*;
 use gtk::{ButtonsType, MessageDialog, MessageType};
+use glib;
 
 use nvim_rs::Value;
-use crate::nvim::{NvimSession, SessionError, NeovimClient};
+use crate::nvim::{NvimSession, SessionError, NeovimClient, NormalError};
 use crate::shell::Shell;
 use crate::ui::{Components, UiMutex};
 
 pub fn can_close_window(
-    comps: &UiMutex<Components>,
-    shell: &RefCell<Shell>,
+    comps: &Arc<UiMutex<Components>>,
+    shell: &Rc<RefCell<Shell>>,
     nvim: &Rc<NeovimClient>
 ) -> bool {
-    let shell = shell.borrow();
+    if comps.borrow().exit_confirmed {
+        return true;
+    }
 
     if let Some(ref nvim) = nvim.nvim() {
         if nvim.is_blocked() {
@@ -25,7 +32,22 @@ pub fn can_close_window(
         match get_changed_buffers(nvim) {
             Ok(vec) => {
                 if !vec.is_empty() {
-                    show_not_saved_dlg(comps, &*shell, &vec)
+                    let comps = comps.clone();
+                    let shell = shell.clone();
+                    glib::MainContext::default().spawn_local(async move {
+                        let res = {
+                            let mut comps = comps.borrow_mut();
+                            let res = show_not_saved_dlg(&*comps, shell, &vec).await;
+
+                            comps.exit_confirmed = res;
+                            res
+                        };
+
+                        if res {
+                            comps.borrow().close_window();
+                        }
+                    });
+                    false
                 } else {
                     true
                 }
@@ -40,7 +62,11 @@ pub fn can_close_window(
     }
 }
 
-fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: &[String]) -> bool {
+async fn show_not_saved_dlg(
+    comps: &Components,
+    shell: Rc<RefCell<Shell>>,
+    changed_bufs: &[String]
+) -> bool {
     let mut changed_files = changed_bufs
         .iter()
         .map(|n| if n.is_empty() { "<No name>" } else { n })
@@ -49,7 +75,7 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
 
     let flags = gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT;
     let dlg = MessageDialog::new(
-        Some(comps.borrow().window()),
+        Some(comps.window()),
         flags,
         MessageType::Question,
         ButtonsType::None,
@@ -62,27 +88,30 @@ fn show_not_saved_dlg(comps: &UiMutex<Components>, shell: &Shell, changed_bufs: 
         ("_Cancel", gtk::ResponseType::Cancel),
     ]);
 
-    glib::MainContext::new().block_on(async move {
-        let res = match dlg.run_future().await {
-            gtk::ResponseType::Yes => {
-                let state = shell.state.borrow();
-                let nvim = state.nvim().unwrap();
-                match nvim.block_timeout(nvim.command("wa")) {
-                    Err(err) => {
-                        error!("Error: {}", err);
-                        false
-                    }
-                    _ => true,
+    let res = match dlg.run_future().await {
+        gtk::ResponseType::Yes => {
+            let nvim = shell.borrow().state.borrow().nvim().unwrap();
+
+            // FIXME: Figure out a way to use timeouts with nvim interactions when using glib for
+            // async execution, either that or just don't use timeouts
+            match nvim.command("wa").await {
+                Err(err) => {
+                    match NormalError::try_from(&*err) {
+                        Ok(err) => err.print(&nvim).await,
+                        Err(_) => error!("Error: {}", err),
+                    };
+                    false
                 }
+                _ => true,
             }
-            gtk::ResponseType::No => true,
-            gtk::ResponseType::Cancel | _ => false,
-        };
+        }
+        gtk::ResponseType::No => true,
+        gtk::ResponseType::Cancel | _ => false,
+    };
 
-        dlg.close();
+    dlg.close();
 
-        res
-    })
+    res
 }
 
 fn get_changed_buffers(nvim: &NvimSession) -> Result<Vec<String>, SessionError> {

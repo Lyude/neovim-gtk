@@ -78,7 +78,7 @@ impl<'a> Builder<'a> {
             }
         }));
 
-        glib::MainContext::new().block_on(async {
+        glib::MainContext::default().block_on(async {
             let res = if dlg.run_future().await == gtk::ResponseType::Ok {
                 let path = path_e.text().to_string();
                 let name = name_e.text();
