@@ -71,7 +71,8 @@ impl<'a> NormalError<'a> {
     /// Print an error message to neovim's message buffer, if we have one
     pub async fn print(&self, nvim: &NvimSession) {
         if let Self::Message { message, .. } = self {
-            if let Err(e) = nvim.timeout(nvim.err_writeln(message)).await {
+            // TODO: Figure out timeout situation, in the mean time just disable timeouts here
+            if let Err(e) = nvim.err_writeln(message).await {
                 error!("Failed to print error message \"{:?}\" in nvim: {}", self, e);
             }
         }

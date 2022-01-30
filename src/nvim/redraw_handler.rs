@@ -215,7 +215,7 @@ pub fn call_gui_request(
                             _ => ui.clipboard_clipboard.clone(),
                         }
                     };
-                    let t = glib::MainContext::new()
+                    let t = glib::MainContext::default()
                         .block_on(clipboard.read_text_future())
                         .unwrap_or(None)
                         .unwrap_or("".into());

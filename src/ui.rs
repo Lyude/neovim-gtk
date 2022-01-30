@@ -63,6 +63,7 @@ pub struct Components {
     window: Option<ApplicationWindow>,
     window_state: ToplevelState,
     title_label: Option<gtk::Label>,
+    pub exit_confirmed: bool,
 }
 
 impl Components {
@@ -71,6 +72,7 @@ impl Components {
             window: None,
             window_state: ToplevelState::load(),
             title_label: None,
+            exit_confirmed: false,
         }
     }
 
@@ -267,7 +269,7 @@ impl Ui {
         );
 
         window.connect_close_request(clone!(comps_ref, shell_ref => move |_| {
-            gtk_close_request(&*comps_ref, &*shell_ref)
+            gtk_close_request(&comps_ref, &shell_ref)
         }));
 
         shell.grab_focus();
@@ -604,16 +606,17 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.show();
 }
 
-fn gtk_close_request(comps: &UiMutex<Components>, shell: &RefCell<Shell>) -> Inhibit {
-    if !shell.borrow().is_nvim_initialized() {
+fn gtk_close_request(comps: &Arc<UiMutex<Components>>, shell: &Rc<RefCell<Shell>>) -> Inhibit {
+    let shell_ref = shell.borrow();
+    if !shell_ref.is_nvim_initialized() {
         return Inhibit(false);
     }
 
-    let nvim = shell.borrow().state.borrow().nvim_clone();
-    Inhibit(if shell_dlg::can_close_window(comps, shell, &nvim) {
+    let nvim = shell_ref.state.borrow().nvim_clone();
+    Inhibit(if shell_dlg::can_close_window(comps, &*shell, &nvim) {
         let comps = comps.borrow();
         comps.close_window();
-        shell.borrow_mut().detach_ui();
+        shell_ref.detach_ui();
         false
     } else {
         true

@@ -1130,7 +1130,7 @@ impl Shell {
             Some(&gdk::ContentFormats::new(&["text/uri-list"])),
             gdk::DragAction::COPY
         );
-        dnd_target.connect_accept(clone!(state_ref => move |controller, drop| {
+        dnd_target.connect_drop(clone!(state_ref => move |controller, drop, _, _| {
             let (nvim, action_widgets) = {
                 let state = state_ref.borrow();
                 let nvim = match state.nvim() {
@@ -1185,6 +1185,7 @@ impl Shell {
             });
             true
         }));
+        state.drawing_area.add_controller(&dnd_target);
     }
 
     fn create_context_menu(&self) -> gtk::PopoverMenu {
@@ -1232,7 +1233,7 @@ impl Shell {
         self.state.borrow().cd(path);
     }
 
-    pub fn detach_ui(&mut self) {
+    pub fn detach_ui(&self) {
         let state = self.state.borrow();
         let nvim_client = state.nvim.clone();
 
