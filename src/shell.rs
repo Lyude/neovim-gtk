@@ -788,13 +788,6 @@ impl State {
     }
 }
 
-#[derive(PartialEq)]
-enum MouseCursor {
-    None,
-    Text,
-    Default,
-}
-
 pub struct UiState {
     mouse_pressed: bool,
     scroll_delta: (f64, f64),
@@ -803,8 +796,6 @@ pub struct UiState {
     last_nvim_pos: (u64, u64),
     /// Last reported motion position
     last_pos: (f64, f64),
-
-    mouse_cursor: MouseCursor,
 }
 
 impl UiState {
@@ -814,26 +805,6 @@ impl UiState {
             scroll_delta: (0.0, 0.0),
             last_nvim_pos: (0, 0),
             last_pos: (0.0, 0.0),
-
-            mouse_cursor: MouseCursor::None,
-        }
-    }
-
-    fn apply_mouse_cursor(&mut self, cursor: MouseCursor, window: Option<gtk::Window>) {
-        if self.mouse_cursor == cursor {
-            return;
-        }
-
-        self.mouse_cursor = cursor;
-
-        if let Some(window) = window {
-            let cursor = match self.mouse_cursor {
-                MouseCursor::Default => "default",
-                MouseCursor::None => "none",
-                MouseCursor::Text => "text",
-            };
-
-            window.set_cursor(gdk::Cursor::from_name(cursor, None).as_ref());
         }
     }
 }
@@ -960,43 +931,35 @@ impl Shell {
         let state_ref = &self.state;
         let ui_state_ref = &self.ui_state;
 
-        fn get_window(controller: &impl glib::IsA<gtk::EventController>) -> Option<gtk::Window> {
-            controller.widget().root().map(|w| w.downcast().unwrap())
-        }
-
         let motion_controller = gtk::EventControllerMotion::new();
         motion_controller.connect_motion(clone!(
             state_ref, ui_state_ref => move |controller, x, y| {
-                let mut state = state_ref.borrow_mut();
-                let mut ui_state = ui_state_ref.borrow_mut();
-
-                ui_state.last_pos = (x, y);
                 gtk_motion_notify(
-                    &mut state,
-                    &mut ui_state,
+                    &mut *state_ref.borrow_mut(),
+                    &mut *ui_state_ref.borrow_mut(),
                     (x, y),
                     controller.current_event_state()
                 );
             }
         ));
-        motion_controller.connect_enter(clone!(ui_state_ref => move |controller, x, y| {
-            let mut ui_state = ui_state_ref.borrow_mut();
-            ui_state.apply_mouse_cursor(MouseCursor::Text, get_window(controller));
-            ui_state.last_pos = (x, y);
-        }));
-        motion_controller.connect_leave(clone!(ui_state_ref => move |controller| {
-            ui_state_ref.borrow_mut().apply_mouse_cursor(
-                MouseCursor::Default,
-                get_window(controller)
-            );
-        }));
+        motion_controller.connect_enter(clone!(
+            state_ref, ui_state_ref => move |controller, x, y| {
+                gtk_motion_notify(
+                    &mut *state_ref.borrow_mut(),
+                    &mut *ui_state_ref.borrow_mut(),
+                    (x, y),
+                    controller.current_event_state()
+                );
+            }
+        ));
         state.drawing_area.add_controller(&motion_controller);
 
         let key_controller = gtk::EventControllerKey::new();
         key_controller.set_im_context(&state.im_context);
         key_controller.connect_key_pressed(clone!(
-            state_ref => move |_, key, _, modifiers| {
+            state_ref => move |controller, key, _, modifiers| {
                 state_ref.borrow_mut().cursor.as_mut().unwrap().reset_state();
+                controller.widget().set_cursor(gdk::Cursor::from_name("none", None).as_ref());
 
                 match state_ref.borrow().nvim() {
                     Some(nvim) => input::gtk_key_press(&nvim, key, modifiers),
@@ -1004,9 +967,9 @@ impl Shell {
                 }
             }
         ));
-        key_controller.connect_key_released(clone!(ui_state_ref => move |controller, _, _, _| {
-            ui_state_ref.borrow_mut().apply_mouse_cursor(MouseCursor::None, get_window(controller));
-        }));
+        key_controller.connect_key_released(|controller, _, _, _| {
+            controller.widget().set_cursor(gdk::Cursor::from_name("none", None).as_ref());
+        });
         state.drawing_area.add_controller(&key_controller);
 
         fn get_button(controller: &gtk::GestureClick) -> u32
@@ -1093,6 +1056,7 @@ impl Shell {
                 gtk::Inhibit(false)
             }
         ));
+        // TODO: Figure out if we actually want this
         scroll_controller.connect_scroll_end(clone!(ui_state_ref => move |_| {
             // Clear accumulated scroll delta
             ui_state_ref.borrow_mut().scroll_delta = (0.0, 0.0);
@@ -1468,10 +1432,7 @@ fn gtk_motion_notify(
     }
 
     ui_state.last_pos = position;
-    ui_state.apply_mouse_cursor(
-        MouseCursor::Text,
-        shell.drawing_area.root().map(|r| r.downcast().unwrap()),
-    );
+    shell.drawing_area.set_cursor(gdk::Cursor::from_name("text", None).as_ref());
 }
 
 fn draw_content(state: &State, ctx: &cairo::Context) {
