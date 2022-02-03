@@ -8,7 +8,9 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{
+    Duration, Instant,
+};
 
 use futures::{FutureExt, executor::block_on};
 
@@ -868,13 +870,85 @@ impl ShellOptions {
         mem::take(&mut self.post_config_cmds)
     }
 }
+
 async fn gtk_drop_receive(drop: &gdk::Drop) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    Ok(
-        drop
-        .read_value_future(glib::ValueArray::static_type(), glib::PRIORITY_DEFAULT)
-        .await?
-        .get::<Vec<String>>()?
-    )
+    // Big fat hack: GDK language bindings for 4.x before 4.6 don't provide us with
+    // GDK_FILE_LIST_TYPE. Waiting for 4.6 would be lame and we're too cool for that, so let's just
+    // go hunt down the GType for it ourselves!
+    let file_list_type = drop
+        .formats()
+        .types()
+        .into_iter()
+        .find(|t| t.name() == "GdkFileList")
+        .expect("Failed to find GdkFileList GType")
+        .to_owned();
+
+    let value = drop.read_value_future(file_list_type, glib::PRIORITY_DEFAULT).await?;
+
+    // We won't have GdkFileList until 4.6, however we know that GdkFileList is just a boxed GSList
+    // type. So, use witch magic to extract the boxed GSList pointer ourselves.
+    let raw_value = value.into_raw();
+    let value = unsafe {
+        let value: *mut glib_sys::GSList =
+            gobject_sys::g_value_get_boxed(&raw_value) as *mut glib_sys::GSList;
+
+        glib::SList::<gio::File>::from_glib_full(value)
+    };
+
+    Ok(value.into_iter().map(|f| f.uri().to_string()).collect())
+}
+
+fn gtk_handle_drop(state: &State, context: &glib::MainContext, drop: &gdk::Drop) -> bool {
+    let nvim = match state.nvim() {
+        Some(nvim) => nvim,
+        None => return false,
+    };
+    let action_widgets = state.action_widgets();
+
+    action_widgets.borrow().as_ref().unwrap().set_enabled(false);
+
+    // TODO: Figure out timeout situation here
+    let drop = drop.clone();
+    context.spawn_local(async move {
+        let input = match gtk_drop_receive(&drop).await {
+            Ok(input) => input,
+            Err(e) => {
+                nvim.err_writeln(&format!("Drag and drop failed: {}", e))
+                    .await
+                    .report_err();
+                drop.finish(gdk::DragAction::empty());
+                action_widgets.borrow().as_ref().unwrap().set_enabled(true);
+                return;
+            },
+        };
+
+        match nvim.command(
+            input
+            .into_iter()
+            .filter_map(|uri| decode_uri(&uri))
+            .fold(
+                "ar".to_owned(),
+                |command, filename| format!("{} {}", command, escape_filename(&filename)),
+            )
+            .as_str()
+        ).await {
+            Err(e) => {
+                match NormalError::try_from(&*e) {
+                    Ok(e) => {
+                        if !e.has_code(325) {
+                            e.print(&nvim).await;
+                        }
+                    },
+                    Err(_) => e.print(),
+                };
+                drop.finish(gdk::DragAction::empty());
+            },
+            Ok(_) => drop.finish(gdk::DragAction::COPY),
+        };
+
+        action_widgets.borrow().as_ref().unwrap().set_enabled(true);
+    });
+    true
 }
 
 pub struct Shell {
@@ -967,9 +1041,6 @@ impl Shell {
                 }
             }
         ));
-        key_controller.connect_key_released(|controller, _, _, _| {
-            controller.widget().set_cursor(gdk::Cursor::from_name("none", None).as_ref());
-        });
         state.drawing_area.add_controller(&key_controller);
 
         fn get_button(controller: &gtk::GestureClick) -> u32
@@ -981,7 +1052,7 @@ impl Shell {
         }
 
         let menu = self.create_context_menu();
-        state.drawing_area.set_popover_menu(&menu);
+        state.drawing_area.set_context_menu(&menu);
         let click_controller = gtk::GestureClick::builder()
             .n_points(1)
             .button(0)
@@ -1056,12 +1127,17 @@ impl Shell {
                 gtk::Inhibit(false)
             }
         ));
-        // TODO: Figure out if we actually want this
-        scroll_controller.connect_scroll_end(clone!(ui_state_ref => move |_| {
-            // Clear accumulated scroll delta
-            ui_state_ref.borrow_mut().scroll_delta = (0.0, 0.0);
-        }));
         state.drawing_area.add_controller(&scroll_controller);
+
+        let context = glib::MainContext::default();
+        let dnd_target = gtk::DropTargetAsync::new(
+            Some(&gdk::ContentFormats::new(&["text/uri-list"])),
+            gdk::DragAction::COPY
+        );
+        dnd_target.connect_drop(clone!(state_ref => move |_, drop, _, _| {
+            gtk_handle_drop(&state_ref.borrow(), &context, drop)
+        }));
+        state.drawing_area.add_controller(&dnd_target);
 
         state.drawing_area.set_draw_func(
             clone!(state_ref => move |_, ctx, _, _| gtk_draw(&state_ref, ctx))
@@ -1088,68 +1164,6 @@ impl Shell {
         }));
 
         state.drawing_area.connect_map(clone!(state_ref => move |_| init_nvim(&state_ref)));
-
-        let context = glib::MainContext::default();
-        let dnd_target = gtk::DropTargetAsync::new(
-            Some(&gdk::ContentFormats::new(&["text/uri-list"])),
-            gdk::DragAction::COPY
-        );
-        dnd_target.connect_drop(clone!(state_ref => move |controller, drop, _, _| {
-            let (nvim, action_widgets) = {
-                let state = state_ref.borrow();
-                let nvim = match state.nvim() {
-                    Some(nvim) => nvim,
-                    None => return false,
-                };
-
-                (nvim, state.action_widgets())
-            };
-
-            action_widgets.borrow().as_ref().unwrap().set_enabled(false);
-
-            // TODO: Need to check that there's no data left after we've read (as it's probably less
-            // unpredictable to just reject the drop in that case, and maybe even print an errorr
-            let controller = controller.clone();
-            let drop = drop.clone();
-            context.spawn_local(async move {
-                let input = match gtk_drop_receive(&drop).await {
-                    Ok(input) => input,
-                    Err(e) => {
-                        nvim.timeout(nvim.err_writeln(&format!("Drag and drop failed: {}", e)))
-                            .await
-                            .report_err();
-                        controller.reject_drop(&drop);
-                        action_widgets.borrow().as_ref().unwrap().set_enabled(true);
-                        return;
-                    },
-                };
-
-                let res = nvim.command(
-                    input
-                    .into_iter()
-                    .filter_map(|uri| decode_uri(&uri))
-                    .fold(
-                        "ar".to_owned(),
-                        |command, filename| format!("{} {}", command, escape_filename(&filename)),
-                    )
-                    .as_str()
-                ).await;
-                if let Err(e) = res {
-                    match NormalError::try_from(&*e) {
-                        Ok(e) => {
-                            if !e.has_code(325) {
-                                e.print(&nvim).await;
-                            }
-                        },
-                        Err(_) => e.print(),
-                    };
-                };
-
-                action_widgets.borrow().as_ref().unwrap().set_enabled(true);
-            });
-            true
-        }));
-        state.drawing_area.add_controller(&dnd_target);
     }
 
     fn create_context_menu(&self) -> gtk::PopoverMenu {
@@ -1167,8 +1181,8 @@ impl Shell {
 
         let menu = gio::Menu::new();
         let section = gio::Menu::new();
-        section.append(Some("Copy"), Some("copy"));
-        section.append(Some("Paste"), Some("paste"));
+        section.append(Some("Copy"), Some("menu.copy"));
+        section.append(Some("Paste"), Some("menu.paste"));
         menu.append_section(None, &section);
 
         let popover = gtk::PopoverMenu::builder()
@@ -1176,6 +1190,12 @@ impl Shell {
             .menu_model(&menu)
             .build();
         popover.insert_action_group("menu", Some(&action_group));
+
+        popover.connect_closed(|popover| {
+            if let Some(drawing_area) = popover.parent() {
+                drawing_area.grab_focus();
+            }
+        });
 
         popover
     }

@@ -19,8 +19,8 @@ impl DrawingArea {
         glib::Object::new(&[]).expect("Failed to create NvimDrawingArea")
     }
 
-    pub fn set_popover_menu(&self, popover_menu: &gtk::PopoverMenu) {
-        self.set_property("popover-menu", popover_menu.to_value());
+    pub fn set_context_menu(&self, popover_menu: &gtk::PopoverMenu) {
+        self.set_property("context-menu", popover_menu.to_value());
     }
 
     pub fn set_completion_popover(&self, completion_popover: &gtk::Popover) {
@@ -30,7 +30,7 @@ impl DrawingArea {
 
 #[derive(Debug, Default)]
 pub struct DrawingAreaImpl {
-    popover_menu: glib::WeakRef<gtk::PopoverMenu>,
+    context_menu: glib::WeakRef<gtk::PopoverMenu>,
     completion_popover: glib::WeakRef<gtk::Popover>,
 }
 
@@ -43,7 +43,7 @@ impl ObjectSubclass for DrawingAreaImpl {
 
 impl ObjectImpl for DrawingAreaImpl {
     fn dispose(&self, _obj: &Self::Type) {
-        if let Some(popover_menu) = self.popover_menu.upgrade() {
+        if let Some(popover_menu) = self.context_menu.upgrade() {
             popover_menu.unparent();
         }
         if let Some(completion_popover) = self.completion_popover.upgrade() {
@@ -55,7 +55,7 @@ impl ObjectImpl for DrawingAreaImpl {
         lazy_static! {
             static ref PROPERTIES: Vec<glib::ParamSpec> = vec![
                 glib::ParamSpecObject::new(
-                    "popover-menu",
+                    "context-menu",
                     "Popover menu",
                     "PopoverMenu to use as the context menu",
                     gtk::PopoverMenu::static_type(),
@@ -82,14 +82,14 @@ impl ObjectImpl for DrawingAreaImpl {
         pspec: &glib::ParamSpec
     ) {
         match pspec.name() {
-            "popover-menu" => {
-                if let Some(popover_menu) = self.popover_menu.upgrade() {
-                    popover_menu.unparent();
+            "context-menu" => {
+                if let Some(context_menu) = self.context_menu.upgrade() {
+                    context_menu.unparent();
                 }
-                let popover_menu: gtk::PopoverMenu = value.get().unwrap();
+                let context_menu: gtk::PopoverMenu = value.get().unwrap();
 
-                popover_menu.set_parent(obj);
-                self.popover_menu.set(Some(&popover_menu));
+                context_menu.set_parent(obj);
+                self.context_menu.set(Some(&context_menu));
             },
             "completion-popover" => {
                 if let Some(popover) = self.completion_popover.upgrade() {
@@ -106,7 +106,7 @@ impl ObjectImpl for DrawingAreaImpl {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
-            "popover-menu" => self.popover_menu.upgrade().to_value(),
+            "context-menu" => self.context_menu.upgrade().to_value(),
             "completion-popover" => self.completion_popover.upgrade().to_value(),
             _ => unimplemented!(),
         }
@@ -116,7 +116,7 @@ impl ObjectImpl for DrawingAreaImpl {
 impl WidgetImpl for DrawingAreaImpl {
     fn size_allocate(&self, widget: &Self::Type, width: i32, height: i32, baseline: i32) {
         self.parent_size_allocate(widget, width, height, baseline);
-        self.popover_menu.upgrade().unwrap().present();
+        self.context_menu.upgrade().unwrap().present();
         self.completion_popover.upgrade().unwrap().present();
     }
 }
