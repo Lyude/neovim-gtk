@@ -8,9 +8,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::{
-    Duration, Instant,
-};
+use std::time::Duration;
 
 use futures::{FutureExt, executor::block_on};
 

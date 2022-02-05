@@ -36,7 +36,6 @@ impl State {
     pub fn new() -> Self {
         let tree = gtk::TreeView::builder()
             .headers_visible(false)
-            .focusable(false)
             .build();
         tree.selection().set_mode(gtk::SelectionMode::Single);
         let css_provider = gtk::CssProvider::new();
@@ -77,7 +76,6 @@ impl State {
             .wrap(true)
             .visible(true)
             .selectable(true)
-            .focusable(false)
             .vexpand(true)
             .xalign(0.0)
             .yalign(0.0)
@@ -92,7 +90,7 @@ impl State {
             .propagate_natural_height(true)
             .max_content_height(175)
             .child(&info_label)
-            .focusable(false)
+            .can_focus(false)
             .build();
 
         State {
@@ -296,6 +294,8 @@ impl PopupMenu {
         }));
         state_ref.tree.add_controller(&button_controller);
 
+        // TODO: Do we want to pass through keypresses with focus, or do we want to just avoid
+        // taking focus in the first place?
         let key_controller = gtk::EventControllerKey::new();
         key_controller.connect_key_pressed(clone!(state => move |_, key, _, modifiers| {
             let state = state.borrow();
