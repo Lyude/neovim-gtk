@@ -74,7 +74,6 @@ impl State {
 
         let info_label = gtk::Label::builder()
             .wrap(true)
-            .visible(true)
             .selectable(true)
             .vexpand(true)
             .xalign(0.0)
