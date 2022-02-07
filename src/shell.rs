@@ -1357,7 +1357,9 @@ fn gtk_button_press(
     menu: &gtk::PopoverMenu,
 ) {
     if shell.mouse_enabled {
-        ui_state.borrow_mut().mouse_pressed = true;
+        if button != 3 {
+            ui_state.borrow_mut().mouse_pressed = true;
+        }
 
         match button {
             1 => mouse_input(shell, "left", "press", modifier_state, (x, y)),
@@ -1419,13 +1421,15 @@ fn gtk_button_release(
     y: f64,
     modifier_state: ModifierType,
 ) {
-    ui_state.mouse_pressed = false;
+    if button != 3 {
+        ui_state.mouse_pressed = false;
+    }
 
     if shell.mouse_enabled && !shell.nvim.is_initializing() {
         match button {
             1 => mouse_input(shell, "left", "release", modifier_state, (x, y)),
             2 => mouse_input(shell, "middle", "release", modifier_state, (x, y)),
-            3 => mouse_input(shell, "right", "release", modifier_state, (x, y)),
+            // We don't handle 3 here since that's used for the right click context menu
             _ => (),
         }
     }
