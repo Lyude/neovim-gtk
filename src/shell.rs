@@ -1083,7 +1083,7 @@ impl Shell {
 
         let long_tap_controller = gtk::GestureLongPress::builder()
             .n_points(1)
-            .button(0)
+            .touch_only(true)
             .build();
         long_tap_controller.connect_pressed(clone!(
             state_ref, ui_state_ref => move |controller, x, y| {
