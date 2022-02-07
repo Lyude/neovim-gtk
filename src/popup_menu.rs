@@ -12,7 +12,6 @@ use gtk::prelude::*;
 use pango;
 
 use crate::highlight::HighlightMap;
-use crate::input;
 use crate::nvim::{self, NvimSession, ErrorReport, NeovimClient};
 use crate::render;
 
@@ -89,7 +88,6 @@ impl State {
             .propagate_natural_height(true)
             .max_content_height(175)
             .child(&info_label)
-            .can_focus(false)
             .build();
 
         State {
@@ -272,7 +270,8 @@ impl PopupMenu {
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let popover = gtk::Popover::builder()
-            .autohide(true)
+            .autohide(false)
+            .can_focus(false)
             .child(&content)
             .build();
 
@@ -292,19 +291,6 @@ impl PopupMenu {
             }
         }));
         state_ref.tree.add_controller(&button_controller);
-
-        // TODO: Do we want to pass through keypresses with focus, or do we want to just avoid
-        // taking focus in the first place?
-        let key_controller = gtk::EventControllerKey::new();
-        key_controller.connect_key_pressed(clone!(state => move |_, key, _, modifiers| {
-            let state = state.borrow();
-            let nvim = state.nvim.as_ref().unwrap().nvim();
-            match nvim {
-                Some(nvim) => input::gtk_key_press(&nvim, key, modifiers),
-                None => gtk::Inhibit(false),
-            }
-        }));
-        state_ref.tree.add_controller(&key_controller);
 
         drop(state_ref);
         PopupMenu {
