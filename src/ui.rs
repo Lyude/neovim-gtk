@@ -460,12 +460,12 @@ impl Ui {
         let header_bar_title = gtk::Label::builder()
             .css_classes(vec!["title".to_string()])
             .vexpand(true)
-            .valign(gtk::Align::End)
+            .valign(gtk::Align::Center)
             .build();
         let header_bar_subtitle = gtk::Label::builder()
             .css_classes(vec!["subtitle".to_string()])
             .vexpand(true)
-            .valign(gtk::Align::Start)
+            .valign(gtk::Align::Center)
             .build();
         let header_bar_box = gtk::Box::builder()
             .orientation(Orientation::Vertical)
@@ -587,6 +587,22 @@ impl Ui {
         app.add_action(&plugs_action);
 
         btn.set_menu_model(Some(&menu));
+
+        let shell = &self.shell;
+        btn.connect_realize(clone!(shell => move |btn| {
+            let drawing_area = shell.borrow().state.borrow().drawing_area.clone();
+
+            btn
+                .popover()
+                .unwrap()
+                .downcast_ref::<gtk::Popover>()
+                .unwrap()
+                .connect_closed(move |_| {
+                    drawing_area.grab_focus();
+                });
+            }
+        ));
+
         btn
     }
 }
@@ -599,10 +615,8 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.set_logo_icon_name(Some("org.daa.NeovimGtk"));
     about.set_authors(env!("CARGO_PKG_AUTHORS").split(":").collect::<Vec<_>>().as_slice());
     about.set_comments(Some(misc::about_comments().as_str()));
+    about.set_modal(true);
 
-    // TODO: Figure out if we need to rework this to GTK4, since GtkAboutDialog longer derives
-    // from GtkDialog
-    //about.connect_response(|about, _| about.close());
     about.show();
 }
 

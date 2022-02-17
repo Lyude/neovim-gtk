@@ -35,6 +35,8 @@ impl State {
     pub fn new() -> Self {
         let tree = gtk::TreeView::builder()
             .headers_visible(false)
+            .enable_search(false)
+            .fixed_height_mode(true)
             .build();
         tree.selection().set_mode(gtk::SelectionMode::Single);
         let css_provider = gtk::CssProvider::new();
@@ -46,19 +48,25 @@ impl State {
         renderer.set_ellipsize(pango::EllipsizeMode::End);
 
         // word
-        let word_column = gtk::TreeViewColumn::new();
+        let word_column = gtk::TreeViewColumn::builder()
+            .sizing(gtk::TreeViewColumnSizing::Fixed)
+            .build();
         word_column.pack_start(&renderer, true);
         word_column.add_attribute(&renderer, "text", 0);
         tree.append_column(&word_column);
 
         // kind
-        let kind_column = gtk::TreeViewColumn::new();
+        let kind_column = gtk::TreeViewColumn::builder()
+            .sizing(gtk::TreeViewColumnSizing::Fixed)
+            .build();
         kind_column.pack_start(&renderer, true);
         kind_column.add_attribute(&renderer, "text", 1);
         tree.append_column(&kind_column);
 
         // menu
-        let menu_column = gtk::TreeViewColumn::new();
+        let menu_column = gtk::TreeViewColumn::builder()
+            .sizing(gtk::TreeViewColumnSizing::Fixed)
+            .build();
         menu_column.pack_start(&renderer, true);
         menu_column.add_attribute(&renderer, "text", 2);
         tree.append_column(&menu_column);
