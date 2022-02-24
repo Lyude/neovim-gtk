@@ -45,8 +45,8 @@ TODO
 ## Linux
 First install the GTK development packages. On Debian/Ubuntu derivatives
 this can be done as follows:
-``` shell
-apt install libgtk-3-dev
+```shell
+apt install libgtk-4-dev
 ```
 
 On Fedora:
