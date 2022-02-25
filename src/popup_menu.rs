@@ -281,17 +281,8 @@ impl PopupMenu {
             .autohide(false)
             .can_focus(false)
             .child(&content)
+            .css_classes(vec!["background".into(), "nvim-completion".into()])
             .build();
-
-        // Remove borders around content
-        let css_provider = gtk::CssProvider::new();
-        popover
-            .style_context()
-            .add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
-
-        css_provider.load_from_data(
-            b"popover.background > contents { padding: 2px; }"
-        );
 
         content.append(&state.item_scroll);
         content.append(&state.info_scroll);

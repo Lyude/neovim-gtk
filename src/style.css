@@ -1,0 +1,7 @@
+/* CSS stylings for neovim-gtk that need to be applied globally to work */
+popover.nvim-completion > contents {
+    padding: 3px;
+}
+
+/* vim: colorcolumn=100 tw=100 ts=4 sts=4 sw=4 expandtab :
+ */

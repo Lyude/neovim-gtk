@@ -168,6 +168,15 @@ fn main() {
         0
     });
 
+    // Setup our global style provider
+    let css_provider = gtk::CssProvider::new();
+    css_provider.load_from_data(include_bytes!("style.css"));
+    gtk::StyleContext::add_provider_for_display(
+        gdk::Display::default().as_ref().expect("Cannot find default GDK Display"),
+        &css_provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+
     let app_ref = app.clone();
     let matches_copy = matches.clone();
     let app_cmdline_copy = Arc::clone(&app_cmdline);
