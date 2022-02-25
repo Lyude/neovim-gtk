@@ -39,8 +39,8 @@ impl State {
             .fixed_height_mode(true)
             .build();
         tree.selection().set_mode(gtk::SelectionMode::Single);
-        let css_provider = gtk::CssProvider::new();
 
+        let css_provider = gtk::CssProvider::new();
         let style_context = tree.style_context();
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
@@ -282,6 +282,16 @@ impl PopupMenu {
             .can_focus(false)
             .child(&content)
             .build();
+
+        // Remove borders around content
+        let css_provider = gtk::CssProvider::new();
+        popover
+            .style_context()
+            .add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+        css_provider.load_from_data(
+            b"popover.background > contents { padding: 2px; }"
+        );
 
         content.append(&state.item_scroll);
         content.append(&state.info_scroll);

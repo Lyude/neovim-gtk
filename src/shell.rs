@@ -790,6 +790,8 @@ impl State {
 
 pub struct UiState {
     mouse_pressed: bool,
+    cursor_visible: Option<bool>,
+
     scroll_delta: (f64, f64),
 
     /// Last reported editor position (col, row)
@@ -802,10 +804,28 @@ impl UiState {
     pub fn new() -> UiState {
         UiState {
             mouse_pressed: false,
+            cursor_visible: None,
             scroll_delta: (0.0, 0.0),
             last_nvim_pos: (0, 0),
             last_pos: (0.0, 0.0),
         }
+    }
+
+    /// Set whether or not the cursor for the drawing area is visible. We cache this in UiState
+    /// since otherwise we'd end up creating a new cursor every single time we receive a motion
+    /// event
+    fn set_cursor_visible(&mut self, drawing_area: &DrawingArea, visible: bool) {
+        if Some(visible) == self.cursor_visible {
+            return;
+        }
+
+        self.cursor_visible = Some(visible);
+        let cursor = match visible {
+            true => "text",
+            false => "none",
+        };
+
+        drawing_area.set_cursor(gdk::Cursor::from_name(cursor, None).as_ref());
     }
 }
 
@@ -978,7 +998,9 @@ impl Shell {
     pub fn init(&mut self, app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>) {
         self.state.borrow_mut().app_cmdline = app_cmdline.clone();
 
-        let state = self.state.borrow();
+        let state_ref = &self.state;
+        let ui_state_ref = &self.ui_state;
+        let state = state_ref.borrow();
 
         state.drawing_area.set_hexpand(true);
         state.drawing_area.set_vexpand(true);
@@ -998,9 +1020,6 @@ impl Shell {
         state.stack.add_named(&*state.error_area, Some("Error"));
 
         self.widget.append(&state.stack);
-
-        let state_ref = &self.state;
-        let ui_state_ref = &self.ui_state;
 
         let motion_controller = gtk::EventControllerMotion::new();
         motion_controller.connect_motion(clone!(
@@ -1028,11 +1047,12 @@ impl Shell {
         let key_controller = gtk::EventControllerKey::new();
         key_controller.set_im_context(&state.im_context);
         key_controller.connect_key_pressed(clone!(
-            state_ref => move |controller, key, _, modifiers| {
-                state_ref.borrow_mut().cursor.as_mut().unwrap().reset_state();
-                controller.widget().set_cursor(gdk::Cursor::from_name("none", None).as_ref());
+            ui_state_ref, state_ref => move |_, key, _, modifiers| {
+                let mut state = state_ref.borrow_mut();
+                state.cursor.as_mut().unwrap().reset_state();
+                ui_state_ref.borrow_mut().set_cursor_visible(&state.drawing_area, false);
 
-                match state_ref.borrow().nvim() {
+                match state.nvim() {
                     Some(nvim) => input::gtk_key_press(&nvim, key, modifiers),
                     None => gtk::Inhibit(false),
                 }
@@ -1152,7 +1172,12 @@ impl Shell {
 
         state
             .im_context
-            .connect_commit(clone!(state_ref => move |_, ch| state_ref.borrow().im_commit(ch)));
+            .connect_commit(clone!(ui_state_ref, state_ref => move |_, ch| {
+                let state = state_ref.borrow();
+
+                ui_state_ref.borrow_mut().set_cursor_visible(&state.drawing_area, false);
+                state.im_commit(ch);
+            }));
 
         state.drawing_area.connect_resize(clone!(state_ref => move |_, w, h| {
             debug!("Resize event {}x{}", w, h);
@@ -1453,7 +1478,7 @@ fn gtk_motion_notify(
     }
 
     ui_state.last_pos = position;
-    shell.drawing_area.set_cursor(gdk::Cursor::from_name("text", None).as_ref());
+    ui_state.set_cursor_visible(&shell.drawing_area, true);
 }
 
 fn draw_content(state: &State, ctx: &cairo::Context) {
