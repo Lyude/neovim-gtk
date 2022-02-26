@@ -269,7 +269,7 @@ fn draw_cell(
     } = row_view;
 
     for item in &*line.item_line[col] {
-        if let Some(ref glyphs) = item.glyphs {
+        if let Some(glyphs) = item.glyphs() {
             let fg = hl.actual_cell_fg(cell).inverse(inverse_level);
 
             ctx.move_to(line_x, line_y + ascent);

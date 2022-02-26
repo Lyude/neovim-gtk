@@ -6,7 +6,7 @@ use pango;
 pub struct Item {
     pub item: pango::Item,
     pub cells_count: usize,
-    pub glyphs: Option<pango::GlyphString>,
+    glyphs: Option<pango::GlyphString>,
     pub ink_overflow: Option<InkOverflow>,
     font: pango::Font,
 }
@@ -22,6 +22,10 @@ impl Item {
             glyphs: None,
             ink_overflow: None,
         }
+    }
+
+    pub fn glyphs(&self) -> Option<&pango::GlyphString> {
+        self.glyphs.as_ref()
     }
 
     pub fn set_glyphs(&mut self, ctx: &render::Context, glyphs: pango::GlyphString) {
