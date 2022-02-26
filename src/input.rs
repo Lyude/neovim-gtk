@@ -7,6 +7,8 @@ use std::env;
 
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
+const NVIM_GTK_CMD_AS_META: &str = "NVIM_GTK_CMD_AS_META";
+
 pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> String {
     let mut val = in_str;
     let mut state = in_state;
@@ -17,7 +19,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     }
 
     // Use the Command key on macOS as Meta/Alt
-    let cmd_as_meta = env::var("NVIM_GTK_CMD_AS_META")
+    let cmd_as_meta = env::var(NVIM_GTK_CMD_AS_META)
         .map(|opt| opt.trim() == "1")
         .unwrap_or(false);
 
@@ -128,6 +130,10 @@ mod tests {
             }
         }
 
+        let orig = env::var(NVIM_GTK_CMD_AS_META);
+
+        env::set_var(NVIM_GTK_CMD_AS_META, "0");
+
         test! {
             "a" == "a";
             "" == "";
@@ -142,6 +148,18 @@ mod tests {
             "6", CONTROL_MASK | MOD1_MASK == "<C-A-6>";
             "2", CONTROL_MASK == "<C-@>";
             "2", CONTROL_MASK | MOD1_MASK == "<C-A-2>";
+            "j", MOD2_MASK == "j";
+        }
+
+        env::set_var(NVIM_GTK_CMD_AS_META, "1");
+
+        test! {
+            "k" == "k";
+            "j", MOD2_MASK == "<A-j>";
+        }
+
+        if let Ok(orig) = orig {
+            env::set_var(NVIM_GTK_CMD_AS_META, orig);
         }
     }
 }
