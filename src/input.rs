@@ -1,9 +1,9 @@
-
-use gtk::prelude::*;
+use crate::nvim::{ErrorReport, NvimSession};
 use gdk;
 use gdk::EventKey;
+use gtk::prelude::*;
 use phf;
-use crate::nvim::{NvimSession, ErrorReport};
+use std::env;
 
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
@@ -16,9 +16,16 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
         debug!("keyval -> {}", in_str);
     }
 
+    // Use the Command key on macOS as Meta/Alt
+    let cmd_as_meta = env::var("NVIM_GTK_CMD_AS_META")
+        .map(|opt| opt.trim() == "1")
+        .unwrap_or(false);
+
     // CTRL-^ and CTRL-@ don't work in the normal way.
-    if state.contains(gdk::ModifierType::CONTROL_MASK) && !state.contains(gdk::ModifierType::SHIFT_MASK) &&
-        !state.contains(gdk::ModifierType::MOD1_MASK)
+    if state.contains(gdk::ModifierType::CONTROL_MASK)
+        && !state.contains(gdk::ModifierType::SHIFT_MASK)
+        && !state.contains(gdk::ModifierType::MOD1_MASK)
+        && !state.contains(gdk::ModifierType::MOD2_MASK)
     {
         if val == "6" {
             val = "^";
@@ -49,7 +56,9 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     if state.contains(gdk::ModifierType::CONTROL_MASK) {
         mod_chars.push("C");
     }
-    if state.contains(gdk::ModifierType::MOD1_MASK) {
+    if state.contains(gdk::ModifierType::MOD1_MASK)
+        || (cmd_as_meta && state.contains(gdk::ModifierType::MOD2_MASK))
+    {
         mod_chars.push("A");
     }
 
@@ -84,22 +93,17 @@ pub fn im_input(nvim: &NvimSession, input: &str) {
 
     let input: String = input
         .chars()
-        .map(|ch| {
-            keyval_to_input_string(&ch.to_string(), gdk::ModifierType::empty())
-        })
+        .map(|ch| keyval_to_input_string(&ch.to_string(), gdk::ModifierType::empty()))
         .collect();
-    nvim
-        .block_timeout(nvim.input(&input))
+    nvim.block_timeout(nvim.input(&input))
         .ok_and_report()
         .expect("Failed to send input command to nvim");
 }
 
-pub fn gtk_key_press(nvim: &NvimSession, ev: &EventKey)
-    -> Inhibit {
+pub fn gtk_key_press(nvim: &NvimSession, ev: &EventKey) -> Inhibit {
     if let Some(input) = convert_key(ev) {
         debug!("nvim_input -> {}", input);
-        nvim
-            .block_timeout(nvim.input(&input))
+        nvim.block_timeout(nvim.input(&input))
             .ok_and_report()
             .expect("Failed to send input command to nvim");
         Inhibit(true)
