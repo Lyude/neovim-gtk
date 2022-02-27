@@ -50,8 +50,8 @@ apt install libgtk-4-dev
 ```
 
 On Fedora:
-```bash
-dnf install atk-devel cairo-devel gdk-pixbuf2-devel glib2-devel gtk3-devel pango-devel
+```shell
+dnf install atk-devel cairo-devel gdk-pixbuf2-devel glib2-devel gtk4-devel pango-devel
 ```
 
 Then install the latest rust compiler, best with the
