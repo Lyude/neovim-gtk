@@ -1,9 +1,12 @@
-use crate::nvim::{ErrorReport, NvimSession};
+use std::env;
+
 use gdk;
 use gdk::EventKey;
 use gtk::prelude::*;
+use lazy_static::lazy_static;
 use phf;
-use std::env;
+
+use crate::nvim::{ErrorReport, NvimSession};
 
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
 
@@ -18,16 +21,10 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
         debug!("keyval -> {}", in_str);
     }
 
-    // Use the Command key on macOS as Meta/Alt
-    let cmd_as_meta = env::var(NVIM_GTK_CMD_AS_META)
-        .map(|opt| opt.trim() == "1")
-        .unwrap_or(false);
-
     // CTRL-^ and CTRL-@ don't work in the normal way.
     if state.contains(gdk::ModifierType::CONTROL_MASK)
         && !state.contains(gdk::ModifierType::SHIFT_MASK)
         && !state.contains(gdk::ModifierType::MOD1_MASK)
-        && !state.contains(gdk::ModifierType::MOD2_MASK)
     {
         if val == "6" {
             val = "^";
@@ -58,9 +55,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     if state.contains(gdk::ModifierType::CONTROL_MASK) {
         mod_chars.push("C");
     }
-    if state.contains(gdk::ModifierType::MOD1_MASK)
-        || (cmd_as_meta && state.contains(gdk::ModifierType::MOD2_MASK))
-    {
+    if state.contains(gdk::ModifierType::MOD1_MASK) {
         mod_chars.push("A");
     }
 
@@ -74,9 +69,37 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     }
 }
 
+#[derive(Default)]
+pub struct ModifierOptions {
+    cmd_as_meta: bool,
+}
+
+pub fn modify_modifiers(
+    in_state: gdk::ModifierType,
+    options: &ModifierOptions,
+) -> gdk::ModifierType {
+    let mut state = in_state;
+
+    if options.cmd_as_meta && state.contains(gdk::ModifierType::MOD2_MASK) {
+        state.remove(gdk::ModifierType::MOD2_MASK);
+        state.insert(gdk::ModifierType::MOD1_MASK);
+    }
+
+    state
+}
+
 pub fn convert_key(ev: &EventKey) -> Option<String> {
+    lazy_static! {
+        static ref MODIFIER_OPTIONS: ModifierOptions = ModifierOptions {
+            cmd_as_meta: env::var(NVIM_GTK_CMD_AS_META)
+                .map(|opt| opt.trim() == "1")
+                .unwrap_or(false)
+        };
+    }
+
     let keyval = ev.keyval();
-    let state = ev.state();
+    let state = modify_modifiers(ev.state(), &MODIFIER_OPTIONS);
+
     if let Some(ref keyval_name) = keyval.name() {
         if let Some(cnvt) = KEYVAL_MAP.get(keyval_name.as_str()).cloned() {
             return Some(keyval_to_input_string(cnvt, state));
@@ -130,10 +153,6 @@ mod tests {
             }
         }
 
-        let orig = env::var(NVIM_GTK_CMD_AS_META);
-
-        env::set_var(NVIM_GTK_CMD_AS_META, "0");
-
         test! {
             "a" == "a";
             "" == "";
@@ -150,16 +169,32 @@ mod tests {
             "2", CONTROL_MASK | MOD1_MASK == "<C-A-2>";
             "j", MOD2_MASK == "j";
         }
+    }
 
-        env::set_var(NVIM_GTK_CMD_AS_META, "1");
+    #[test]
+    fn test_cmd_as_meta() {
+        let options = ModifierOptions { cmd_as_meta: true };
 
-        test! {
-            "k" == "k";
-            "j", MOD2_MASK == "<A-j>";
-        }
-
-        if let Ok(orig) = orig {
-            env::set_var(NVIM_GTK_CMD_AS_META, orig);
-        }
+        assert_eq!(
+            keyval_to_input_string("k", modify_modifiers(gdk::ModifierType::empty(), &options)),
+            "k"
+        );
+        assert_eq!(
+            keyval_to_input_string(
+                "j",
+                modify_modifiers(gdk::ModifierType::MOD2_MASK, &options)
+            ),
+            "<A-j>"
+        );
+        assert_eq!(
+            keyval_to_input_string(
+                "l",
+                modify_modifiers(
+                    gdk::ModifierType::MOD2_MASK | gdk::ModifierType::SHIFT_MASK,
+                    &options
+                )
+            ),
+            "<S-A-l>"
+        );
     }
 }
