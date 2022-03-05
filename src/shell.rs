@@ -38,6 +38,8 @@ use pangocairo;
 
 use nvim_rs::Value;
 
+use lazy_static::lazy_static;
+
 use crate::color::{Color, COLOR_BLACK, COLOR_WHITE};
 use crate::grid::GridMap;
 use crate::highlight::{HighlightMap, BackgroundState};
@@ -51,12 +53,13 @@ use crate::ui_model::ModelRect;
 use crate::{spawn_timeout, spawn_timeout_user_err};
 
 use crate::cmd_line::{CmdLine, CmdLineContext};
-use crate::cursor::{BlinkCursor, Cursor, CursorRedrawCb};
+use crate::cursor::{BlinkCursor, Cursor, CursorRedrawCb, EmptyCursor};
 use crate::drawing_area::DrawingArea;
 use crate::error;
 use crate::input;
 use crate::input::keyval_to_input_string;
 use crate::mode;
+use crate::nvim_viewport::NvimViewport;
 use crate::popup_menu::{self, PopupMenu};
 use crate::render;
 use crate::render::CellMetrics;
@@ -209,7 +212,7 @@ impl ActionWidgets {
 }
 
 pub struct State {
-    pub grids: GridMap,
+    pub grids: Rc<RefCell<GridMap>>,
 
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
@@ -217,7 +220,7 @@ pub struct State {
     popup_menu: PopupMenu,
     cmd_line: CmdLine,
     settings: Rc<RefCell<Settings>>,
-    render_state: Rc<RefCell<RenderState>>,
+    pub render_state: Rc<RefCell<RenderState>>,
 
     resize_status: Arc<ResizeState>,
     focus_state: Arc<AsyncMutex<FocusState>>,
@@ -226,7 +229,7 @@ pub struct State {
     pub clipboard_primary: gdk::Clipboard,
 
     stack: gtk::Stack,
-    pub drawing_area: DrawingArea,
+    pub nvim_viewport: NvimViewport,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
@@ -248,9 +251,9 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions)
         -> State {
-        let drawing_area = DrawingArea::new();
+        let nvim_viewport = NvimViewport::new();
 
-        let pango_context = drawing_area.create_pango_context();
+        let pango_context = nvim_viewport.create_pango_context();
         pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
 
         let mut render_state = RenderState::new(pango_context);
@@ -258,12 +261,12 @@ impl State {
         let render_state = Rc::new(RefCell::new(render_state));
 
         let popup_menu = PopupMenu::new();
-        let cmd_line = CmdLine::new(&drawing_area, render_state.clone());
+        let cmd_line = CmdLine::new(&nvim_viewport, render_state.clone());
 
         let display = Display::default().unwrap();
 
         State {
-            grids: GridMap::new(),
+            grids: Rc::new(RefCell::new(GridMap::new())),
             nvim: Rc::new(NeovimClient::new()),
             mouse_enabled: true,
             cursor: None,
@@ -291,7 +294,7 @@ impl State {
 
             // UI
             stack: gtk::Stack::new(),
-            drawing_area,
+            nvim_viewport: nvim_viewport,
             tabs: Tabline::new(),
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
@@ -385,14 +388,14 @@ impl State {
             return;
         }
 
-        let pango_context = self.drawing_area.create_pango_context();
+        let pango_context = self.nvim_viewport.create_pango_context();
         pango_context.set_font_description(&font_description);
 
         self.render_state
             .borrow_mut()
             .font_ctx
             .update(pango_context);
-        self.grids.clear_glyphs();
+        self.grids.borrow_mut().clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
     }
@@ -404,7 +407,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update_font_features(font_features);
-        self.grids.clear_glyphs();
+        self.grids.borrow_mut().clear_glyphs();
         self.on_redraw(&RepaintMode::All);
     }
 
@@ -421,7 +424,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update_line_space(line_space);
-        self.grids.clear_glyphs();
+        self.grids.borrow_mut().clear_glyphs();
         self.try_nvim_resize();
         self.on_redraw(&RepaintMode::All);
     }
@@ -441,6 +444,10 @@ impl State {
         self.on_redraw(&RepaintMode::All);
 
         self.transparency_settings.enabled
+    }
+
+    pub fn transparency(&self) -> &TransparencySettings {
+        &self.transparency_settings
     }
 
     pub fn set_cursor_blink(&mut self, val: i32) {
@@ -513,35 +520,37 @@ impl State {
 
         // TODO: Replace drawing_area with a custom widget that supports partial screen redraws with
         // cairo
-        let rects: Vec<_> = rect_list
-            .iter()
-            .map(|rect| rect.as_ref().clone())
-            .map(|mut rect| {
-                rect.extend_by_items(self.grids.current_model());
-                rect
-            })
-            .collect();
+        //let rects: Vec<_> = rect_list
+            //.iter()
+            //.map(|rect| rect.as_ref().clone())
+            //.map(|mut rect| {
+                //rect.extend_by_items(self.grids.current_model());
+                //rect
+            //})
+            //.collect();
 
-        self.update_dirty_glyphs();
+        //self.update_dirty_glyphs();
 
-        let render_state = self.render_state.borrow();
-        let cell_metrics = render_state.font_ctx.cell_metrics();
+        //let render_state = self.render_state.borrow();
+        //let cell_metrics = render_state.font_ctx.cell_metrics();
 
-        for mut rect in rects {
-            rect.extend_by_items(self.grids.current_model());
+        self.nvim_viewport.queue_draw();
 
-            let (x, y, width, height) =
-                rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
-            // TODO: Replace drawing_area with a custom widget that supports partial screen redraws
-            // with cairo
-            //self.drawing_area.queue_draw_area(x, y, width, height);
-            self.drawing_area.queue_draw();
-        }
+        //for mut rect in rects {
+            //rect.extend_by_items(self.grids.current_model());
+
+            //let (x, y, width, height) =
+                //rect.to_area_extend_ink(self.grids.current_model(), cell_metrics);
+            //// TODO: Replace drawing_area with a custom widget that supports partial screen redraws
+            //// with cairo
+            ////self.drawing_area.queue_draw_area(x, y, width, height);
+            //self.drawing_area.queue_draw();
+        //}
     }
 
     fn update_dirty_glyphs(&mut self) {
         let render_state = self.render_state.borrow();
-        if let Some(model) = self.grids.current_model_mut() {
+        if let Some(model) = self.grids.borrow_mut().current_model_mut() {
             render::shape_dirty(&render_state.font_ctx, model, &render_state.hl);
         }
     }
@@ -558,7 +567,7 @@ impl State {
             char_width,
             ..
         } = self.render_state.borrow().font_ctx.cell_metrics();
-        let alloc = self.drawing_area.allocation();
+        let alloc = self.nvim_viewport.allocation();
         // SAFETY: We clamp w to 1 and h to 3
         unsafe {(
             NonZeroI64::new_unchecked(((alloc.width() as f64 / char_width).trunc() as i64).max(1)),
@@ -576,7 +585,7 @@ impl State {
     }
 
     fn set_im_location(&self) {
-        if let Some((row, col)) = self.grids.current().map(|g| g.get_cursor()) {
+        if let Some((row, col)) = self.grids.borrow().current().map(|g| g.get_cursor()) {
             let (x, y, width, height) = ModelRect::point(col, row)
                 .to_area(self.render_state.borrow().font_ctx.cell_metrics());
 
@@ -589,7 +598,7 @@ impl State {
         self.resize_status.clone()
     }
 
-    fn try_nvim_resize(&mut self) {
+    pub fn try_nvim_resize(&mut self) {
         let nvim = match self.nvim() {
             Some(nvim) => nvim,
             None => return,
@@ -688,7 +697,7 @@ impl State {
     }
 
     fn max_popup_width(&self) -> i32 {
-        self.drawing_area.allocated_width() - 20
+        self.nvim_viewport.allocated_width() - 20
     }
 
     pub fn subscribe<F>(&self, key: SubscriptionKey, args: &[&str], cb: F) -> SubscriptionHandle
@@ -786,6 +795,10 @@ impl State {
     pub fn set_background(&self, background: BackgroundState) {
         self.render_state.borrow_mut().hl.set_background_state(background)
     }
+
+    pub fn cursor(&self) -> Option<&BlinkCursor<State>> {
+        self.cursor.as_ref()
+    }
 }
 
 pub struct UiState {
@@ -814,7 +827,7 @@ impl UiState {
     /// Set whether or not the cursor for the drawing area is visible. We cache this in UiState
     /// since otherwise we'd end up creating a new cursor every single time we receive a motion
     /// event
-    fn set_cursor_visible(&mut self, drawing_area: &DrawingArea, visible: bool) {
+    fn set_cursor_visible(&mut self, nvim_viewport: &NvimViewport, visible: bool) {
         if Some(visible) == self.cursor_visible {
             return;
         }
@@ -825,7 +838,7 @@ impl UiState {
             false => "none",
         };
 
-        drawing_area.set_cursor(gdk::Cursor::from_name(cursor, None).as_ref());
+        nvim_viewport.set_cursor(gdk::Cursor::from_name(cursor, None).as_ref());
     }
 }
 
@@ -987,6 +1000,8 @@ impl Shell {
         let shell_ref = Arc::downgrade(&shell.state);
         shell.state.borrow_mut().cursor = Some(BlinkCursor::new(shell_ref));
 
+        shell.state.borrow().nvim_viewport.set_shell_state(&shell.state);
+
         shell
     }
 
@@ -1002,19 +1017,19 @@ impl Shell {
         let ui_state_ref = &self.ui_state;
         let state = state_ref.borrow();
 
-        state.drawing_area.set_hexpand(true);
-        state.drawing_area.set_vexpand(true);
-        state.drawing_area.set_focusable(true);
-        state.drawing_area.set_focus_on_click(true);
-        state.drawing_area.set_receives_default(true);
-        state.drawing_area.set_completion_popover(&*state.popup_menu);
+        state.nvim_viewport.set_hexpand(true);
+        state.nvim_viewport.set_vexpand(true);
+        state.nvim_viewport.set_focusable(true);
+        state.nvim_viewport.set_focus_on_click(true);
+        state.nvim_viewport.set_receives_default(true);
+        state.nvim_viewport.set_completion_popover(&*state.popup_menu);
 
         state.im_context.set_use_preedit(false);
 
         let nvim_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         nvim_box.append(&*state.tabs);
-        nvim_box.append(&state.drawing_area);
+        nvim_box.append(&state.nvim_viewport);
 
         state.stack.add_named(&nvim_box, Some("Nvim"));
         state.stack.add_named(&*state.error_area, Some("Error"));
@@ -1042,7 +1057,7 @@ impl Shell {
                 );
             }
         ));
-        state.drawing_area.add_controller(&motion_controller);
+        state.nvim_viewport.add_controller(&motion_controller);
 
         let key_controller = gtk::EventControllerKey::new();
         key_controller.set_im_context(&state.im_context);
@@ -1050,7 +1065,7 @@ impl Shell {
             ui_state_ref, state_ref => move |_, key, _, modifiers| {
                 let mut state = state_ref.borrow_mut();
                 state.cursor.as_mut().unwrap().reset_state();
-                ui_state_ref.borrow_mut().set_cursor_visible(&state.drawing_area, false);
+                ui_state_ref.borrow_mut().set_cursor_visible(&state.nvim_viewport, false);
 
                 match state.nvim() {
                     Some(nvim) => input::gtk_key_press(&nvim, key, modifiers),
@@ -1058,7 +1073,7 @@ impl Shell {
                 }
             }
         ));
-        state.drawing_area.add_controller(&key_controller);
+        state.nvim_viewport.add_controller(&key_controller);
 
         fn get_button(controller: &gtk::GestureClick) -> u32
         {
@@ -1069,7 +1084,7 @@ impl Shell {
         }
 
         let menu = self.create_context_menu();
-        state.drawing_area.set_context_menu(&menu);
+        state.nvim_viewport.set_context_menu(&menu);
         let click_controller = gtk::GestureClick::builder()
             .n_points(1)
             .button(0)
@@ -1099,7 +1114,7 @@ impl Shell {
                 )
             }
         ));
-        state.drawing_area.add_controller(&click_controller);
+        state.nvim_viewport.add_controller(&click_controller);
 
         let long_tap_controller = gtk::GestureLongPress::builder()
             .n_points(1)
@@ -1118,7 +1133,7 @@ impl Shell {
                 )
             }
         ));
-        state.drawing_area.add_controller(&long_tap_controller);
+        state.nvim_viewport.add_controller(&long_tap_controller);
 
         let focus_controller = gtk::EventControllerFocus::new();
         focus_controller.connect_enter(clone!(state_ref => move |_| {
@@ -1127,7 +1142,7 @@ impl Shell {
         focus_controller.connect_leave(clone!(state_ref => move |_| {
             gtk_focus_out(&mut *state_ref.borrow_mut())
         }));
-        state.drawing_area.add_controller(&focus_controller);
+        state.nvim_viewport.add_controller(&focus_controller);
 
         let scroll_controller = gtk::EventControllerScroll::new(
             gtk::EventControllerScrollFlags::BOTH_AXES
@@ -1144,7 +1159,7 @@ impl Shell {
                 gtk::Inhibit(false)
             }
         ));
-        state.drawing_area.add_controller(&scroll_controller);
+        state.nvim_viewport.add_controller(&scroll_controller);
 
         let context = glib::MainContext::default();
         let dnd_target = gtk::DropTargetAsync::new(
@@ -1154,13 +1169,9 @@ impl Shell {
         dnd_target.connect_drop(clone!(state_ref => move |_, drop, _, _| {
             gtk_handle_drop(&state_ref.borrow(), &context, drop)
         }));
-        state.drawing_area.add_controller(&dnd_target);
+        state.nvim_viewport.add_controller(&dnd_target);
 
-        state.drawing_area.set_draw_func(
-            clone!(state_ref => move |_, ctx, _, _| gtk_draw(&state_ref, ctx))
-        );
-
-        state.drawing_area.connect_realize(clone!(state_ref => move |w| {
+        state.nvim_viewport.connect_realize(clone!(state_ref => move |w| {
             // sometime set_client_window does not work without idle_add
             // and looks like not enabled im_context
             glib::idle_add_local_once(clone!(state_ref, w => move || {
@@ -1175,17 +1186,11 @@ impl Shell {
             .connect_commit(clone!(ui_state_ref, state_ref => move |_, ch| {
                 let state = state_ref.borrow();
 
-                ui_state_ref.borrow_mut().set_cursor_visible(&state.drawing_area, false);
+                ui_state_ref.borrow_mut().set_cursor_visible(&state.nvim_viewport, false);
                 state.im_commit(ch);
             }));
 
-        state.drawing_area.connect_resize(clone!(state_ref => move |_, w, h| {
-            debug!("Resize event {}x{}", w, h);
-
-            state_ref.borrow_mut().try_nvim_resize();
-        }));
-
-        state.drawing_area.connect_map(clone!(state_ref => move |_| init_nvim(&state_ref)));
+        state.nvim_viewport.connect_map(clone!(state_ref => move |_| init_nvim(&state_ref)));
     }
 
     fn create_context_menu(&self) -> gtk::PopoverMenu {
@@ -1214,8 +1219,8 @@ impl Shell {
         popover.insert_action_group("menu", Some(&action_group));
 
         popover.connect_closed(|popover| {
-            if let Some(drawing_area) = popover.parent() {
-                drawing_area.grab_focus();
+            if let Some(nvim_viewport) = popover.parent() {
+                nvim_viewport.grab_focus();
             }
         });
 
@@ -1228,7 +1233,7 @@ impl Shell {
     }
 
     pub fn grab_focus(&self) {
-        self.state.borrow().drawing_area.grab_focus();
+        self.state.borrow().nvim_viewport.grab_focus();
     }
 
     pub fn open_file(&self, path: &str) {
@@ -1478,7 +1483,7 @@ fn gtk_motion_notify(
     }
 
     ui_state.last_pos = position;
-    ui_state.set_cursor_visible(&shell.drawing_area, true);
+    ui_state.set_cursor_visible(&shell.nvim_viewport, true);
 }
 
 fn draw_content(state: &State, ctx: &cairo::Context) {
@@ -1490,11 +1495,11 @@ fn draw_content(state: &State, ctx: &cairo::Context) {
         &render_state.hl,
         state.transparency_settings.background_alpha(),
     );
-    render::render(
+    render::draw(
         ctx,
         state.cursor.as_ref().unwrap(),
         &render_state.font_ctx,
-        state.grids.current_model().unwrap(),
+        state.grids.borrow().current_model().unwrap(),
         &render_state.hl,
         state.transparency_settings.filled_alpha(),
     );
@@ -1624,7 +1629,7 @@ fn draw_initializing(state: &State, ctx: &cairo::Context) {
     let render_state = state.render_state.borrow();
     let hl = &render_state.hl;
     let layout = pangocairo::functions::create_layout(ctx).unwrap();
-    let alloc = state.drawing_area.allocation();
+    let alloc = state.nvim_viewport.allocation();
 
     let bg_color = hl.bg();
     let fg_color = hl.fg();
@@ -1676,23 +1681,23 @@ impl State {
         cells: Vec<Vec<Value>>,
     ) -> RepaintMode {
         let hl = &self.render_state.borrow().hl;
-        let repaint_area = self.grids[grid].line(row as usize, col_start as usize, cells, hl);
+        let repaint_area = self.grids.borrow_mut()[grid].line(row as usize, col_start as usize, cells, hl);
         RepaintMode::Area(repaint_area)
     }
 
     pub fn grid_clear(&mut self, grid: u64) -> RepaintMode {
         let hl = &self.render_state.borrow().hl;
-        self.grids[grid].clear(&hl.default_hl());
+        self.grids.borrow_mut()[grid].clear(&hl.default_hl());
         RepaintMode::All
     }
 
     pub fn grid_destroy(&mut self, grid: u64) -> RepaintMode {
-        self.grids.destroy(grid);
+        self.grids.borrow_mut().destroy(grid);
         RepaintMode::All
     }
 
     pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RepaintMode {
-        let repaint_area = self.grids[grid].cursor_goto(row as usize, column as usize);
+        let repaint_area = self.grids.borrow_mut()[grid].cursor_goto(row as usize, column as usize);
         self.set_im_location();
         RepaintMode::AreaList(repaint_area)
     }
@@ -1712,7 +1717,7 @@ impl State {
             }
         });
 
-        self.grids.get_or_create(grid).resize(columns, rows);
+        self.grids.borrow_mut().get_or_create(grid).resize(columns, rows);
         RepaintMode::Nothing
     }
 
@@ -1720,7 +1725,7 @@ impl State {
         match *mode {
             RepaintMode::All => {
                 self.update_dirty_glyphs();
-                self.drawing_area.queue_draw();
+                self.nvim_viewport.queue_draw();
             }
             RepaintMode::Area(ref rect) => self.queue_draw_area(&[rect]),
             RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
@@ -1739,7 +1744,7 @@ impl State {
         cols: i64,
     ) -> RepaintMode {
         let hl = &self.render_state.borrow().hl;
-        RepaintMode::Area(self.grids[grid].scroll(
+        RepaintMode::Area(self.grids.borrow_mut()[grid].scroll(
             top,
             bot,
             left,
@@ -1800,7 +1805,7 @@ impl State {
     }
 
     fn cur_point_area(&self) -> RepaintMode {
-        if let Some(cur_point) = self.grids.current().map(|g| g.cur_point()) {
+        if let Some(cur_point) = self.grids.borrow().current().map(|g| g.cur_point()) {
             RepaintMode::Area(cur_point)
         } else {
             RepaintMode::Nothing
@@ -1949,7 +1954,7 @@ impl State {
         level: u64,
     ) -> RepaintMode {
         {
-            let cursor = self.grids.current().unwrap().cur_point();
+            let cursor = self.grids.borrow().current().unwrap().cur_point();
             let render_state = self.render_state.borrow();
             let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
             let ctx = CmdLineContext {
@@ -2025,8 +2030,6 @@ impl State {
 
 impl CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
-        if let Some(cur_point) = self.grids.current().map(|g| g.cur_point()) {
-            self.on_redraw(&RepaintMode::Area(cur_point));
-        }
+        self.nvim_viewport.queue_draw();
     }
 }

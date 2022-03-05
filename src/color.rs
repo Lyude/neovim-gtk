@@ -2,8 +2,9 @@ use std;
 use std::borrow::Cow;
 
 use gdk;
+use pango;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Color(pub f64, pub f64, pub f64);
 
 pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
@@ -12,7 +13,7 @@ pub const COLOR_RED: Color = Color(1.0, 0.0, 0.0);
 
 impl From<&Color> for gdk::RGBA {
     fn from(color: &Color) -> Self {
-        gdk::RGBA::new(color.0 as f32, color.1 as f32, color.2 as f32, 1.0)
+        color.to_rgbo(1.0)
     }
 }
 
@@ -48,6 +49,30 @@ impl Color {
             (self.1 * 255.0) as u8,
             (self.2 * 255.0) as u8
         )
+    }
+
+    pub fn to_rgbo(&self, alpha: f64) -> gdk::RGBA {
+        gdk::RGBA::new(self.0 as f32, self.1 as f32, self.2 as f32, alpha as f32)
+    }
+
+    fn to_pango_attr(&self) -> (u16, u16, u16) {
+        fn conv(color: f64) -> u16 {
+            (u16::MAX as f64 * color) as u16
+        }
+
+        (conv(self.0), conv(self.1), conv(self.2))
+    }
+
+    pub fn to_pango_bg(&self) -> pango::AttrColor {
+        let (r, g, b) = self.to_pango_attr();
+
+        pango::AttrColor::new_background(r, g, b)
+    }
+
+    pub fn to_pango_fg(&self) -> pango::AttrColor {
+        let (r, g, b) = self.to_pango_attr();
+
+        pango::AttrColor::new_foreground(r, g, b)
     }
 
     pub fn inverse(&self, inverse_level: f64) -> Cow<Color> {

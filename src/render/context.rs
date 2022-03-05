@@ -163,6 +163,7 @@ impl FontMetrix {
     }
 }
 
+// TODO: See if we can convert most of these to f32
 pub struct CellMetrics {
     pub line_height: f64,
     pub char_width: f64,

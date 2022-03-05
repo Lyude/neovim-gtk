@@ -13,8 +13,8 @@ use pango;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cursor;
-use crate::drawing_area::DrawingArea;
 use crate::highlight::{Highlight, HighlightMap};
+use crate::nvim_viewport::NvimViewport;
 use crate::mode;
 use crate::nvim::{self, NeovimClient};
 use crate::popup_menu;
@@ -276,7 +276,7 @@ pub struct CmdLine {
 }
 
 impl CmdLine {
-    pub fn new(drawing: &DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
+    pub fn new(drawing: &NvimViewport, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         let popover = gtk::Popover::new();
         popover.set_autohide(false);
         popover.set_position(gtk::PositionType::Right);
@@ -548,7 +548,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) {
     }
 
     if let Some(block) = block {
-        render::render(
+        render::draw(
             ctx,
             &cursor::EmptyCursor::new(),
             &render_state.font_ctx,
@@ -561,7 +561,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) {
     }
 
     if let Some(level) = level {
-        render::render(
+        render::draw(
             ctx,
             state.cursor.as_ref().unwrap(),
             &render_state.font_ctx,

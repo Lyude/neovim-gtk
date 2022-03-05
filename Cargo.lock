@@ -738,6 +738,8 @@ dependencies = [
  "glib",
  "glib-sys",
  "gobject-sys",
+ "gsk4",
+ "gsk4-sys",
  "gtk4",
  "gtk4-sys",
  "htmlescape",

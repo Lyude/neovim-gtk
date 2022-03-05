@@ -11,6 +11,7 @@ use crate::render;
 use crate::render::CellMetrics;
 use crate::highlight::HighlightMap;
 use crate::ui::UiMutex;
+use crate::ui_model;
 
 struct Alpha(f64);
 
@@ -86,6 +87,7 @@ impl<CB: CursorRedrawCb> State<CB> {
 }
 
 pub trait Cursor {
+    // TODO: draw is old, render is new
     /// return cursor current alpha value
     fn draw(
         &self,
@@ -95,6 +97,18 @@ pub trait Cursor {
         double_width: bool,
         hl: &HighlightMap,
     ) -> f64;
+
+    /// return cursor current alpha value
+    fn render(
+        &self,
+        snapshot: &gtk::Snapshot,
+        font_ctx: &render::Context,
+        line_y: f64,
+        double_width: bool,
+        hl: &HighlightMap,
+    ) -> f64;
+
+    fn alpha(&self) -> f64;
 
     fn is_visible(&self) -> bool;
 
@@ -119,6 +133,21 @@ impl Cursor for EmptyCursor {
         _color: &HighlightMap,
     ) -> f64 {
         0.0
+    }
+
+    fn render(
+        &self,
+        _snapshot: &gtk::Snapshot,
+        _font_ctx: &render::Context,
+        _line_y: f64,
+        _double_width: bool,
+        _hl: &HighlightMap
+    ) -> f64 {
+        0.0
+    }
+
+    fn alpha(&self) -> f64 {
+        1.0
     }
 
     fn is_visible(&self) -> bool {
@@ -236,6 +265,33 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         }
 
         state.alpha.0
+    }
+
+    fn render(
+        &self,
+        snapshot: &gtk::Snapshot,
+        font_ctx: &render::Context,
+        line_y: f64,
+        double_width: bool,
+        hl: &HighlightMap,
+    ) -> f64 {
+        let state = self.state.borrow();
+
+        let bg = hl.cursor_bg();
+
+        let (y, width, height) = cursor_rect(
+            self.mode_info(),
+            font_ctx.cell_metrics(),
+            line_y,
+            double_width,
+        );
+
+        return 1.0;
+        todo!()
+    }
+
+    fn alpha(&self) -> f64 {
+        self.state.borrow().alpha.0
     }
 
     fn is_visible(&self) -> bool {

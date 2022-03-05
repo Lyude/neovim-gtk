@@ -8,6 +8,7 @@ pub struct Cell {
     pub ch: String,
     pub dirty: bool,
     pub double_width: bool,
+    
 }
 
 impl Cell {

@@ -6,15 +6,22 @@ pub use self::context::CellMetrics;
 pub use self::context::{Context, FontFeatures};
 use self::model_clip_iterator::{ModelClipIteratorFactory, RowView};
 
-use crate::color;
-use crate::sys::pangocairo::*;
+use crate::{
+    color,
+    cursor::{cursor_rect, Cursor},
+    highlight::HighlightMap,
+    nvim_viewport::NvimViewport,
+    sys::pangocairo::*,
+    ui_model::{self, Line},
+};
 use cairo;
+use gsk::{
+    self,
+    graphene,
+};
+use gtk::prelude::*;
 use pango;
 use pangocairo;
-
-use crate::cursor::{cursor_rect, Cursor};
-use crate::highlight::HighlightMap;
-use crate::ui_model;
 
 trait ContextAlpha {
     fn set_source_rgbo(&self, _: &color::Color, _: Option<f64>);
@@ -35,7 +42,7 @@ pub fn fill_background(ctx: &cairo::Context, hl: &HighlightMap, alpha: Option<f6
     ctx.paint().unwrap();
 }
 
-pub fn render<C: Cursor>(
+pub fn draw<C: Cursor>(
     ctx: &cairo::Context,
     cursor: &C,
     font_ctx: &context::Context,

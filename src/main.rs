@@ -37,6 +37,7 @@ mod shell_dlg;
 mod subscriptions;
 mod tabline;
 mod drawing_area;
+mod nvim_viewport;
 
 use gio::prelude::*;
 use gio::ApplicationCommandLine;

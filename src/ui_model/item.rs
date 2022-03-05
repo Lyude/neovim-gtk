@@ -1,5 +1,12 @@
-use crate::render;
+use crate::{
+    render,
+    color,
+};
 
+use gsk::{
+    self,
+    graphene,
+};
 use pango;
 
 #[derive(Clone)]
@@ -7,6 +14,8 @@ pub struct Item {
     pub item: pango::Item,
     pub cells_count: usize,
     glyphs: Option<pango::GlyphString>,
+    render_node: Option<gsk::TextNode>,
+    color: color::Color, // TODO: confirm that we actually need to cache this
     pub ink_overflow: Option<InkOverflow>,
     font: pango::Font,
 }
@@ -20,6 +29,8 @@ impl Item {
             item,
             cells_count,
             glyphs: None,
+            render_node: None,
+            color: color::Color::default(),
             ink_overflow: None,
         }
     }
@@ -28,11 +39,43 @@ impl Item {
         self.glyphs.as_ref()
     }
 
-    pub fn set_glyphs(&mut self, ctx: &render::Context, glyphs: pango::GlyphString) {
-        let mut glyphs = glyphs;
+    pub fn set_glyphs(&mut self, ctx: &render::Context, mut glyphs: pango::GlyphString) {
         let (ink_rect, _) = glyphs.extents(&self.font);
+
         self.ink_overflow = InkOverflow::from(ctx, &ink_rect, self.cells_count as i32);
         self.glyphs = Some(glyphs);
+
+        /* TODO: Do we actually change glyph strings more then once? */
+        // Since the glyphs changed, any previous render node is invalidated
+        self.render_node = None;
+        self.color = color::Color::default();
+    }
+
+    pub fn render_node(
+        &mut self,
+        color: &color::Color,
+        (x, y): (f32, f32)
+    ) -> &gsk::TextNode {
+        if self.render_node.is_none() || self.color != *color {
+            self.render_node = gsk::TextNode::new(
+                &self.font,
+                self.glyphs.as_mut().unwrap(),
+                &color.into(),
+                &graphene::Point::new(x, y)
+            );
+            self.color = *color;
+        }
+
+        self.render_node.as_ref().expect("Failed to create render node")
+    }
+
+    pub fn new_render_node(&self, color: &color::Color, (x, y): (f32, f32)) -> gsk::TextNode {
+        gsk::TextNode::new(
+            &self.font,
+            &mut self.glyphs.as_ref().unwrap().clone(),
+            &color.into(),
+            &graphene::Point::new(x, y)
+        ).expect("Failed to create render node")
     }
 
     pub fn font(&self) -> &pango::Font {
@@ -44,6 +87,8 @@ impl Item {
     }
 }
 
+// TODO: Because we don't handle calculating damage ourselves anymore (it magically "just works"
+// with render nodes), we probably will want to remove the overflow logic entirely
 #[derive(Clone)]
 pub struct InkOverflow {
     pub left: f64,

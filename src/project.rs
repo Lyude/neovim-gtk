@@ -172,7 +172,7 @@ impl Projects {
             projects.set_active(false);
         }));
 
-        let drawing_area = shell.borrow().state.borrow().drawing_area.clone();
+        let drawing_area = shell.borrow().state.borrow().nvim_viewport.clone();
         popup.connect_closed(clone!(projects => move |_| {
             projects.borrow_mut().clear();
             drawing_area.grab_focus();
