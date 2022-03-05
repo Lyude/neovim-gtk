@@ -592,7 +592,7 @@ impl Ui {
 
         let shell = &self.shell;
         btn.connect_realize(clone!(shell => move |btn| {
-            let drawing_area = shell.borrow().state.borrow().drawing_area.clone();
+            let drawing_area = shell.borrow().state.borrow().nvim_viewport.clone();
 
             btn
                 .popover()
@@ -746,6 +746,7 @@ impl SettingsLoader for ToplevelState {
     }
 }
 
+#[derive(Debug)]
 pub struct UiMutex<T: ?Sized> {
     thread: thread::ThreadId,
     data: RefCell<T>,

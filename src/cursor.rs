@@ -1,5 +1,6 @@
 use cairo;
 use glib;
+use gtk::graphene::Rect;
 
 use std::{
     sync::{Arc, Weak},
@@ -11,6 +12,7 @@ use crate::render;
 use crate::render::CellMetrics;
 use crate::highlight::HighlightMap;
 use crate::ui::UiMutex;
+use crate::ui_model::Cell;
 
 struct Alpha(f64);
 
@@ -86,6 +88,7 @@ impl<CB: CursorRedrawCb> State<CB> {
 }
 
 pub trait Cursor {
+    // TODO: draw is old, render is new
     /// return cursor current alpha value
     fn draw(
         &self,
@@ -95,6 +98,22 @@ pub trait Cursor {
         double_width: bool,
         hl: &HighlightMap,
     ) -> f64;
+
+    /// Add render nodes for the cursor to the snapshot. Returns whether or not text should be drawn
+    /// after
+    #[must_use]
+    fn snapshot(
+        &self,
+        snapshot: &gtk::Snapshot,
+        font_ctx: &render::Context,
+        pos: (f64, f64),
+        cell: &Cell,
+        double_width: bool,
+        hl: &HighlightMap,
+        alpha: f64,
+    ) -> bool;
+
+    fn alpha(&self) -> f64;
 
     fn is_visible(&self) -> bool;
 
@@ -119,6 +138,23 @@ impl Cursor for EmptyCursor {
         _color: &HighlightMap,
     ) -> f64 {
         0.0
+    }
+
+    fn snapshot(
+        &self,
+        _snapshot: &gtk::Snapshot,
+        _font_ctx: &render::Context,
+        _pos: (f64, f64),
+        _cell: &Cell,
+        _double_width: bool,
+        _hl: &HighlightMap,
+        _alpha: f64,
+    ) -> bool {
+        false
+    }
+
+    fn alpha(&self) -> f64 {
+        1.0
     }
 
     fn is_visible(&self) -> bool {
@@ -236,6 +272,49 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         }
 
         state.alpha.0
+    }
+
+    fn snapshot(
+        &self,
+        snapshot: &gtk::Snapshot,
+        font_ctx: &render::Context,
+        (x, y): (f64, f64),
+        cell: &Cell,
+        double_width: bool,
+        hl: &HighlightMap,
+        alpha: f64,
+    ) -> bool {
+        let state = self.state.borrow();
+
+        let cell_metrics = font_ctx.cell_metrics();
+        let (y, w, h) = cursor_rect(
+            self.mode_info(),
+            cell_metrics,
+            y,
+            double_width,
+        );
+        let (x, y, w, h) = (x as f32, y as f32, w as f32, h as f32);
+
+        if state.anim_phase == AnimPhase::NoFocus {
+            let bg = hl.cursor_bg().into();
+            snapshot.append_color(&bg, &Rect::new(          x,           y,   w, 1.0));
+            snapshot.append_color(&bg, &Rect::new(          x,           y, 1.0,   h));
+            snapshot.append_color(&bg, &Rect::new(          x, y + h - 1.0,   w, 1.0));
+            snapshot.append_color(&bg, &Rect::new(x + w - 1.0,           y, 1.0,   h));
+            false
+        } else {
+            let bg = hl
+                .actual_cell_bg(cell)
+                .fade(hl.cursor_bg(), alpha)
+                .as_ref()
+                .into();
+            snapshot.append_color(&bg, &Rect::new(x, y, w, h));
+            true
+        }
+    }
+
+    fn alpha(&self) -> f64 {
+        self.state.borrow().alpha.0
     }
 
     fn is_visible(&self) -> bool {

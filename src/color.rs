@@ -2,8 +2,9 @@ use std;
 use std::borrow::Cow;
 
 use gdk;
+use pango;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Color(pub f64, pub f64, pub f64);
 
 pub const COLOR_BLACK: Color = Color(0.0, 0.0, 0.0);
@@ -12,7 +13,7 @@ pub const COLOR_RED: Color = Color(1.0, 0.0, 0.0);
 
 impl From<&Color> for gdk::RGBA {
     fn from(color: &Color) -> Self {
-        gdk::RGBA::new(color.0 as f32, color.1 as f32, color.2 as f32, 1.0)
+        color.to_rgbo(1.0)
     }
 }
 
@@ -46,10 +47,27 @@ impl Color {
             "#{:02X}{:02X}{:02X}",
             (self.0 * 255.0) as u8,
             (self.1 * 255.0) as u8,
-            (self.2 * 255.0) as u8
+            (self.2 * 255.0) as u8,
         )
     }
 
+    pub fn to_rgbo(&self, alpha: f64) -> gdk::RGBA {
+        gdk::RGBA::new(self.0 as f32, self.1 as f32, self.2 as f32, alpha as f32)
+    }
+
+    pub fn to_pango_bg(&self) -> pango::AttrColor {
+        let (r, g, b) = self.to_u16();
+
+        pango::AttrColor::new_background(r, g, b)
+    }
+
+    pub fn to_pango_fg(&self) -> pango::AttrColor {
+        let (r, g, b) = self.to_u16();
+
+        pango::AttrColor::new_foreground(r, g, b)
+    }
+
+    #[deprecated]
     pub fn inverse(&self, inverse_level: f64) -> Cow<Color> {
         debug_assert!(inverse_level >= 0.0 && inverse_level <= 1.0);
 
@@ -61,6 +79,23 @@ impl Color {
                 (inverse_level - self.1).abs(),
                 (inverse_level - self.2).abs(),
             ))
+        }
+    }
+
+    pub fn fade<'a>(&'a self, into: &'a Self, percentage: f64) -> Cow<Self> {
+        debug_assert!(percentage >= 0.0 && percentage <= 1.0);
+
+        match percentage {
+            _ if percentage <= 0.000001 => Cow::Borrowed(self),
+            _ if percentage >= 0.999999 => Cow::Borrowed(into),
+            _ => {
+                let inv = (into.0 - self.0, into.1 - self.1, into.2 - self.2);
+                Cow::Owned(Self(
+                    self.0 + (inv.0 * percentage),
+                    self.1 + (inv.1 * percentage),
+                    self.2 + (inv.2 * percentage),
+                ))
+            }
         }
     }
 }

@@ -164,6 +164,14 @@ impl HighlightMap {
         }
     }
 
+    pub fn actual_cell_bg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
+        if !cell.hl.reverse {
+            cell.hl.background.as_ref().unwrap_or_else(|| self.bg())
+        } else {
+            cell.hl.foreground.as_ref().unwrap_or_else(|| self.fg())
+        }
+    }
+
     #[inline]
     pub fn cell_sp<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
         cell.hl.special.as_ref().or(self.sp_color.as_ref())
