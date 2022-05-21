@@ -1,8 +1,7 @@
 use std::env;
 
 use gdk;
-use gdk::EventKey;
-use gtk::prelude::*;
+use gtk::Inhibit;
 use lazy_static::lazy_static;
 use phf;
 
@@ -24,7 +23,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     // CTRL-^ and CTRL-@ don't work in the normal way.
     if state.contains(gdk::ModifierType::CONTROL_MASK)
         && !state.contains(gdk::ModifierType::SHIFT_MASK)
-        && !state.contains(gdk::ModifierType::MOD1_MASK)
+        && !state.contains(gdk::ModifierType::ALT_MASK)
     {
         if val == "6" {
             val = "^";
@@ -55,7 +54,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     if state.contains(gdk::ModifierType::CONTROL_MASK) {
         mod_chars.push("C");
     }
-    if state.contains(gdk::ModifierType::MOD1_MASK) {
+    if state.contains(gdk::ModifierType::ALT_MASK) {
         mod_chars.push("A");
     }
 
@@ -80,15 +79,17 @@ pub fn modify_modifiers(
 ) -> gdk::ModifierType {
     let mut state = in_state;
 
-    if options.cmd_as_meta && state.contains(gdk::ModifierType::MOD2_MASK) {
-        state.remove(gdk::ModifierType::MOD2_MASK);
-        state.insert(gdk::ModifierType::MOD1_MASK);
+    // TODO: I have no idea if this is actually correct, since MOD2 has been removed. Need to check
+    // with @jacobmishka (see #23)
+    if options.cmd_as_meta && state.contains(gdk::ModifierType::SUPER_MASK) {
+        state.remove(gdk::ModifierType::SUPER_MASK);
+        state.insert(gdk::ModifierType::ALT_MASK);
     }
 
     state
 }
 
-pub fn convert_key(ev: &EventKey) -> Option<String> {
+pub fn convert_key(keyval: gdk::Key, mut modifiers: gdk::ModifierType) -> Option<String> {
     lazy_static! {
         static ref MODIFIER_OPTIONS: ModifierOptions = ModifierOptions {
             cmd_as_meta: env::var(NVIM_GTK_CMD_AS_META)
@@ -97,17 +98,16 @@ pub fn convert_key(ev: &EventKey) -> Option<String> {
         };
     }
 
-    let keyval = ev.keyval();
-    let state = modify_modifiers(ev.state(), &MODIFIER_OPTIONS);
+    modifiers = modify_modifiers(modifiers, &MODIFIER_OPTIONS);
 
     if let Some(ref keyval_name) = keyval.name() {
         if let Some(cnvt) = KEYVAL_MAP.get(keyval_name.as_str()).cloned() {
-            return Some(keyval_to_input_string(cnvt, state));
+            return Some(keyval_to_input_string(cnvt, modifiers));
         }
     }
 
     if let Some(ch) = keyval.to_unicode() {
-        Some(keyval_to_input_string(&ch.to_string(), state))
+        Some(keyval_to_input_string(&ch.to_string(), modifiers))
     } else {
         None
     }
@@ -125,8 +125,12 @@ pub fn im_input(nvim: &NvimSession, input: &str) {
         .expect("Failed to send input command to nvim");
 }
 
-pub fn gtk_key_press(nvim: &NvimSession, ev: &EventKey) -> Inhibit {
-    if let Some(input) = convert_key(ev) {
+pub fn gtk_key_press(
+    nvim: &NvimSession,
+    keyval: gdk::Key,
+    modifiers: gdk::ModifierType
+) -> Inhibit {
+    if let Some(input) = convert_key(keyval, modifiers) {
         debug!("nvim_input -> {}", input);
         nvim.block_timeout(nvim.input(&input))
             .ok_and_report()
@@ -160,14 +164,14 @@ mod tests {
             "2" == "2";
             "<" == "<lt>";
             "", SHIFT_MASK == "S";
-            "", SHIFT_MASK | CONTROL_MASK | MOD1_MASK == "SCA";
+            "", SHIFT_MASK | CONTROL_MASK | ALT_MASK == "SCA";
             "a", SHIFT_MASK == "<S-a>";
-            "a", SHIFT_MASK | CONTROL_MASK | MOD1_MASK == "<S-C-A-a>";
+            "a", SHIFT_MASK | CONTROL_MASK | ALT_MASK == "<S-C-A-a>";
             "6", CONTROL_MASK == "<C-^>";
-            "6", CONTROL_MASK | MOD1_MASK == "<C-A-6>";
+            "6", CONTROL_MASK | ALT_MASK == "<C-A-6>";
             "2", CONTROL_MASK == "<C-@>";
-            "2", CONTROL_MASK | MOD1_MASK == "<C-A-2>";
-            "j", MOD2_MASK == "j";
+            "2", CONTROL_MASK | ALT_MASK == "<C-A-2>";
+            "j", SUPER_MASK == "j";
         }
     }
 
@@ -182,7 +186,7 @@ mod tests {
         assert_eq!(
             keyval_to_input_string(
                 "j",
-                modify_modifiers(gdk::ModifierType::MOD2_MASK, &options)
+                modify_modifiers(gdk::ModifierType::SUPER_MASK, &options)
             ),
             "<A-j>"
         );
@@ -190,7 +194,7 @@ mod tests {
             keyval_to_input_string(
                 "l",
                 modify_modifiers(
-                    gdk::ModifierType::MOD2_MASK | gdk::ModifierType::SHIFT_MASK,
+                    gdk::ModifierType::SUPER_MASK | gdk::ModifierType::SHIFT_MASK,
                     &options
                 )
             ),

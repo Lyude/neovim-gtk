@@ -59,7 +59,7 @@ impl Tabline {
         tabs.set_can_focus(false);
         tabs.set_scrollable(true);
         tabs.set_show_border(false);
-        tabs.set_border_width(0);
+        //tabs.set_border_width(0); FIXME: figure out if we need to clear all of the margins on this
         tabs.set_hexpand(true);
         tabs.set_sensitive(false);
         tabs.hide();
@@ -115,24 +115,24 @@ impl Tabline {
         if count < tabs.len() {
             for _ in count..tabs.len() {
                 let empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                empty.show_all();
-                let title = gtk::Label::new(None);
-                title.set_ellipsize(pango::EllipsizeMode::Middle);
-                title.set_width_chars(25);
-                let close_btn = gtk::Button::from_icon_name(
-                    Some("window-close-symbolic"),
-                    gtk::IconSize::Menu,
-                );
-                close_btn.set_relief(gtk::ReliefStyle::None);
-                close_btn.style_context().add_class("small-button");
+                let title = gtk::Label::builder()
+                    .ellipsize(pango::EllipsizeMode::Middle)
+                    .width_chars(25)
+                    .hexpand(true)
+                    .build();
+
+                let close_btn = gtk::Button::from_icon_name("window-close-symbolic");
+                close_btn.set_has_frame(false);
                 close_btn.set_focus_on_click(false);
-                let label_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-                label_box.pack_start(&title, true, false, 0);
-                label_box.pack_start(&close_btn, false, false, 0);
-                title.show();
-                close_btn.show();
+
+                let label_box = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Horizontal)
+                    .hexpand(true)
+                    .build();
+                label_box.append(&title);
+                label_box.append(&close_btn);
+
                 self.tabs.append_page(&empty, Some(&label_box));
-                self.tabs.set_child_tab_expand(&empty, true);
 
                 let tabs = self.tabs.clone();
                 let state_ref = Rc::clone(&self.state);
@@ -161,9 +161,7 @@ impl Tabline {
                 .unwrap()
                 .downcast::<gtk::Box>()
                 .unwrap()
-                .children()
-                .into_iter()
-                .next()
+                .first_child()
                 .unwrap()
                 .downcast::<gtk::Label>()
                 .unwrap();

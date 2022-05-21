@@ -2,17 +2,16 @@ use std::cell::RefCell;
 use std::cmp::min;
 use std::iter;
 use std::rc::Rc;
+use std::ops::Deref;
 
 use unicode_width::*;
 
-use gdk::{EventButton, EventType};
 use glib;
 use gtk;
 use gtk::prelude::*;
 use pango;
 
 use crate::highlight::HighlightMap;
-use crate::input;
 use crate::nvim::{self, NvimSession, ErrorReport, NeovimClient};
 use crate::render;
 
@@ -36,11 +35,12 @@ impl State {
     pub fn new() -> Self {
         let tree = gtk::TreeView::builder()
             .headers_visible(false)
-            .can_focus(false)
+            .enable_search(false)
+            .fixed_height_mode(true)
             .build();
         tree.selection().set_mode(gtk::SelectionMode::Single);
-        let css_provider = gtk::CssProvider::new();
 
+        let css_provider = gtk::CssProvider::new();
         let style_context = tree.style_context();
         style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
@@ -48,19 +48,25 @@ impl State {
         renderer.set_ellipsize(pango::EllipsizeMode::End);
 
         // word
-        let word_column = gtk::TreeViewColumn::new();
+        let word_column = gtk::TreeViewColumn::builder()
+            .sizing(gtk::TreeViewColumnSizing::Fixed)
+            .build();
         word_column.pack_start(&renderer, true);
         word_column.add_attribute(&renderer, "text", 0);
         tree.append_column(&word_column);
 
         // kind
-        let kind_column = gtk::TreeViewColumn::new();
+        let kind_column = gtk::TreeViewColumn::builder()
+            .sizing(gtk::TreeViewColumnSizing::Fixed)
+            .build();
         kind_column.pack_start(&renderer, true);
         kind_column.add_attribute(&renderer, "text", 1);
         tree.append_column(&kind_column);
 
         // menu
-        let menu_column = gtk::TreeViewColumn::new();
+        let menu_column = gtk::TreeViewColumn::builder()
+            .sizing(gtk::TreeViewColumnSizing::Fixed)
+            .build();
         menu_column.pack_start(&renderer, true);
         menu_column.add_attribute(&renderer, "text", 2);
         tree.append_column(&menu_column);
@@ -75,9 +81,7 @@ impl State {
 
         let info_label = gtk::Label::builder()
             .wrap(true)
-            .visible(true)
             .selectable(true)
-            .can_focus(false)
             .vexpand(true)
             .xalign(0.0)
             .yalign(0.0)
@@ -92,7 +96,6 @@ impl State {
             .propagate_natural_height(true)
             .max_content_height(175)
             .child(&info_label)
-            .can_focus(false)
             .build();
 
         State {
@@ -219,7 +222,7 @@ impl State {
 
     fn select(&self, selected: i64) {
         if selected >= 0 {
-            let selected_path = gtk::TreePath::from_string(&format!("{}", selected));
+            let selected_path = gtk::TreePath::from_string(&format!("{}", selected)).unwrap();
             self.tree.selection().select_path(&selected_path);
             self.tree.scroll_to_cell(
                 Some(&selected_path),
@@ -241,11 +244,11 @@ impl State {
         let iter = model.iter(selected_path);
 
         if let Some(iter) = iter {
-            let info_value = model.value(&iter, 3);
-            let info = info_value.get::<&str>().unwrap().trim();
+            let info: String = model.get(&iter, 3);
+            let info = info.trim();
 
             if self.preview && !info.is_empty() {
-                self.info_label.set_text(&info);
+                self.info_label.set_text(info);
                 self.info_scroll.vadjustment().set_value(0.0);
                 self.info_scroll.hadjustment().set_value(0.0);
                 self.info_scroll.show();
@@ -270,45 +273,36 @@ pub struct PopupMenu {
 }
 
 impl PopupMenu {
-    pub fn new(drawing: &gtk::DrawingArea) -> PopupMenu {
+    pub fn new() -> PopupMenu {
         let state = State::new();
-        let popover = gtk::Popover::new(Some(drawing));
-        popover.set_modal(false);
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let popover = gtk::Popover::builder()
+            .autohide(false)
+            .can_focus(false)
+            .child(&content)
+            .css_classes(vec!["background".into(), "nvim-completion".into()])
+            .position(gtk::PositionType::Top)
+            .build();
 
-        state.item_scroll.show_all();
-
-        content.pack_start(&state.item_scroll, true, true, 0);
-        content.pack_start(&state.info_scroll, false, true, 0);
-        content.show();
-        popover.add(&content);
+        content.append(&state.item_scroll);
+        content.append(&state.info_scroll);
 
         let state = Rc::new(RefCell::new(state));
-        let state_ref = state.clone();
-        state
-            .borrow()
-            .tree
-            .connect_button_press_event(move |tree, ev| {
-                let state = state_ref.borrow();
-                let nvim = state.nvim.as_ref().unwrap().nvim();
-                if let Some(nvim) = nvim {
-                    tree_button_press(tree, ev, &nvim, "<C-y>");
-                }
-                Inhibit(false)
-            });
+        let state_ref = state.borrow();
 
-        let state_ref = state.clone();
-        popover.connect_key_press_event(move |_, ev| {
-            let state = state_ref.borrow();
-            let nvim = state.nvim.as_ref().unwrap().nvim();
-            if let Some(nvim) = nvim {
-                input::gtk_key_press(&nvim, ev)
-            } else {
-                Inhibit(false)
+        let button_controller = gtk::GestureClick::builder()
+            .button(1)
+            .build();
+        button_controller.connect_pressed(clone!(state => move |_, _, x, y| {
+            let state = state.borrow();
+            if let Some(nvim) = state.nvim.as_ref().unwrap().nvim() {
+                tree_button_press(&state.tree, x, y, &nvim, "<C-y>");
             }
-        });
+        }));
+        state_ref.tree.add_controller(&button_controller);
 
+        drop(state_ref);
         PopupMenu {
             popover,
             state,
@@ -323,7 +317,12 @@ impl PopupMenu {
     pub fn show(&mut self, ctx: PopupMenuContext) {
         self.open = true;
 
-        self.popover.set_pointing_to(&gdk::Rectangle::new(ctx.x, ctx.y, ctx.width, ctx.height));
+        self.popover.set_pointing_to(Some(&gdk::Rectangle::new(
+            ctx.x,
+            ctx.y,
+            ctx.width,
+            ctx.height
+        )));
         self.state.borrow_mut().before_show(ctx);
         self.popover.popup()
     }
@@ -345,6 +344,14 @@ impl PopupMenu {
     }
 }
 
+impl Deref for PopupMenu {
+    type Target = gtk::Popover;
+
+    fn deref(&self) -> &Self::Target {
+        &self.popover
+    }
+}
+
 pub struct PopupMenuContext<'a> {
     pub nvim: &'a Rc<NeovimClient>,
     pub hl: &'a HighlightMap,
@@ -360,14 +367,11 @@ pub struct PopupMenuContext<'a> {
 
 pub fn tree_button_press(
     tree: &gtk::TreeView,
-    ev: &EventButton,
+    x: f64,
+    y: f64,
     nvim: &NvimSession,
     last_command: &str,
 ) {
-    if ev.event_type() != EventType::ButtonPress {
-        return;
-    }
-
     let (paths, ..) = tree.selection().selected_rows();
     let selected_idx = if !paths.is_empty() {
         let ids = paths[0].indices();
@@ -380,7 +384,6 @@ pub fn tree_button_press(
         -1
     };
 
-    let (x, y) = ev.position();
     if let Some((Some(tree_path), ..)) = tree.path_at_pos(x as i32, y as i32) {
         let target_idx = tree_path.indices()[0];
 
@@ -416,7 +419,7 @@ pub fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
     let bg = hl.pmenu_bg_sel();
     let fg = hl.pmenu_fg_sel();
 
-    if let Err(e) = css_provider.load_from_data(
+    css_provider.load_from_data(
         &format!(
             ".view :selected {{ color: {}; background-color: {};}}\n
                 .view {{ background-color: {}; }}",
@@ -425,9 +428,7 @@ pub fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
             hl.pmenu_bg().to_hex(),
         )
         .as_bytes(),
-    ) {
-        error!("Can't update css {}", e)
-    };
+    );
 }
 
 pub fn calc_treeview_height(

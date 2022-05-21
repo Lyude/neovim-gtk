@@ -17,8 +17,6 @@ pangocairo = "0.15.0"
 pangocairo-sys = "0.15.0"
 glib = "0.15.0"
 glib-sys = "0.15.0"
-gdk = "0.15.0"
-gdk-sys = "0.15.0"
 gio = "0.15.0"
 gobject-sys = "0.15.0"
 async-trait = "0.1.0"
@@ -61,9 +59,20 @@ features = ["v1_46"]
 version = "0.15.0"
 
 [dependencies.gtk]
-version = "0.15.0"
-features = ["v3_24"]
+package = "gtk4"
+version = "0.4.0"
+features = ["v4_4"]
 
 [dependencies.gtk-sys]
-version = "0.15.0"
-features = ["v3_24"]
+package = "gtk4-sys"
+version = "0.4.0"
+features = ["v4_4"]
+
+[dependencies.gdk]
+package = "gdk4"
+version = "0.4.0"
+features = ["v4_4"]
+
+[dependencies.gdk-sys]
+package = "gdk4-sys"
+version = "0.4.0"

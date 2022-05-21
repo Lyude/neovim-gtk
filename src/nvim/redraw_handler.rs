@@ -215,7 +215,11 @@ pub fn call_gui_request(
                             _ => ui.clipboard_clipboard.clone(),
                         }
                     };
-                    let t = clipboard.wait_for_text().unwrap_or_else(|| String::new().into());
+                    let t = glib::MainContext::default()
+                        .block_on(clipboard.read_text_future())
+                        .unwrap_or(None)
+                        .unwrap_or("".into());
+
                     Ok(Value::Array(
                         t.split('\n').map(|s| s.into()).collect::<Vec<Value>>(),
                     ))

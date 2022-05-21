@@ -1,3 +1,5 @@
+mod tree_view;
+
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::io;
@@ -10,8 +12,11 @@ use std::sync::Arc;
 
 use gio;
 use gio::prelude::*;
-use gtk;
-use gtk::prelude::*;
+use gtk::{
+    self,
+    prelude::*,
+    Inhibit,
+};
 use gdk;
 
 use crate::misc::escape_filename;
@@ -20,6 +25,8 @@ use crate::spawn_timeout;
 use crate::shell;
 use crate::subscriptions::SubscriptionKey;
 use crate::ui::UiMutex;
+
+use tree_view::TreeView;
 
 const ICON_FOLDER_CLOSED: &str = "folder-symbolic";
 const ICON_FOLDER_OPEN: &str = "folder-open-symbolic";
@@ -41,7 +48,7 @@ struct State {
 
 pub struct FileBrowserWidget {
     store: gtk::TreeStore,
-    tree: gtk::TreeView,
+    tree: TreeView,
     widget: gtk::Box,
     shell_state: Arc<UiMutex<shell::State>>,
     comps: Components,
@@ -62,7 +69,6 @@ enum FileType {
     Dir,
 }
 
-#[allow(dead_code)]
 enum Column {
     Filename,
     Path,
@@ -73,7 +79,7 @@ enum Column {
 impl FileBrowserWidget {
     pub fn new(shell_state: &Arc<UiMutex<shell::State>>) -> Self {
         let widget = gtk::Box::builder()
-            .can_focus(false)
+            .focusable(false)
             .sensitive(false) // Will be enabled when nvim is ready
             .width_request(150)
             .orientation(gtk::Orientation::Vertical)
@@ -88,17 +94,18 @@ impl FileBrowserWidget {
         let dir_list = gtk::ComboBox::builder()
             .can_focus(false)
             .focus_on_click(false)
-            .wrap_width(1)
             .margin_top(6)
             .margin_bottom(6)
             .margin_start(6)
             .margin_end(6)
             .model(&dir_list_model)
+            .valign(gtk::Align::Fill)
             .build();
 
         let text_renderer = gtk::CellRendererText::builder()
             .xpad(6)
             .ellipsize(pango::EllipsizeMode::End)
+            .wrap_width(1) // TODO: Verify this is correct
             .build();
         dir_list.pack_end(&text_renderer, false);
         dir_list.add_attribute(&text_renderer, "text", 0);
@@ -109,7 +116,7 @@ impl FileBrowserWidget {
         dir_list.pack_start(&pixbuf_renderer, false);
         dir_list.add_attribute(&pixbuf_renderer, "icon-name", 1);
 
-        widget.pack_start(&dir_list, false, true, 0);
+        widget.append(&dir_list);
 
         let store = gtk::TreeStore::new(&[
             glib::Type::STRING,
@@ -117,15 +124,19 @@ impl FileBrowserWidget {
             glib::Type::U8,
             glib::Type::STRING,
         ]);
-        let tree = gtk::TreeView::builder()
-            .can_focus(false)
-            .headers_visible(false)
-            .show_expanders(false)
-            .level_indentation(20)
-            .activate_on_single_click(true)
-            .model(&store)
-            .build();
+        let tree = TreeView::new();
+        tree.set_focusable(false);
+        tree.set_headers_visible(false);
+        tree.set_show_expanders(false);
+        tree.set_level_indentation(20);
+        tree.set_activate_on_single_click(true);
+        tree.set_model(Some(&store));
         tree.selection().set_mode(gtk::SelectionMode::Single);
+
+        let context_menu = gtk::PopoverMenu::builder()
+            .position(gtk::PositionType::Bottom)
+            .build();
+        tree.set_context_menu(&context_menu);
 
         let tree_column = gtk::TreeViewColumn::builder()
             .sizing(gtk::TreeViewColumnSizing::Autosize)
@@ -144,27 +155,25 @@ impl FileBrowserWidget {
         tree.append_column(&tree_column);
 
         let window = gtk::ScrolledWindow::builder()
-            .can_focus(false)
+            .focusable(false)
+            .vexpand(true)
+            .valign(gtk::Align::Fill)
             .child(&tree)
             .build();
-        widget.pack_start(&window, true, true, 0);
+        widget.append(&window);
 
         let menu = gio::Menu::new();
 
         let section = gio::Menu::new();
-        section.append(Some("Go to directory"), Some("cd"));
+        section.append(Some("Go to directory"), Some("filebrowser.cd"));
         menu.append_section(None, &section);
 
         let section = gio::Menu::new();
-        section.append(Some("Reload"), Some("reload"));
-        section.append(Some("Show hidden files"), Some("show-hidden"));
+        section.append(Some("Reload"), Some("filebrowser.reload"));
+        section.append(Some("Show hidden files"), Some("filebrowser.show-hidden"));
         menu.append_section(None, &section);
 
-        let context_menu = gtk::PopoverMenu::builder()
-            .position(gtk::PositionType::Bottom)
-            .relative_to(&tree)
-            .build();
-        context_menu.bind_model(Some(&menu), Some("filebrowser"));
+        context_menu.set_menu_model(Some(&menu));
 
         let file_browser = FileBrowserWidget {
             store,
@@ -212,24 +221,20 @@ impl FileBrowserWidget {
             // when a directory is expanded, populate its children.
             let state = state_ref.borrow();
             if let Some(child) = store.iter_children(Some(iter)) {
-                let filename = store.value(&child, Column::Filename as i32);
+                let filename = store.get_value(&child, Column::Filename as i32);
                 if filename.get::<&str>().is_err() {
                     store.remove(&child);
-                    let dir_value = store.value(&iter, Column::Path as i32);
-                    if let Ok(dir) = dir_value.get() {
-                        populate_tree_nodes(&store, &state, dir, Some(iter));
-                    }
+                    let dir: String = store.get(&iter, Column::Path as i32);
+                    populate_tree_nodes(&store, &state, &dir, Some(iter));
                 } else {
                     // This directory is already populated, i.e. it has been expanded and collapsed
                     // again. Rows further down the tree might have been silently collapsed without
                     // getting an event. Update their folder icon.
-                    let mut tree_path = store.path(&child).unwrap();
+                    let mut tree_path = store.path(&child);
                     while let Some(iter) = store.iter(&tree_path) {
                         tree_path.next();
-                        let file_type = store
-                            .value(&iter, Column::FileType as i32)
-                            .get::<u8>();
-                        if file_type == Ok(FileType::Dir as u8) {
+                        let file_type: u8 = store.get(&iter, Column::FileType as i32);
+                        if file_type == FileType::Dir as u8 {
                             store.set(&iter, &[(Column::IconName as u32, &ICON_FOLDER_CLOSED)]);
                         }
                     }
@@ -337,14 +342,8 @@ impl FileBrowserWidget {
         self.tree.connect_row_activated(
             clone!(store, shell_state_ref => move |tree, path, _| {
                 let iter = store.iter(path).unwrap();
-                let file_type = store
-                    .value(&iter, Column::FileType as i32)
-                    .get::<u8>()
-                    .unwrap();
-                let file_path = store
-                    .value(&iter, Column::Path as i32)
-                    .get::<String>()
-                    .unwrap();
+                let file_type: u8 = store.get(&iter, Column::FileType as i32);
+                let file_path: String = store.get(&iter, Column::Path as i32);
                 if file_type == FileType::Dir as u8 {
                     let expanded = tree.row_expanded(path);
                     if expanded {
@@ -366,16 +365,14 @@ impl FileBrowserWidget {
         self.comps.dir_list.connect_changed(
             clone!(state_ref, dir_list_model, store => move |dir_list| {
                 if let Some(iter) = dir_list.active_iter() {
-                    let model = dir_list.model().unwrap();
-                    if let Ok(dir) = model.value(&iter, 2).get::<String>() {
-                        let mut state_ref = state_ref.borrow_mut();
-                        let current_dir = &mut state_ref.current_dir;
+                    let dir: String = dir_list.model().unwrap().get(&iter, 2);
+                    let mut state_ref = state_ref.borrow_mut();
+                    let current_dir = &mut state_ref.current_dir;
 
-                        if dir != *current_dir {
-                            *current_dir = dir.to_owned();
-                            update_dir_list(&dir, &dir_list_model, &dir_list);
-                            tree_reload(&store, &*state_ref);
-                        }
+                    if dir != *current_dir {
+                        *current_dir = dir.to_owned();
+                        update_dir_list(&dir, &dir_list_model, &dir_list);
+                        tree_reload(&store, &*state_ref);
                     }
                 }
             }
@@ -383,45 +380,79 @@ impl FileBrowserWidget {
 
         let context_menu = &self.comps.context_menu;
         let cd_action = &self.comps.cd_action;
-        self.tree.connect_button_press_event(
-            clone!(store, state_ref, context_menu, cd_action => move |tree, ev_btn| {
-                // Open context menu on right click.
-                if ev_btn.button() == 3 {
-                    let (pos_x, pos_y) = ev_btn.position();
-                    context_menu.set_pointing_to(&gdk::Rectangle::new(
-                        pos_x.round() as i32,
-                        pos_y.round() as i32,
-                        0,
-                        0,
-                    ));
-                    context_menu.popup();
-                    let iter = tree
-                        .path_at_pos(pos_x as i32, pos_y as i32)
-                        .and_then(|(path, _, _, _)| path)
-                        .and_then(|path| store.iter(&path));
-                    let file_type = iter
-                        .as_ref()
-                        .and_then(|iter| {
-                            store
-                                .value(&iter, Column::FileType as i32)
-                                .get::<u8>()
-                                .ok()
-                        });
-                    // Enable the "Go To Directory" action only if the user clicked on a folder.
-                    cd_action.set_enabled(file_type == Some(FileType::Dir as u8));
-                    let path = iter
-                        .and_then(|iter| {
-                            store
-                                .value(&iter, Column::Path as i32)
-                                .get::<String>()
-                                .ok()
-                        });
-                    state_ref.borrow_mut().selected_path = path;
-                }
-                Inhibit(false)
+        let right_click_controller = gtk::GestureClick::builder()
+            .button(3)
+            .build();
+        right_click_controller.connect_pressed(
+            clone!(store, state_ref, context_menu, cd_action => move |controller, _, x, y| {
+                open_context_menu(
+                    controller,
+                    x,
+                    y,
+                    &mut *state_ref.borrow_mut(),
+                    &store,
+                    &context_menu,
+                    &cd_action
+                )
             }),
         );
+        self.tree.add_controller(&right_click_controller);
+
+        let long_tap_controller = gtk::GestureLongPress::builder()
+            .touch_only(true)
+            .build();
+        long_tap_controller.connect_pressed(
+            clone!(store, state_ref, context_menu, cd_action => move |controller, x, y| {
+                open_context_menu(
+                    controller,
+                    x,
+                    y,
+                    &mut *state_ref.borrow_mut(),
+                    &store,
+                    &context_menu,
+                    &cd_action
+                )
+            }),
+        );
+        self.tree.add_controller(&long_tap_controller);
     }
+}
+
+fn open_context_menu<E>(
+    controller: &E,
+    x: f64,
+    y: f64,
+    state: &mut State,
+    store: &gtk::TreeStore,
+    context_menu: &gtk::PopoverMenu,
+    cd_action: &gio::SimpleAction,
+)
+where
+    E: glib::IsA<gtk::EventController>
+{
+    // Open context menu on right click.
+    context_menu.set_pointing_to(Some(&gdk::Rectangle::new(
+        x.round() as i32,
+        y.round() as i32,
+        0,
+        0,
+    )));
+    context_menu.popup();
+    let iter = controller
+        .widget()
+        .downcast::<gtk::TreeView>()
+        .unwrap()
+        .path_at_pos(x as i32, y as i32)
+        .and_then(|(path, _, _, _)| path)
+        .and_then(|path| store.iter(&path));
+    let file_type = iter
+        .as_ref()
+        .map(|iter| store.get::<u8>(&iter, Column::FileType as i32));
+    // Enable the "Go To Directory" action only if the user clicked on a folder.
+    cd_action.set_enabled(file_type == Some(FileType::Dir as u8));
+
+    let path = iter.map(|iter| store.get::<String>(&iter, Column::Path as i32));
+    state.selected_path = path;
 }
 
 /// Compare function for dir entries.
@@ -487,8 +518,7 @@ fn update_dir_list(dir: &str, dir_list_model: &gtk::TreeStore, dir_list: &gtk::C
         // Use the current entry of dir_list, if any, otherwise append a new one.
         let current_iter = dir_list_iter.unwrap_or_else(|| dir_list_model.append(None));
         // Check if the current entry is still part of the new cwd.
-        if is_prefix && dir_list_model.value(&current_iter, 0).get::<&str>() != Ok(dir_name)
-        {
+        if is_prefix && dir_list_model.get_value(&current_iter, 0).get::<&str>() != Ok(dir_name) {
             is_prefix = false;
         }
         if next.is_some() {
@@ -630,15 +660,14 @@ fn get_current_dir(nvim: &NvimSession) -> Option<String> {
 /// Reveals and selects the given file in the file browser.
 ///
 /// Returns `true` if the file could be successfully revealed.
-fn reveal_path_in_tree(store: &gtk::TreeStore, tree: &gtk::TreeView, rel_file_path: &Path) -> bool {
+fn reveal_path_in_tree(store: &gtk::TreeStore, tree: &TreeView, rel_file_path: &Path) -> bool {
     let mut tree_path = gtk::TreePath::new();
     'components: for component in rel_file_path.components() {
         if let Component::Normal(component) = component {
             tree_path.down();
             while let Some(iter) = store.iter(&tree_path) {
-                let entry_value = store.value(&iter, Column::Filename as i32);
-                let entry = entry_value.get::<&str>().unwrap();
-                if component == entry {
+                let entry: String = store.get(&iter, Column::Filename as i32);
+                if component == entry.as_str() {
                     tree.expand_row(&tree_path, false);
                     continue 'components;
                 }
@@ -652,6 +681,6 @@ fn reveal_path_in_tree(store: &gtk::TreeStore, tree: &gtk::TreeView, rel_file_pa
     if tree_path.depth() == 0 {
         return false;
     }
-    tree.set_cursor(&tree_path, Option::<&gtk::TreeViewColumn>::None, false);
+    gtk::prelude::TreeViewExt::set_cursor(tree, &tree_path, None, false);
     true
 }

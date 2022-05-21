@@ -12,7 +12,7 @@ impl<'a> Builder<'a> {
         Builder { title }
     }
 
-    pub fn show<F: IsA<gtk::Window>>(&self, parent: &F) -> Option<store::PlugInfo> {
+    pub async fn show<F: IsA<gtk::Window>>(&self, parent: &F) -> Option<store::PlugInfo> {
         let dlg = gtk::Dialog::with_buttons(
             Some(self.title),
             Some(parent),
@@ -32,8 +32,9 @@ impl<'a> Builder<'a> {
             .margin_bottom(12)
             .build();
 
-        let list = gtk::ListBox::new();
-        list.set_selection_mode(gtk::SelectionMode::None);
+        let list = gtk::ListBox::builder()
+            .selection_mode(gtk::SelectionMode::None)
+            .build();
 
         let path = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -47,10 +48,10 @@ impl<'a> Builder<'a> {
         let path_e = gtk::Entry::new();
         path_e.set_placeholder_text(Some("user_name/repo_name"));
 
-        path.pack_start(&path_lbl, true, true, 0);
-        path.pack_end(&path_e, false, true, 0);
+        path.append(&path_lbl);
+        path.append(&path_e);
 
-        list.add(&path);
+        list.append(&path);
 
         let name = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -63,14 +64,13 @@ impl<'a> Builder<'a> {
         let name_lbl = gtk::Label::new(Some("Name"));
         let name_e = gtk::Entry::new();
 
-        name.pack_start(&name_lbl, true, true, 0);
-        name.pack_end(&name_e, false, true, 0);
+        name.append(&name_lbl);
+        name.append(&name_e);
 
-        list.add(&name);
+        list.append(&name);
 
-        border.pack_start(&list, true, true, 0);
-        content.add(&border);
-        content.show_all();
+        border.append(&list);
+        content.append(&border);
 
         path_e.connect_changed(clone!(name_e => move |p| {
             if let Some(name) = extract_name(p.text().as_str()) {
@@ -78,7 +78,7 @@ impl<'a> Builder<'a> {
             }
         }));
 
-        let res = if dlg.run() == gtk::ResponseType::Ok {
+        let res = if dlg.run_future().await == gtk::ResponseType::Ok {
             let path = path_e.text().to_string();
             let name = name_e.text();
 

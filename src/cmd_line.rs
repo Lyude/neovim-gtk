@@ -13,6 +13,7 @@ use pango;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cursor;
+use crate::drawing_area::DrawingArea;
 use crate::highlight::{Highlight, HighlightMap};
 use crate::mode;
 use crate::nvim::{self, NeovimClient};
@@ -218,6 +219,8 @@ impl State {
         }
     }
 
+    // FIXME: Get rid of this once we have a better widget then DrawingArea
+    #[allow(unused)]
     fn queue_redraw_cursor(&mut self) {
         if let Some(ref level) = self.levels.last() {
             let level_preferred_height = level.preferred_height;
@@ -238,6 +241,11 @@ impl State {
 
             let (x, y, width, height) = cur_point.to_area_extend_ink(Some(model), cell_metrics);
 
+            self.drawing_area.queue_draw();
+            /* TODO: Get our own custom DrawingArea replacement working here instead of doing a full
+             * redraw
+             */
+            /*
             if gap > 0 {
                 self.drawing_area
                     .queue_draw_area(x, y + gap / 2, width, height);
@@ -245,6 +253,7 @@ impl State {
                 self.drawing_area
                     .queue_draw_area(x, y + block_preferred_height, width, height);
             }
+            */
         }
     }
 }
@@ -267,30 +276,29 @@ pub struct CmdLine {
 }
 
 impl CmdLine {
-    pub fn new(drawing: &gtk::DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
-        let popover = gtk::Popover::new(Some(drawing));
-        popover.set_modal(false);
+    pub fn new(drawing: &DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
+        let popover = gtk::Popover::new();
+        popover.set_autohide(false);
         popover.set_position(gtk::PositionType::Right);
+        popover.set_parent(drawing);
+        popover.add_css_class("nvim-cmdline");
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         let drawing_area = gtk::DrawingArea::new();
-        content.pack_start(&drawing_area, true, true, 0);
+        content.append(&drawing_area);
 
         let state = Arc::new(UiMutex::new(State::new(drawing_area.clone(), render_state)));
         let weak_cb = Arc::downgrade(&state);
         let cursor = cursor::BlinkCursor::new(weak_cb);
         state.borrow_mut().cursor = Some(cursor);
 
-        drawing_area.connect_draw(clone!(state => move |_, ctx| gtk_draw(ctx, &state)));
+        drawing_area.set_draw_func(clone!(state => move |_, ctx, _, _| gtk_draw(ctx, &state)));
 
         let (wild_scroll, wild_tree, wild_css_provider, wild_renderer, wild_column) =
             CmdLine::create_wildmenu(&state);
-        content.pack_start(&wild_scroll, false, true, 0);
-        popover.add(&content);
-
-        drawing_area.show_all();
-        content.show();
+        content.append(&wild_scroll);
+        popover.set_child(Some(&content));
 
         CmdLine {
             popover,
@@ -321,7 +329,7 @@ impl CmdLine {
 
         tree.selection().set_mode(gtk::SelectionMode::Single);
         tree.set_headers_visible(false);
-        tree.set_can_focus(false);
+        tree.set_focusable(false);
 
         let renderer = gtk::CellRendererText::new();
         renderer.set_ellipsize(pango::EllipsizeMode::End);
@@ -331,23 +339,24 @@ impl CmdLine {
         column.add_attribute(&renderer, "text", 0);
         tree.append_column(&column);
 
-        let scroll = gtk::ScrolledWindow::new(
-            Option::<&gtk::Adjustment>::None,
-            Option::<&gtk::Adjustment>::None,
-        );
+        let scroll = gtk::ScrolledWindow::new();
         scroll.set_propagate_natural_height(true);
         scroll.set_propagate_natural_width(true);
 
-        scroll.add(&tree);
+        scroll.set_child(Some(&tree));
 
-        tree.connect_button_press_event(clone!(state => move |tree, ev| {
+        let controller = gtk::GestureClick::builder()
+            .button(1)
+            .build();
+        controller.connect_pressed(clone!(state => move |controller, _, x, y| {
             let state = state.borrow();
             let nvim = state.nvim.as_ref().unwrap().nvim();
+            let tree = controller.widget().downcast().unwrap();
             if let Some(mut nvim) = nvim {
-                popup_menu::tree_button_press(tree, ev, &mut nvim, "");
+                popup_menu::tree_button_press(&tree, x, y, &mut nvim, "");
             }
-            Inhibit(false)
         }));
+        tree.add_controller(&controller);
 
         (scroll, tree, css_provider, renderer, column)
     }
@@ -374,7 +383,9 @@ impl CmdLine {
 
         if !self.displayed {
             self.displayed = true;
-            self.popover.set_pointing_to(&gdk::Rectangle::new(ctx.x, ctx.y, ctx.width, ctx.height));
+            self.popover.set_pointing_to(Some(&gdk::Rectangle::new(
+                ctx.x, ctx.y, ctx.width, ctx.height
+            )));
             self.popover.popup();
             state.cursor.as_mut().unwrap().start();
         } else {
@@ -499,7 +510,7 @@ impl CmdLine {
 
         self.wild_scroll.set_max_content_height(treeview_height);
 
-        self.wild_scroll.show_all();
+        self.wild_scroll.show();
     }
 
     pub fn hide_wildmenu(&self) {
@@ -510,7 +521,7 @@ impl CmdLine {
         if selected >= 0 {
             let wild_tree = self.wild_tree.clone();
             glib::idle_add_local_once(move || {
-                let selected_path = gtk::TreePath::from_string(&format!("{}", selected));
+                let selected_path = gtk::TreePath::from_string(&format!("{}", selected)).unwrap();
                 wild_tree.selection().select_path(&selected_path);
                 wild_tree.scroll_to_cell(Some(&selected_path), Option::<&gtk::TreeViewColumn>::None, false, 0.0, 0.0);
             });
@@ -520,7 +531,7 @@ impl CmdLine {
     }
 }
 
-fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
+fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) {
     let state = state.borrow();
     let preferred_height = state.preferred_height();
     let level = state.levels.last();
@@ -563,8 +574,6 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) -> Inhibit {
 
     ctx.pop_group_to_source().unwrap();
     ctx.paint().unwrap();
-
-    Inhibit(false)
 }
 
 pub struct CmdLineContext<'a> {

@@ -137,7 +137,7 @@ impl Context {
             .pango_context
             .list_families()
             .iter()
-            .map(|f| glib::GString::from(f.to_string()))
+            .filter_map(|f| f.name())
             .collect()
     }
 }
