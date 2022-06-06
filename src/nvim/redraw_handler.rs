@@ -12,7 +12,21 @@ use rmpv;
 use crate::value::ValueMapExt;
 
 use super::handler::NvimHandler;
-use super::repaint_mode::RepaintMode;
+
+/// Indicates whether we should queue a draw and if so, whether we should invalidate any internal
+/// caches before doing so
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RedrawMode {
+    /// No redraw required
+    Nothing,
+    /// A redraw is required, but only the state of the cursor has changed
+    Cursor,
+    /// A redraw is required and no glyphs have changed, but the snapshot cache must be cleared
+    /// anyway
+    ClearCache,
+    /// A redraw is required and glyphs have changed
+    All,
+}
 
 macro_rules! try_str {
     ($exp:expr) => {
@@ -235,7 +249,7 @@ pub fn call(
     ui: &mut shell::State,
     method: &str,
     args: Vec<Value>,
-) -> result::Result<RepaintMode, String> {
+) -> result::Result<RedrawMode, String> {
     let repaint_mode = match method {
         "grid_line" => call!(ui->grid_line(args: uint, uint, uint, ext)),
         "grid_clear" => call!(ui->grid_clear(args: uint)),
@@ -299,7 +313,7 @@ pub fn call(
         "wildmenu_select" => call!(ui->wildmenu_select(args: int)),
         _ => {
             warn!("Event {}({:?})", method, args);
-            RepaintMode::Nothing
+            RedrawMode::Nothing
         }
     };
 

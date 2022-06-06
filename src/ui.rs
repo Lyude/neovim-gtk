@@ -676,7 +676,7 @@ fn set_background(shell: &RefCell<Shell>, args: Vec<String>) {
     state.borrow().set_background(background);
 
     // Neovim won't send us a redraw to update the default colors on the screen, so do it ourselves
-    glib::idle_add_once(clone!(state => move || state.borrow_mut().on_redraw(&RepaintMode::All)));
+    glib::idle_add_once(clone!(state => move || state.borrow_mut().queue_draw(RedrawMode::ClearCache)));
 }
 
 fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {

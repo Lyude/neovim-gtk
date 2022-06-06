@@ -29,7 +29,7 @@ impl Item {
             cells_count,
             glyphs: None,
             render_node: None,
-            ink_overflow: None, // TODO: get rid of this
+            ink_overflow: None,
         }
     }
 
@@ -76,8 +76,6 @@ impl Item {
     }
 }
 
-// TODO: Because we don't handle calculating damage ourselves anymore (it magically "just works"
-// with render nodes), we probably will want to remove the overflow logic entirely
 #[derive(Clone)]
 pub struct InkOverflow {
     pub left: f64,

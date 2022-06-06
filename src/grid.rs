@@ -138,7 +138,7 @@ impl Grid {
         rows: i64,
         _: i64,
         default_hl: &Rc<Highlight>,
-    ) -> ModelRect {
+    ) {
         self.model.scroll(
             top as i64,
             bot as i64 - 1,

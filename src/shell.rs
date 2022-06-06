@@ -19,7 +19,6 @@ use tokio::sync::{
 
 use clap::{self, value_t};
 
-use cairo;
 use gdk::{
     self,
     prelude::*,
@@ -34,7 +33,6 @@ use gtk::{Button, MenuButton, Notebook};
 use gtk::prelude::*;
 use pango;
 use pango::FontDescription;
-use pangocairo;
 
 use nvim_rs::Value;
 
@@ -43,7 +41,7 @@ use crate::grid::GridMap;
 use crate::highlight::{HighlightMap, BackgroundState};
 use crate::misc::{decode_uri, escape_filename, split_at_comma};
 use crate::nvim::{
-    self, CompleteItem, ErrorReport, NeovimClient, NvimHandler, RepaintMode, NvimSession, Tabpage,
+    self, CompleteItem, ErrorReport, NeovimClient, NvimHandler, RedrawMode, NvimSession, Tabpage,
     NormalError, CallErrorExt
 };
 use crate::settings::{FontSource, Settings};
@@ -51,8 +49,7 @@ use crate::ui_model::ModelRect;
 use crate::{spawn_timeout, spawn_timeout_user_err};
 
 use crate::cmd_line::{CmdLine, CmdLineContext};
-use crate::cursor::{BlinkCursor, Cursor, CursorRedrawCb, EmptyCursor};
-use crate::drawing_area::DrawingArea;
+use crate::cursor::{BlinkCursor, CursorRedrawCb};
 use crate::error;
 use crate::input;
 use crate::input::keyval_to_input_string;
@@ -109,7 +106,7 @@ impl TransparencySettings {
         }
     }
 
-    fn filled_alpha(&self) -> Option<f64> {
+    pub fn filled_alpha(&self) -> Option<f64> {
         if self.enabled {
             Some(self.filled_alpha)
         } else {
@@ -395,7 +392,7 @@ impl State {
             .update(pango_context);
         self.grids.borrow_mut().clear_glyphs();
         self.try_nvim_resize();
-        self.on_redraw(&RepaintMode::All);
+        self.queue_draw(RedrawMode::All);
     }
 
     pub fn set_font_features(&mut self, font_features: String) {
@@ -406,7 +403,7 @@ impl State {
             .font_ctx
             .update_font_features(font_features);
         self.grids.borrow_mut().clear_glyphs();
-        self.on_redraw(&RepaintMode::All);
+        self.queue_draw(RedrawMode::All);
     }
 
     pub fn set_line_space(&mut self, line_space: String) {
@@ -424,7 +421,7 @@ impl State {
             .update_line_space(line_space);
         self.grids.borrow_mut().clear_glyphs();
         self.try_nvim_resize();
-        self.on_redraw(&RepaintMode::All);
+        self.queue_draw(RedrawMode::All);
     }
 
     /// return true if transparency enabled
@@ -439,7 +436,7 @@ impl State {
             self.transparency_settings.enabled = false;
         }
 
-        self.on_redraw(&RepaintMode::All);
+        self.queue_draw(RedrawMode::ClearCache);
 
         self.transparency_settings.enabled
     }
@@ -511,28 +508,12 @@ impl State {
         }
     }
 
-    #[allow(unused)]
-    fn queue_draw_area<M: AsRef<ModelRect>>(&mut self, rect_list: &[M]) {
-        // extends by items before, then after changes
-        let rects: Vec<_> = rect_list
-            .iter()
-            .map(|rect| rect.as_ref().clone())
-            .map(|mut rect| {
-                rect.extend_by_items(self.grids.borrow().current_model());
-                rect
-            })
-            .collect();
-
-        self.update_dirty_glyphs();
-        self.nvim_viewport.queue_draw();
-    }
 
     fn update_dirty_glyphs(&mut self) {
         let render_state = self.render_state.borrow();
         if let Some(model) = self.grids.borrow_mut().current_model_mut() {
             render::shape_dirty(&render_state.font_ctx, model, &render_state.hl);
         }
-        self.nvim_viewport.clear_snapshot_cache();
     }
 
     fn im_commit(&self, ch: &str) {
@@ -1311,14 +1292,14 @@ fn gtk_focus_in(state: &mut State) {
     state.focus_update(true);
     state.im_context.focus_in();
     state.cursor.as_mut().unwrap().enter_focus();
-    state.queue_redraw_cursor();
+    state.queue_draw(RedrawMode::Cursor);
 }
 
 fn gtk_focus_out(state: &mut State) {
     state.focus_update(false);
     state.im_context.focus_out();
     state.cursor.as_mut().unwrap().leave_focus();
-    state.queue_redraw_cursor();
+    state.queue_draw(RedrawMode::Cursor);
 }
 
 fn gtk_scroll_event(
@@ -1467,37 +1448,6 @@ fn gtk_motion_notify(
     ui_state.set_cursor_visible(&shell.nvim_viewport, true);
 }
 
-fn draw_content(state: &State, ctx: &cairo::Context) {
-    ctx.push_group();
-
-    let render_state = state.render_state.borrow();
-    render::fill_background(
-        ctx,
-        &render_state.hl,
-        state.transparency_settings.background_alpha(),
-    );
-    render::draw(
-        ctx,
-        state.cursor.as_ref().unwrap(),
-        &render_state.font_ctx,
-        state.grids.borrow().current_model().unwrap(),
-        &render_state.hl,
-        state.transparency_settings.filled_alpha(),
-    );
-
-    ctx.pop_group_to_source().unwrap();
-    ctx.paint().unwrap();
-}
-
-fn gtk_draw(state_arc: &Arc<UiMutex<State>>, ctx: &cairo::Context) {
-    let state = state_arc.borrow();
-    if state.nvim.is_initialized() {
-        draw_content(&*state, ctx);
-    } else if state.nvim.is_initializing() {
-        draw_initializing(&*state, ctx);
-    }
-}
-
 fn show_nvim_start_error(err: &nvim::NvimInitError, state_arc: Arc<UiMutex<State>>) {
     let source = err.source();
     let cmd = err.cmd().unwrap().to_owned();
@@ -1606,36 +1556,6 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>) {
     idle_cb_call!(state_arc.nvim_started_cb());
 }
 
-fn draw_initializing(state: &State, ctx: &cairo::Context) {
-    let render_state = state.render_state.borrow();
-    let hl = &render_state.hl;
-    let layout = pangocairo::functions::create_layout(ctx).unwrap();
-    let alloc = state.nvim_viewport.allocation();
-
-    let bg_color = hl.bg();
-    let fg_color = hl.fg();
-    ctx.set_source_rgb(bg_color.0, bg_color.1, bg_color.2);
-    ctx.paint().unwrap();
-
-    layout.set_text("Loading->");
-    let (width, height) = layout.pixel_size();
-
-    let x = alloc.width() as f64 / 2.0 - width as f64 / 2.0;
-    let y = alloc.height() as f64 / 2.0 - height as f64 / 2.0;
-
-    ctx.move_to(x, y);
-    ctx.set_source_rgb(fg_color.0, fg_color.1, fg_color.2);
-    pangocairo::functions::update_layout(ctx, &layout);
-    pangocairo::functions::show_layout(ctx, &layout);
-
-    ctx.move_to(x + width as f64, y);
-    state
-        .cursor
-        .as_ref()
-        .unwrap()
-        .draw(ctx, &render_state.font_ctx, y, false, &hl);
-}
-
 fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
     let state = state_ref.borrow_mut();
     if state.start_nvim_initialization() {
@@ -1654,36 +1574,51 @@ fn init_nvim(state_ref: &Arc<UiMutex<State>>) {
 
 // Neovim redraw events
 impl State {
+    pub fn queue_draw(&mut self, mode: RedrawMode) {
+        if mode == RedrawMode::Nothing {
+            return;
+        }
+
+        if mode >= RedrawMode::ClearCache {
+            if mode == RedrawMode::All {
+                self.update_dirty_glyphs();
+            }
+            self.nvim_viewport.clear_snapshot_cache();
+        }
+
+        self.nvim_viewport.queue_draw();
+    }
+
     pub fn grid_line(
         &mut self,
         grid: u64,
         row: u64,
         col_start: u64,
         cells: Vec<Vec<Value>>,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         let hl = &self.render_state.borrow().hl;
-        let repaint_area = self.grids.borrow_mut()[grid].line(row as usize, col_start as usize, cells, hl);
-        RepaintMode::Area(repaint_area)
+        self.grids.borrow_mut()[grid].line(row as usize, col_start as usize, cells, hl);
+        RedrawMode::All
     }
 
-    pub fn grid_clear(&mut self, grid: u64) -> RepaintMode {
+    pub fn grid_clear(&mut self, grid: u64) -> RedrawMode {
         let hl = &self.render_state.borrow().hl;
         self.grids.borrow_mut()[grid].clear(&hl.default_hl());
-        RepaintMode::All
+        RedrawMode::All
     }
 
-    pub fn grid_destroy(&mut self, grid: u64) -> RepaintMode {
+    pub fn grid_destroy(&mut self, grid: u64) -> RedrawMode {
         self.grids.borrow_mut().destroy(grid);
-        RepaintMode::All
+        RedrawMode::All
     }
 
-    pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RepaintMode {
-        let repaint_area = self.grids.borrow_mut()[grid].cursor_goto(row as usize, column as usize);
+    pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RedrawMode {
+        self.grids.borrow_mut()[grid].cursor_goto(row as usize, column as usize);
         self.set_im_location();
-        RepaintMode::AreaList(repaint_area)
+        RedrawMode::Cursor
     }
 
-    pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RepaintMode {
+    pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RedrawMode {
         debug!("on_resize {}/{}", columns, rows);
 
         let nvim = self.nvim().unwrap();
@@ -1699,19 +1634,7 @@ impl State {
         });
 
         self.grids.borrow_mut().get_or_create(grid).resize(columns, rows);
-        RepaintMode::Nothing
-    }
-
-    pub fn on_redraw(&mut self, mode: &RepaintMode) {
-        match *mode {
-            RepaintMode::All => {
-                self.update_dirty_glyphs();
-                self.nvim_viewport.queue_draw();
-            }
-            RepaintMode::Area(ref rect) => self.queue_draw_area(&[rect]),
-            RepaintMode::AreaList(ref list) => self.queue_draw_area(&list.list),
-            RepaintMode::Nothing => (),
-        }
+        RedrawMode::Nothing
     }
 
     pub fn grid_scroll(
@@ -1723,17 +1646,10 @@ impl State {
         right: u64,
         rows: i64,
         cols: i64,
-    ) -> RepaintMode {
-        let hl = &self.render_state.borrow().hl;
-        RepaintMode::Area(self.grids.borrow_mut()[grid].scroll(
-            top,
-            bot,
-            left,
-            right,
-            rows,
-            cols,
-            &hl.default_hl(),
-        ))
+    ) -> RedrawMode {
+        let hl = &self.render_state.borrow().hl.default_hl();
+        self.grids.borrow_mut()[grid].scroll(top, bot, left, right, rows, cols, hl);
+        RedrawMode::All
     }
 
     pub fn hl_attr_define(
@@ -1742,9 +1658,9 @@ impl State {
         rgb_attr: HashMap<String, Value>,
         _: &Value,
         info: Vec<HashMap<String, Value>>,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         self.render_state.borrow_mut().hl.set(id, &rgb_attr, &info);
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
     pub fn default_colors_set(
@@ -1754,7 +1670,7 @@ impl State {
         sp: i64,
         cterm_fg: i64,
         cterm_bg: i64,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         self.render_state.borrow_mut().hl.set_defaults(
             if fg >= 0 {
                 Some(Color::from_indexed_color(fg as u64))
@@ -1782,18 +1698,18 @@ impl State {
                 COLOR_BLACK
             },
         );
-        RepaintMode::All
+        RedrawMode::ClearCache
     }
 
-    fn cur_point_area(&self) -> RepaintMode {
-        if let Some(cur_point) = self.grids.borrow().current().map(|g| g.cur_point()) {
-            RepaintMode::Area(cur_point)
+    fn cur_point_area(&self) -> RedrawMode {
+        if self.grids.borrow().current().is_some() {
+            RedrawMode::Cursor
         } else {
-            RepaintMode::Nothing
+            RedrawMode::Nothing
         }
     }
 
-    pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RepaintMode {
+    pub fn on_mode_change(&mut self, mode: String, idx: u64) -> RedrawMode {
         let mut render_state = self.render_state.borrow_mut();
         render_state.mode.update(&mode, idx as usize);
         self.cursor
@@ -1806,12 +1722,13 @@ impl State {
         self.cur_point_area()
     }
 
-    pub fn on_mouse(&mut self, on: bool) -> RepaintMode {
+    pub fn on_mouse(&mut self, on: bool) -> RedrawMode {
         self.mouse_enabled = on;
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn on_busy(&mut self, busy: bool) -> RepaintMode {
+    // TODO: See if we can fix this so that we only return RedrawMode::Cursor
+    pub fn on_busy(&mut self, busy: bool) -> RedrawMode {
         if busy {
             self.cursor.as_mut().unwrap().busy_on();
         } else {
@@ -1827,7 +1744,7 @@ impl State {
         selected: i64,
         row: u64,
         col: u64,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         let point = ModelRect::point(col as usize, row as usize);
         let render_state = self.render_state.borrow();
         let (x, y, width, height) = point.to_area(render_state.font_ctx.cell_metrics());
@@ -1847,35 +1764,37 @@ impl State {
 
         self.popup_menu.show(context);
 
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn popupmenu_hide(&mut self) -> RepaintMode {
+    pub fn popupmenu_hide(&mut self) -> RedrawMode {
         self.popup_menu.hide();
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn popupmenu_select(&mut self, selected: i64) -> RepaintMode {
+    pub fn popupmenu_select(&mut self, selected: i64) -> RedrawMode {
         self.popup_menu.select(selected);
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
     pub fn tabline_update(
         &mut self,
         selected: Tabpage,
         tabs: Vec<(Tabpage, Option<String>)>,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         self.tabs.update_tabs(&self.nvim, &selected, &tabs);
 
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn option_set(&mut self, name: String, val: Value) -> RepaintMode {
-        if let "guifont" = name.as_str() { self.set_font_from_value(val) };
-        RepaintMode::Nothing
+    pub fn option_set(&mut self, name: String, val: Value) -> RedrawMode {
+        match name.as_str() {
+            "guifont" => self.set_font_from_value(val),
+            _ => RedrawMode::Nothing,
+        }
     }
 
-    fn set_font_from_value(&mut self, val: Value) {
+    fn set_font_from_value(&mut self, val: Value) -> RedrawMode {
         if let Value::String(val) = val {
             if let Some(val) = val.into_str() {
                 if !val.is_empty() {
@@ -1887,24 +1806,27 @@ impl State {
                             && exists_fonts.contains(&desc.family().unwrap_or_else(|| "".into()))
                         {
                             self.set_font_rpc(font);
-                            return;
+                            return RedrawMode::All;
                         }
                     }
 
                     // font does not exists? set first one
                     if !fonts.is_empty() {
                         self.set_font_rpc(&fonts[0]);
+                        return RedrawMode::All;
                     }
                 }
             }
         }
+
+        RedrawMode::Nothing
     }
 
     pub fn mode_info_set(
         &mut self,
         cursor_style_enabled: bool,
         mode_infos: Vec<HashMap<String, Value>>,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         let mode_info_arr = mode_infos
             .iter()
             .map(|mode_info_map| mode::ModeInfo::new(mode_info_map))
@@ -1922,7 +1844,7 @@ impl State {
             }
         }
 
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
     pub fn cmdline_show(
@@ -1933,7 +1855,7 @@ impl State {
         prompt: String,
         indent: u64,
         level: u64,
-    ) -> RepaintMode {
+    ) -> RedrawMode {
         {
             let cursor = self.grids.borrow().current().unwrap().cur_point();
             let render_state = self.render_state.borrow();
@@ -1959,53 +1881,53 @@ impl State {
         self.on_busy(true)
     }
 
-    pub fn cmdline_hide(&mut self, level: u64) -> RepaintMode {
+    pub fn cmdline_hide(&mut self, level: u64) -> RedrawMode {
         self.cmd_line.hide_level(level);
         self.on_busy(false)
     }
 
-    pub fn cmdline_block_show(&mut self, content: Vec<Vec<(u64, String)>>) -> RepaintMode {
+    pub fn cmdline_block_show(&mut self, content: Vec<Vec<(u64, String)>>) -> RedrawMode {
         let max_width = self.max_popup_width();
         self.cmd_line.show_block(&content, max_width);
         self.on_busy(true)
     }
 
-    pub fn cmdline_block_append(&mut self, content: Vec<(u64, String)>) -> RepaintMode {
+    pub fn cmdline_block_append(&mut self, content: Vec<(u64, String)>) -> RedrawMode {
         self.cmd_line.block_append(&content);
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn cmdline_block_hide(&mut self) -> RepaintMode {
+    pub fn cmdline_block_hide(&mut self) -> RedrawMode {
         self.cmd_line.block_hide();
         self.on_busy(false)
     }
 
-    pub fn cmdline_pos(&mut self, pos: u64, level: u64) -> RepaintMode {
+    pub fn cmdline_pos(&mut self, pos: u64, level: u64) -> RedrawMode {
         let render_state = self.render_state.borrow();
         self.cmd_line.pos(&*render_state, pos, level);
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RepaintMode {
+    pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RedrawMode {
         let render_state = self.render_state.borrow();
         self.cmd_line.special_char(&*render_state, c, shift, level);
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn wildmenu_show(&self, items: Vec<String>) -> RepaintMode {
+    pub fn wildmenu_show(&self, items: Vec<String>) -> RedrawMode {
         self.cmd_line
             .show_wildmenu(items, &*self.render_state.borrow(), self.max_popup_width());
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn wildmenu_hide(&self) -> RepaintMode {
+    pub fn wildmenu_hide(&self) -> RedrawMode {
         self.cmd_line.hide_wildmenu();
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 
-    pub fn wildmenu_select(&self, selected: i64) -> RepaintMode {
+    pub fn wildmenu_select(&self, selected: i64) -> RedrawMode {
         self.cmd_line.wildmenu_select(selected);
-        RepaintMode::Nothing
+        RedrawMode::Nothing
     }
 }
 

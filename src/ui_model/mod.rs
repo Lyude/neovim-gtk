@@ -139,7 +139,7 @@ impl UiModel {
         source_row.swap_with(target_row, left_col, right_col);
     }
 
-    pub fn scroll(&mut self, top: i64, bot: i64, left: usize, right: usize, count: i64, default_hl: &Rc<Highlight>) -> ModelRect {
+    pub fn scroll(&mut self, top: i64, bot: i64, left: usize, right: usize, count: i64, default_hl: &Rc<Highlight>) {
         if count > 0 {
             for row in top..(bot - count + 1) {
                 self.swap_row(row, count, left, right);
@@ -155,8 +155,6 @@ impl UiModel {
         } else {
             self.clear_region(top as usize, (top - count - 1) as usize, left, right, default_hl);
         }
-
-        ModelRect::new(top as usize, bot as usize, left, right)
     }
 
     pub fn clear(&mut self, default_hl: &Rc<Highlight>) {
@@ -266,11 +264,6 @@ mod tests {
     fn test_scroll_area() {
         let mut model = UiModel::new(10, 20);
 
-        let rect = model.scroll(1, 5, 1, 5, 3, &Rc::new(Highlight::new()));
-
-        assert_eq!(1, rect.top);
-        assert_eq!(1, rect.left);
-        assert_eq!(5, rect.bot);
-        assert_eq!(5, rect.right);
+        model.scroll(1, 5, 1, 5, 3, &Rc::new(Highlight::new()));
     }
 }

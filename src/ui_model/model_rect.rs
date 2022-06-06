@@ -95,8 +95,6 @@ impl ModelRect {
     }
 
     /// Extend rect to left and right to make changed Item rerendered
-    // TODO: Adjust this so that we no longer take InkOverflow into account, since GTK+4 snapshots
-    // should render this unnecessary
     pub fn extend_by_items(&mut self, model: Option<&UiModel>) {
         if model.is_none() {
             return;

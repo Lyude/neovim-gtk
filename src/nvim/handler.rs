@@ -16,8 +16,7 @@ use crate::shell;
 use crate::nvim::{NvimWriter, Neovim};
 use glib;
 
-use super::repaint_mode::RepaintMode;
-use super::redraw_handler;
+use super::redraw_handler::{self, RedrawMode};
 
 pub struct NvimHandler {
     shell: Arc<UiMutex<shell::State>>,
@@ -90,7 +89,7 @@ impl NvimHandler {
                                         .ok_or_else(|| "Event name does not exists")?,
                                     args,
                                 )?;
-                                ui.on_redraw(&RepaintMode::All);
+                                ui.queue_draw(RedrawMode::All);
                                 Ok(())
                             });
                         } else {
@@ -140,7 +139,7 @@ impl NvimHandler {
                                     .unwrap();
                                 {
                                     let ui = &mut ui.borrow_mut();
-                                    ui.on_redraw(&RepaintMode::All);
+                                    ui.queue_draw(RedrawMode::All);
                                 }
                                 Ok(())
                             });
@@ -178,7 +177,7 @@ fn call_redraw_handler(
     ui: &Arc<UiMutex<shell::State>>,
 ) -> result::Result<(), String> {
     let ui = &mut ui.borrow_mut();
-    let mut repaint_mode = RepaintMode::Nothing;
+    let mut repaint_mode = RedrawMode::Nothing;
 
     for ev in params {
         let ev_args = match ev {
@@ -217,11 +216,11 @@ fn call_redraw_handler(
                 Ok(mode) => mode,
                 Err(desc) => return Err(format!("Event {}\n{}", ev_name, desc)),
             };
-            repaint_mode = repaint_mode.join(call_repaint_mode);
+            repaint_mode = repaint_mode.max(call_repaint_mode);
         }
     }
 
-    ui.on_redraw(&repaint_mode);
+    ui.queue_draw(repaint_mode);
     Ok(())
 }
 

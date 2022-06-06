@@ -1,11 +1,9 @@
 mod client;
 mod handler;
 mod redraw_handler;
-mod repaint_mode;
 mod ext;
 
-pub use self::redraw_handler::{CompleteItem, NvimCommand};
-pub use self::repaint_mode::RepaintMode;
+pub use self::redraw_handler::{CompleteItem, NvimCommand, RedrawMode};
 pub use self::client::NeovimClient;
 pub use self::ext::*;
 pub use self::handler::NvimHandler;

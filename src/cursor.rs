@@ -1,4 +1,3 @@
-use cairo;
 use glib;
 use gtk::graphene::Rect;
 
@@ -88,17 +87,6 @@ impl<CB: CursorRedrawCb> State<CB> {
 }
 
 pub trait Cursor {
-    // TODO: draw is old, render is new
-    /// return cursor current alpha value
-    fn draw(
-        &self,
-        ctx: &cairo::Context,
-        font_ctx: &render::Context,
-        line_y: f64,
-        double_width: bool,
-        hl: &HighlightMap,
-    ) -> f64;
-
     /// Add render nodes for the cursor to the snapshot. Returns whether or not text should be drawn
     /// after
     #[must_use]
@@ -118,52 +106,6 @@ pub trait Cursor {
     fn is_visible(&self) -> bool;
 
     fn mode_info(&self) -> Option<&mode::ModeInfo>;
-}
-
-pub struct EmptyCursor;
-
-impl EmptyCursor {
-    pub fn new() -> Self {
-        EmptyCursor {}
-    }
-}
-
-impl Cursor for EmptyCursor {
-    fn draw(
-        &self,
-        _ctx: &cairo::Context,
-        _font_ctx: &render::Context,
-        _line_y: f64,
-        _double_width: bool,
-        _color: &HighlightMap,
-    ) -> f64 {
-        0.0
-    }
-
-    fn snapshot(
-        &self,
-        _snapshot: &gtk::Snapshot,
-        _font_ctx: &render::Context,
-        _pos: (f64, f64),
-        _cell: &Cell,
-        _double_width: bool,
-        _hl: &HighlightMap,
-        _alpha: f64,
-    ) -> bool {
-        false
-    }
-
-    fn alpha(&self) -> f64 {
-        1.0
-    }
-
-    fn is_visible(&self) -> bool {
-        false
-    }
-
-    fn mode_info(&self) -> Option<&mode::ModeInfo> {
-        None
-    }
 }
 
 pub struct BlinkCursor<CB: CursorRedrawCb> {
@@ -242,38 +184,6 @@ impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
 }
 
 impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
-    fn draw(
-        &self,
-        ctx: &cairo::Context,
-        font_ctx: &render::Context,
-        line_y: f64,
-        double_width: bool,
-        hl: &HighlightMap,
-    ) -> f64 {
-        let state = self.state.borrow();
-
-        let current_point = ctx.current_point().unwrap();
-
-        let bg = hl.cursor_bg();
-        ctx.set_source_rgba(bg.0, bg.1, bg.2, state.alpha.0);
-
-        let (y, width, height) = cursor_rect(
-            self.mode_info(),
-            font_ctx.cell_metrics(),
-            line_y,
-            double_width,
-        );
-
-        ctx.rectangle(current_point.0, y, width, height);
-        if state.anim_phase == AnimPhase::NoFocus {
-            ctx.stroke().unwrap();
-        } else {
-            ctx.fill().unwrap();
-        }
-
-        state.alpha.0
-    }
-
     fn snapshot(
         &self,
         snapshot: &gtk::Snapshot,
