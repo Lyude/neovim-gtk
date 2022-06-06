@@ -38,12 +38,12 @@ pub fn fill_background(ctx: &cairo::Context, hl: &HighlightMap, alpha: Option<f6
 }
 
 pub fn snapshot_nvim(
-    snapshot: &gtk::Snapshot,
     font_ctx: &Context,
     ui_model: &mut ui_model::UiModel,
     hl: &HighlightMap,
     bg_alpha: f64,
-) {
+) -> gsk::RenderNode {
+    let snapshot = gtk::Snapshot::new();
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, line_height, .. } = cell_metrics;
     let model = ui_model.model_mut();
@@ -57,7 +57,7 @@ pub fn snapshot_nvim(
         for (col, cell) in line.line.iter().enumerate() {
             let pos = (line_x, line_y);
 
-            snapshot_cell_bg(snapshot, line, hl, cell, col, pos, cell_metrics, bg_alpha);
+            snapshot_cell_bg(&snapshot, line, hl, cell, col, pos, cell_metrics, bg_alpha);
             line_x += char_width as f32;
         }
         line_y += line_height as f32;
@@ -70,7 +70,7 @@ pub fn snapshot_nvim(
             let pos = (line_x, line_y);
             let items = &mut *line.item_line[col];
 
-            snapshot_cell(snapshot, items, hl, cell, pos, cell_metrics);
+            snapshot_cell(&snapshot, items, hl, cell, pos, cell_metrics);
             line_x += char_width as f32;
         }
         line_y += line_height as f32;
@@ -82,11 +82,13 @@ pub fn snapshot_nvim(
         for cell in line.line.iter() {
             let pos = (line_x, line_y);
 
-            snapshot_underline_strikethrough(snapshot, hl, cell, pos, cell_metrics, 0.0);
+            snapshot_underline_strikethrough(&snapshot, hl, cell, pos, cell_metrics, 0.0);
             line_x += char_width as f32;
         }
         line_y += line_height as f32;
     }
+
+    snapshot.to_node().expect("Render node creation shouldn't fail")
 }
 
 pub fn snapshot_cursor<C: Cursor>(

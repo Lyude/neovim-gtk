@@ -1,3 +1,5 @@
+mod viewport;
+
 use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::iter;
@@ -22,6 +24,8 @@ use crate::render::{self, CellMetrics};
 use crate::shell;
 use crate::ui::UiMutex;
 use crate::ui_model::ModelLayout;
+
+use viewport::CmdlineViewport;
 
 pub struct Level {
     model_layout: ModelLayout,
@@ -163,29 +167,28 @@ fn prompt_lines(
     (prompt_offset, prompt)
 }
 
-struct State {
+pub struct State {
     nvim: Option<Rc<nvim::NeovimClient>>,
     levels: Vec<Level>,
     block: Option<Level>,
     render_state: Rc<RefCell<shell::RenderState>>,
-    drawing_area: gtk::DrawingArea,
+    viewport: CmdlineViewport,
     cursor: Option<cursor::BlinkCursor<State>>,
 }
 
 impl State {
-    fn new(drawing_area: gtk::DrawingArea, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
+    fn new(viewport: CmdlineViewport, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         State {
             nvim: None,
             levels: Vec::new(),
             block: None,
             render_state,
-            drawing_area,
+            viewport,
             cursor: None,
         }
     }
 
     fn request_area_size(&self) {
-        let drawing_area = self.drawing_area.clone();
         let block = self.block.as_ref();
         let level = self.levels.last();
 
@@ -196,10 +199,11 @@ impl State {
             .map(|l| (l.preferred_width, l.preferred_height))
             .unwrap_or((0, 0));
 
-        drawing_area.set_size_request(
+        self.viewport.set_size_request(
             max(level_width, block_width),
             max(block_height + level_height, 40),
         );
+        self.viewport.clear_snapshot_cache();
     }
 
     fn preferred_height(&self) -> i32 {
@@ -227,7 +231,7 @@ impl State {
             let block_preferred_height =
                 self.block.as_ref().map(|b| b.preferred_height).unwrap_or(0);
 
-            let gap = self.drawing_area.allocated_height()
+            let gap = self.viewport.allocated_height()
                 - level_preferred_height
                 - block_preferred_height;
 
@@ -241,7 +245,7 @@ impl State {
 
             let (x, y, width, height) = cur_point.to_area_extend_ink(Some(model), cell_metrics);
 
-            self.drawing_area.queue_draw();
+            self.viewport.queue_draw();
             /* TODO: Get our own custom DrawingArea replacement working here instead of doing a full
              * redraw
              */
@@ -276,24 +280,24 @@ pub struct CmdLine {
 }
 
 impl CmdLine {
-    pub fn new(drawing: &NvimViewport, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
+    pub fn new(nvim_viewport: &NvimViewport, render_state: Rc<RefCell<shell::RenderState>>) -> Self {
         let popover = gtk::Popover::new();
         popover.set_autohide(false);
         popover.set_position(gtk::PositionType::Right);
-        popover.set_parent(drawing);
+        nvim_viewport.set_ext_cmdline(&popover);
         popover.add_css_class("nvim-cmdline");
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
-        let drawing_area = gtk::DrawingArea::new();
-        content.append(&drawing_area);
+        let viewport = CmdlineViewport::new();
+        content.append(&viewport);
 
-        let state = Arc::new(UiMutex::new(State::new(drawing_area.clone(), render_state)));
+        let state = Arc::new(UiMutex::new(State::new(viewport.clone(), render_state)));
         let weak_cb = Arc::downgrade(&state);
         let cursor = cursor::BlinkCursor::new(weak_cb);
         state.borrow_mut().cursor = Some(cursor);
 
-        drawing_area.set_draw_func(clone!(state => move |_, ctx, _, _| gtk_draw(ctx, &state)));
+        viewport.set_state(&state);
 
         let (wild_scroll, wild_tree, wild_css_provider, wild_renderer, wild_column) =
             CmdLine::create_wildmenu(&state);
@@ -342,6 +346,7 @@ impl CmdLine {
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_propagate_natural_height(true);
         scroll.set_propagate_natural_width(true);
+        scroll.set_visible(false);
 
         scroll.set_child(Some(&tree));
 
@@ -389,7 +394,7 @@ impl CmdLine {
             self.popover.popup();
             state.cursor.as_mut().unwrap().start();
         } else {
-            state.drawing_area.queue_draw()
+            state.viewport.queue_draw()
         }
     }
 
@@ -410,7 +415,7 @@ impl CmdLine {
         }
 
         state.request_area_size();
-        state.drawing_area.queue_draw()
+        state.viewport.queue_draw()
     }
 
     pub fn hide_level(&mut self, level_idx: u64) {
@@ -543,7 +548,7 @@ fn gtk_draw(ctx: &cairo::Context, state: &Arc<UiMutex<State>>) {
 
     render::fill_background(ctx, &render_state.hl, None);
 
-    let gap = state.drawing_area.allocated_height() - preferred_height;
+    let gap = state.viewport.allocated_height() - preferred_height;
     if gap > 0 {
         ctx.translate(0.0, (gap / 2) as f64);
     }

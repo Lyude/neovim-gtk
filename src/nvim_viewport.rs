@@ -26,10 +26,8 @@ glib::wrapper! {
 }
 
 impl NvimViewport {
-    pub fn new(ext_cmdline: bool) -> Self {
-        glib::Object::new(&[
-            ("ext-cmdline", &ext_cmdline),
-        ]).expect("Failed to create NvimViewport")
+    pub fn new() -> Self {
+        glib::Object::new(&[]).expect("Failed to create NvimViewport")
     }
 
     pub fn set_shell_state(&self, state: &Arc<UiMutex<State>>) {
@@ -44,6 +42,10 @@ impl NvimViewport {
         self.set_property("completion-popover", completion_popover);
     }
 
+    pub fn set_ext_cmdline(&self, ext_cmdline: &gtk::Popover) {
+        self.set_property("ext-cmdline", ext_cmdline);
+    }
+
     pub fn clear_snapshot_cache(&self) {
         self.set_property("snapshot-cached", false);
     }
@@ -55,7 +57,6 @@ impl NvimViewport {
 struct NvimViewportInner {
     state: Weak<UiMutex<State>>,
     snapshot_cache: Option<gsk::RenderNode>,
-    ext_cmdline: bool,
 }
 
 #[derive(Default)]
@@ -63,6 +64,7 @@ pub struct NvimViewportObject {
     inner: RefCell<NvimViewportInner>,
     context_menu: glib::WeakRef<gtk::PopoverMenu>,
     completion_popover: glib::WeakRef<gtk::Popover>,
+    ext_cmdline: glib::WeakRef<gtk::Popover>,
 }
 
 #[glib::object_subclass]
@@ -84,6 +86,9 @@ impl ObjectImpl for NvimViewportObject {
         }
         if let Some(completion_popover) = self.completion_popover.upgrade() {
             completion_popover.unparent();
+        }
+        if let Some(ext_cmdline) = self.ext_cmdline.upgrade() {
+            ext_cmdline.unparent();
         }
     }
 
@@ -116,6 +121,13 @@ impl ObjectImpl for NvimViewportObject {
                     "completion-popover",
                     "Completion popover",
                     "Popover to use for completion results from neovim",
+                    gtk::Popover::static_type(),
+                    glib::ParamFlags::READWRITE,
+                ),
+                glib::ParamSpecObject::new(
+                    "ext-cmdline",
+                    "External cmdline popover",
+                    "A popover for displaying the nvim cmdline (as provided by ext_cmdline)",
                     gtk::Popover::static_type(),
                     glib::ParamFlags::READWRITE,
                 ),
@@ -164,7 +176,17 @@ impl ObjectImpl for NvimViewportObject {
                 popover.set_parent(obj);
                 self.completion_popover.set(Some(&popover));
             },
-            "ext-cmdline" => self.inner.borrow_mut().ext_cmdline = value.get().unwrap(),
+            "ext-cmdline" => {
+                if let Some(ext_cmdline) = self.ext_cmdline.upgrade() {
+                    ext_cmdline.unparent();
+                }
+                let ext_cmdline: Option<gtk::Popover> = value.get().unwrap();
+
+                if let Some(ref ext_cmdline) = ext_cmdline {
+                    ext_cmdline.set_parent(obj);
+                }
+                self.ext_cmdline.set(ext_cmdline.as_ref());
+            },
             _ => unreachable!(),
         }
     }
@@ -174,7 +196,7 @@ impl ObjectImpl for NvimViewportObject {
             "snapshot-cached" => self.inner.borrow().snapshot_cache.is_some().to_value(),
             "context-menu" => self.context_menu.upgrade().to_value(),
             "completion-popover" => self.completion_popover.upgrade().to_value(),
-            "ext-cmdline" => self.inner.borrow().ext_cmdline.to_value(),
+            "ext-cmdline" => self.ext_cmdline.upgrade().to_value(),
             _ => unreachable!(),
         }
     }
@@ -190,12 +212,13 @@ impl WidgetImpl for NvimViewportObject {
         if let Some(completion_popover) = self.completion_popover.upgrade() {
             completion_popover.present();
         }
+        if let Some(ext_cmdline) = self.ext_cmdline.upgrade() {
+            ext_cmdline.present();
+        }
 
         let inner = self.inner.borrow();
-        if !inner.ext_cmdline {
-            if let Some(state) = inner.state.upgrade() {
-                state.borrow_mut().try_nvim_resize();
-            }
+        if let Some(state) = inner.state.upgrade() {
+            state.borrow_mut().try_nvim_resize();
         }
     }
 
@@ -214,12 +237,7 @@ impl WidgetImpl for NvimViewportObject {
         let bg_alpha = state.transparency().background_alpha().unwrap_or(1.0);
         snapshot_in.append_color(
             &hl.bg().to_rgbo(bg_alpha),
-            &Rect::new(
-                0.0,
-                0.0,
-                widget.allocated_width() as f32,
-                widget.allocated_height() as f32
-            )
+            &Rect::new(0.0, 0.0, widget.width() as f32, widget.height() as f32)
         );
 
         let nvim_initialized = state.nvim_clone().is_initialized();
@@ -229,16 +247,15 @@ impl WidgetImpl for NvimViewportObject {
             snapshot_in.append_node(cached_snapshot);
         } else {
             if nvim_initialized {
-                let snapshot = gtk::Snapshot::new();
                 let mut grids = state.grids.borrow_mut();
                 let ui_model = match grids.current_model_mut() {
                     Some(ui_model) => ui_model,
                     None => return,
                 };
 
-                snapshot_nvim(&snapshot, font_ctx, ui_model, hl, bg_alpha);
-                inner.snapshot_cache = snapshot.to_node();
-                snapshot_in.append_node(inner.snapshot_cache.as_ref().unwrap());
+                let snapshot = snapshot_nvim(font_ctx, ui_model, hl, bg_alpha);
+                snapshot_in.append_node(&snapshot);
+                inner.snapshot_cache = Some(snapshot);
             } else {
                 self.snapshot_initializing(widget, snapshot_in, &render_state);
             }

@@ -249,7 +249,7 @@ pub struct State {
 impl State {
     pub fn new(settings: Rc<RefCell<Settings>>, options: ShellOptions)
         -> State {
-        let nvim_viewport = NvimViewport::new(false);
+        let nvim_viewport = NvimViewport::new();
 
         let pango_context = nvim_viewport.create_pango_context();
         pango_context.set_font_description(&FontDescription::from_string(DEFAULT_FONT_NAME));
