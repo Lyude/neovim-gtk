@@ -388,7 +388,6 @@ impl CmdLine {
         if state.levels.is_empty() {
             self.popover.hide();
             self.displayed = false;
-            state.cursor.as_mut().unwrap().leave_focus();
         }
     }
 

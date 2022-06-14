@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::mode;
+use crate::nvim::RedrawMode;
 use crate::render;
 use crate::render::CellMetrics;
 use crate::highlight::HighlightMap;
@@ -64,6 +65,8 @@ struct State<CB: CursorRedrawCb> {
 
     timer: Option<glib::SourceId>,
     counter: Option<BlinkCount>,
+    widget_focus: bool,
+    toplevel_focus: bool,
 }
 
 impl<CB: CursorRedrawCb> State<CB> {
@@ -74,6 +77,8 @@ impl<CB: CursorRedrawCb> State<CB> {
             redraw_cb,
             timer: None,
             counter: None,
+            widget_focus: false,
+            toplevel_focus: false,
         }
     }
 
@@ -83,6 +88,10 @@ impl<CB: CursorRedrawCb> State<CB> {
         if let Some(timer_id) = self.timer.take() {
             timer_id.remove();
         }
+    }
+
+    fn focus(&self) -> bool {
+        self.toplevel_focus && self.widget_focus
     }
 }
 
@@ -162,15 +171,43 @@ impl<CB: CursorRedrawCb + 'static> BlinkCursor<CB> {
         }
     }
 
-    pub fn enter_focus(&mut self) {
+    fn update_focus(&mut self, focus: bool) {
         if self.state.borrow().anim_phase != AnimPhase::Busy {
-            self.start();
+            if focus {
+                self.start();
+            } else {
+                self.state.borrow_mut().reset_to(AnimPhase::NoFocus);
+            }
         }
     }
 
-    pub fn leave_focus(&mut self) {
-        if self.state.borrow().anim_phase != AnimPhase::Busy {
-            self.state.borrow_mut().reset_to(AnimPhase::NoFocus);
+    #[must_use]
+    pub fn set_toplevel_focus(&mut self, focus: bool) -> RedrawMode {
+        let mut state = self.state.borrow_mut();
+        let prev_focus = state.focus();
+
+        state.toplevel_focus = focus;
+        if prev_focus != state.focus() {
+            drop(state);
+            self.update_focus(focus);
+            RedrawMode::Cursor
+        } else {
+            RedrawMode::Nothing
+        }
+    }
+
+    #[must_use]
+    pub fn set_widget_focus(&mut self, focus: bool) -> RedrawMode {
+        let mut state = self.state.borrow_mut();
+        let prev_focus = state.focus();
+
+        state.widget_focus = focus;
+        if prev_focus != state.focus() {
+            drop(state);
+            self.update_focus(focus);
+            RedrawMode::Cursor
+        } else {
+            RedrawMode::Nothing
         }
     }
 

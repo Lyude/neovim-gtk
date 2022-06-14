@@ -508,7 +508,6 @@ impl State {
         }
     }
 
-
     fn update_dirty_glyphs(&mut self) {
         let render_state = self.render_state.borrow();
         if let Some(model) = self.grids.borrow_mut().current_model_mut() {
@@ -976,7 +975,7 @@ impl Shell {
 
         let state_ref = &self.state;
         let ui_state_ref = &self.ui_state;
-        let state = state_ref.borrow();
+        let state = state_ref.borrow_mut();
 
         state.nvim_viewport.set_hexpand(true);
         state.nvim_viewport.set_vexpand(true);
@@ -1098,10 +1097,14 @@ impl Shell {
 
         let focus_controller = gtk::EventControllerFocus::new();
         focus_controller.connect_enter(clone!(state_ref => move |_| {
-            gtk_focus_in(&mut *state_ref.borrow_mut())
+            let mut state = state_ref.borrow_mut();
+            let redraw_mode = state.cursor.as_mut().unwrap().set_widget_focus(true);
+            state.queue_draw(redraw_mode);
         }));
         focus_controller.connect_leave(clone!(state_ref => move |_| {
-            gtk_focus_out(&mut *state_ref.borrow_mut())
+            let mut state = state_ref.borrow_mut();
+            let redraw_mode = state.cursor.as_mut().unwrap().set_widget_focus(false);
+            state.queue_draw(redraw_mode);
         }));
         state.nvim_viewport.add_controller(&focus_controller);
 
@@ -1132,13 +1135,27 @@ impl Shell {
         }));
         state.nvim_viewport.add_controller(&dnd_target);
 
-        state.nvim_viewport.connect_realize(clone!(state_ref => move |w| {
+        state.nvim_viewport.connect_realize(clone!(state_ref => move |viewport| {
+            let window: gtk::Window = viewport.root().unwrap().downcast().unwrap();
+
             // sometime set_client_window does not work without idle_add
             // and looks like not enabled im_context
-            glib::idle_add_local_once(clone!(state_ref, w => move || {
-                state_ref.borrow().im_context.set_client_widget(
-                    w.root().map(|r| r.downcast::<gtk::Window>().unwrap()).as_ref()
-                );
+            glib::idle_add_local_once(clone!(state_ref, window => move || {
+                state_ref.borrow().im_context.set_client_widget(Some(&window));
+            }));
+
+            let mut state = state_ref.borrow_mut();
+            let redraw = state
+                .cursor
+                .as_mut()
+                .unwrap()
+                .set_toplevel_focus(window.is_active());
+            if state.nvim().is_some() {
+                state.queue_draw(redraw);
+            }
+
+            window.connect_is_active_notify(clone!(state_ref => move |window| {
+                gtk_active_notify(&mut state_ref.borrow_mut(), window.is_active());
             }));
         }));
 
@@ -1288,18 +1305,16 @@ struct FocusState {
     is_pending: bool,
 }
 
-fn gtk_focus_in(state: &mut State) {
-    state.focus_update(true);
-    state.im_context.focus_in();
-    state.cursor.as_mut().unwrap().enter_focus();
-    state.queue_draw(RedrawMode::Cursor);
-}
+fn gtk_active_notify(state: &mut State, active: bool) {
+    state.focus_update(active);
+    if active {
+        state.im_context.focus_in();
+    } else {
+        state.im_context.focus_out();
+    }
 
-fn gtk_focus_out(state: &mut State) {
-    state.focus_update(false);
-    state.im_context.focus_out();
-    state.cursor.as_mut().unwrap().leave_focus();
-    state.queue_draw(RedrawMode::Cursor);
+    let redraw = state.cursor.as_mut().unwrap().set_toplevel_focus(active);
+    state.queue_draw(redraw);
 }
 
 fn gtk_scroll_event(
