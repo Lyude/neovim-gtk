@@ -18,7 +18,7 @@ pub fn snapshot_nvim(
     font_ctx: &Context,
     ui_model: &mut ui_model::UiModel,
     hl: &HighlightMap,
-) -> gsk::RenderNode {
+) -> Option<gsk::RenderNode> {
     let snapshot = gtk::Snapshot::new();
     let cell_metrics = font_ctx.cell_metrics();
     let &CellMetrics { char_width, line_height, .. } = cell_metrics;
@@ -64,7 +64,7 @@ pub fn snapshot_nvim(
         line_y += line_height as f32;
     }
 
-    snapshot.to_node().expect("Render node creation shouldn't fail")
+    snapshot.to_node()
 }
 
 pub fn snapshot_cursor<C: Cursor>(

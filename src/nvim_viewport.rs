@@ -240,29 +240,28 @@ impl WidgetImpl for NvimViewportObject {
         );
 
         if state.nvim_clone().is_initialized() {
-            let push_opacity = transparency.filled_alpha < 0.99999;
-            if push_opacity {
-                snapshot_in.push_opacity(transparency.filled_alpha)
-            }
-
             // Render scenes get pretty huge here, so we cache them as often as possible
             let font_ctx = &render_state.font_ctx;
-            if let Some(ref cached_snapshot) = inner.snapshot_cache {
-                snapshot_in.append_node(cached_snapshot);
-            } else {
+            if inner.snapshot_cache.is_none() {
                 let mut grids = state.grids.borrow_mut();
                 let ui_model = match grids.current_model_mut() {
                     Some(ui_model) => ui_model,
                     None => return,
                 };
 
-                let snapshot = snapshot_nvim(font_ctx, ui_model, hl);
-                snapshot_in.append_node(&snapshot);
-                inner.snapshot_cache = Some(snapshot);
+                inner.snapshot_cache = snapshot_nvim(font_ctx, ui_model, hl);
             }
+            if let Some(ref cached_snapshot) = inner.snapshot_cache {
+                let push_opacity = transparency.filled_alpha < 0.99999;
+                if push_opacity {
+                    snapshot_in.push_opacity(transparency.filled_alpha)
+                }
 
-            if push_opacity {
-                snapshot_in.pop();
+                snapshot_in.append_node(cached_snapshot);
+
+                if push_opacity {
+                    snapshot_in.pop();
+                }
             }
 
             if let Some(cursor) = state.cursor() {
