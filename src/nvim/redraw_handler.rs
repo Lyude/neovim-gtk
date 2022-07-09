@@ -250,6 +250,7 @@ pub fn call(
     method: &str,
     args: Vec<Value>,
 ) -> result::Result<RedrawMode, String> {
+    let mut flush = false;
     let repaint_mode = match method {
         "grid_line" => call!(ui->grid_line(args: uint, uint, uint, ext)),
         "grid_clear" => call!(ui->grid_clear(args: uint)),
@@ -311,13 +312,24 @@ pub fn call(
         "wildmenu_show" => call!(ui->wildmenu_show(args: ext)),
         "wildmenu_hide" => ui.wildmenu_hide(),
         "wildmenu_select" => call!(ui->wildmenu_select(args: int)),
+        "flush" => {
+            debug!("Flush ({:?})", ui.pending_redraw);
+            flush = true;
+            ui.pending_redraw
+        },
         _ => {
             warn!("Event {}({:?})", method, args);
             RedrawMode::Nothing
         }
     };
 
-    Ok(repaint_mode)
+    if flush {
+        ui.pending_redraw = RedrawMode::Nothing;
+        Ok(repaint_mode)
+    } else {
+        ui.pending_redraw = ui.pending_redraw.max(repaint_mode);
+        Ok(RedrawMode::Nothing)
+    }
 }
 
 // Here two cases processed:

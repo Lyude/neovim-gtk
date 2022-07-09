@@ -215,6 +215,7 @@ pub struct State {
 
     stack: gtk::Stack,
     pub nvim_viewport: NvimViewport,
+    pub pending_redraw: RedrawMode,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
     error_area: error::ErrorArea,
@@ -280,6 +281,7 @@ impl State {
             // UI
             stack: gtk::Stack::new(),
             nvim_viewport,
+            pending_redraw: RedrawMode::Nothing,
             tabs: Tabline::new(),
             im_context: gtk::IMMulticontext::new(),
             error_area: error::ErrorArea::new(),
