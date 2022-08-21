@@ -98,7 +98,6 @@ impl<CB: CursorRedrawCb> State<CB> {
 pub trait Cursor {
     /// Add render nodes for the cursor to the snapshot. Returns whether or not text should be drawn
     /// after
-    #[must_use]
     fn snapshot(
         &self,
         snapshot: &gtk::Snapshot,
@@ -107,12 +106,15 @@ pub trait Cursor {
         cell: &Cell,
         double_width: bool,
         hl: &HighlightMap,
+        fade_percentage: f64,
         alpha: f64,
     ) -> bool;
 
     fn alpha(&self) -> f64;
 
     fn is_visible(&self) -> bool;
+
+    fn is_focused(&self) -> bool;
 
     fn mode_info(&self) -> Option<&mode::ModeInfo>;
 }
@@ -229,7 +231,8 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         cell: &Cell,
         double_width: bool,
         hl: &HighlightMap,
-        alpha: f64,
+        fade_percentage: f64,
+        filled_alpha: f64,
     ) -> bool {
         let state = self.state.borrow();
 
@@ -243,7 +246,7 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         let (x, y, w, h) = (x as f32, y as f32, w as f32, h as f32);
 
         if state.anim_phase == AnimPhase::NoFocus {
-            let bg = hl.cursor_bg().into();
+            let bg = hl.cursor_bg().to_rgbo(filled_alpha);
             snapshot.append_color(&bg, &Rect::new(          x,           y,   w, 1.0));
             snapshot.append_color(&bg, &Rect::new(          x,           y, 1.0,   h));
             snapshot.append_color(&bg, &Rect::new(          x, y + h - 1.0,   w, 1.0));
@@ -252,9 +255,9 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         } else {
             let bg = hl
                 .actual_cell_bg(cell)
-                .fade(hl.cursor_bg(), alpha)
+                .fade(hl.cursor_bg(), fade_percentage)
                 .as_ref()
-                .into();
+                .to_rgbo(filled_alpha);
             snapshot.append_color(&bg, &Rect::new(x, y, w, h));
             true
         }
@@ -276,6 +279,10 @@ impl<CB: CursorRedrawCb> Cursor for BlinkCursor<CB> {
         } else {
             true
         }
+    }
+
+    fn is_focused(&self) -> bool {
+        self.state.borrow().focus()
     }
 
     fn mode_info(&self) -> Option<&mode::ModeInfo> {

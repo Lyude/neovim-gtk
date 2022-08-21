@@ -8,6 +8,7 @@ use crate::{
     color,
     cursor::{cursor_rect, Cursor},
     highlight::HighlightMap,
+    shell::TransparencySettings,
     ui_model,
 };
 use pango;
@@ -17,7 +18,6 @@ pub fn snapshot_nvim(
     font_ctx: &Context,
     ui_model: &mut ui_model::UiModel,
     hl: &HighlightMap,
-    bg_alpha: f64,
 ) -> gsk::RenderNode {
     let snapshot = gtk::Snapshot::new();
     let cell_metrics = font_ctx.cell_metrics();
@@ -33,7 +33,7 @@ pub fn snapshot_nvim(
         for (col, cell) in line.line.iter().enumerate() {
             let pos = (line_x, line_y);
 
-            snapshot_cell_bg(&snapshot, line, hl, cell, col, pos, cell_metrics, bg_alpha);
+            snapshot_cell_bg(&snapshot, line, hl, cell, col, pos, cell_metrics);
             line_x += char_width as f32;
         }
         line_y += line_height as f32;
@@ -73,6 +73,7 @@ pub fn snapshot_cursor<C: Cursor>(
     font_ctx: &Context,
     ui_model: &ui_model::UiModel,
     hl: &HighlightMap,
+    transparency: TransparencySettings,
 ) {
     if !cursor.is_visible() {
         return;
@@ -97,13 +98,8 @@ pub fn snapshot_cursor<C: Cursor>(
 
     let next_cell = cursor_line.line.get(cursor_col + 1);
     let double_width = next_cell.map_or(false, |c| c.double_width);
-    let alpha = cursor.alpha();
+    let fade_percentage = cursor.alpha();
     let cell = &cursor_line.line[cursor_col];
-
-    // Skip re-rendering cell if it isn't needed
-    if !cursor.snapshot(snapshot, font_ctx, (x, y), cell, double_width, &hl, alpha) {
-        return;
-    }
 
     let (clip_y, clip_width, clip_height) =
         cursor_rect(cursor.mode_info(), cell_metrics, y, double_width);
@@ -114,34 +110,57 @@ pub fn snapshot_cursor<C: Cursor>(
         clip_height as f32,
     );
 
+    let bg_alpha = transparency.background_alpha;
+    let filled_alpha = transparency.filled_alpha;
+    let alpha = bg_alpha + ((filled_alpha - bg_alpha) * fade_percentage);
+    let is_focused = cursor.is_focused();
+    if is_focused {
+        snapshot.append_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0), &clip_rect);
+    }
+
+    cursor.snapshot(
+        snapshot,
+        font_ctx,
+        (x, y),
+        cell,
+        double_width,
+        &hl,
+        fade_percentage,
+        alpha,
+    );
+
+    // Skip re-rendering cell if it isn't needed
+    if !is_focused {
+        return;
+    }
+
     let cell_start_col = cursor_line.cell_to_item(cursor_col);
     if cell_start_col >= 0 {
         snapshot.push_clip(&clip_rect);
 
-        let fg = hl.actual_cell_fg(cell).fade(hl.bg(), alpha);
-        let fg = fg.as_ref().into();
+        let fg = hl.actual_cell_fg(cell).fade(hl.bg(), fade_percentage);
 
         let cell_start_line_x = cell_start_col as f64 * char_width;
         for item in &*cursor_line.item_line[cell_start_col as usize] {
             if item.glyphs().is_some() {
                 snapshot.append_node(item.new_render_node(
-                    fg, (cell_start_line_x as f32, (y + ascent) as f32)
+                    &fg, (cell_start_line_x as f32, (y + ascent) as f32)
                 ));
             }
         }
 
+        snapshot.pop();
+
         let mut pos = (x as f32, y as f32);
-        snapshot_underline_strikethrough(snapshot, hl, cell, pos, cell_metrics, alpha);
+        snapshot_underline_strikethrough(snapshot, hl, cell, pos, cell_metrics, fade_percentage);
         if let Some(next_cell) = next_cell {
             if double_width {
                 pos.0 += char_width as f32;
                 snapshot_underline_strikethrough(
-                    snapshot, hl, next_cell, pos, cell_metrics, alpha
+                    snapshot, hl, next_cell, pos, cell_metrics, fade_percentage
                 );
             }
         }
-
-        snapshot.pop();
     }
 }
 
@@ -228,7 +247,6 @@ fn snapshot_cell_bg(
     col: usize,
     (line_x, line_y): (f32, f32),
     cell_metrics: &CellMetrics,
-    bg_alpha: f64,
 ) {
     let &CellMetrics {
         char_width,
@@ -240,13 +258,13 @@ fn snapshot_cell_bg(
         if !line.is_binded_to_item(col) {
             if bg != hl.bg() {
                 snapshot.append_color(
-                    &bg.to_rgbo(bg_alpha),
+                    &bg.into(),
                     &Rect::new(line_x, line_y, char_width.ceil() as f32, line_height as f32)
                 );
             }
         } else {
             snapshot.append_color(
-                &bg.to_rgbo(bg_alpha),
+                &bg.into(),
                 &Rect::new(
                     line_x,
                     line_y,
@@ -272,7 +290,7 @@ fn snapshot_cell(
 
         if item.glyphs().is_some() {
             snapshot.append_node(item.render_node(
-                &fg, (x, y + cell_metrics.ascent as f32)
+                fg.into(), (x, y + cell_metrics.ascent as f32)
             ));
         }
     }

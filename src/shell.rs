@@ -91,34 +91,24 @@ impl RenderState {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct TransparencySettings {
-    background_alpha: f64,
-    filled_alpha: f64,
-    enabled: bool,
+    pub background_alpha: f64,
+    pub filled_alpha: f64,
 }
 
 impl TransparencySettings {
+    #[inline]
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for TransparencySettings {
+    fn default() -> Self {
         TransparencySettings {
             background_alpha: 1.0,
             filled_alpha: 1.0,
-            enabled: false,
-        }
-    }
-
-    pub fn filled_alpha(&self) -> Option<f64> {
-        if self.enabled {
-            Some(self.filled_alpha)
-        } else {
-            None
-        }
-    }
-
-    pub fn background_alpha(&self) -> Option<f64> {
-        if self.enabled {
-            Some(self.background_alpha)
-        } else {
-            None
         }
     }
 }
@@ -424,25 +414,13 @@ impl State {
         self.queue_draw(RedrawMode::All);
     }
 
-    /// return true if transparency enabled
-    pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) -> bool {
-        if background_alpha < 1.0 || filled_alpha < 1.0 {
-            self.transparency_settings.background_alpha = background_alpha;
-            self.transparency_settings.filled_alpha = filled_alpha;
-            self.transparency_settings.enabled = true;
-        } else {
-            self.transparency_settings.background_alpha = 1.0;
-            self.transparency_settings.filled_alpha = 1.0;
-            self.transparency_settings.enabled = false;
-        }
-
+    pub fn set_transparency(&mut self, background_alpha: f64, filled_alpha: f64) {
+        self.transparency_settings = TransparencySettings { background_alpha, filled_alpha };
         self.queue_draw(RedrawMode::ClearCache);
-
-        self.transparency_settings.enabled
     }
 
-    pub fn transparency(&self) -> &TransparencySettings {
-        &self.transparency_settings
+    pub fn transparency(&self) -> TransparencySettings {
+        self.transparency_settings
     }
 
     pub fn set_cursor_blink(&mut self, val: i32) {

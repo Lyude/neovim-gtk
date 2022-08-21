@@ -230,43 +230,48 @@ impl WidgetImpl for NvimViewportObject {
         };
         let state = state.borrow();
         let render_state = state.render_state.borrow();
-        let font_ctx = &render_state.font_ctx;
         let hl = &render_state.hl;
 
         // Draw the background first, to help GTK+ better notice that this doesn't change often
-        let bg_alpha = state.transparency().background_alpha().unwrap_or(1.0);
+        let transparency = state.transparency();
         snapshot_in.append_color(
-            &hl.bg().to_rgbo(bg_alpha),
+            &hl.bg().to_rgbo(transparency.background_alpha),
             &Rect::new(0.0, 0.0, widget.width() as f32, widget.height() as f32)
         );
 
-        let nvim_initialized = state.nvim_clone().is_initialized();
+        if state.nvim_clone().is_initialized() {
+            let push_opacity = transparency.filled_alpha < 0.99999;
+            if push_opacity {
+                snapshot_in.push_opacity(transparency.filled_alpha)
+            }
 
-        // Render scenes get pretty huge here, so we cache them as often as possible
-        if let Some(ref cached_snapshot) = inner.snapshot_cache {
-            snapshot_in.append_node(cached_snapshot);
-        } else {
-            if nvim_initialized {
+            // Render scenes get pretty huge here, so we cache them as often as possible
+            let font_ctx = &render_state.font_ctx;
+            if let Some(ref cached_snapshot) = inner.snapshot_cache {
+                snapshot_in.append_node(cached_snapshot);
+            } else {
                 let mut grids = state.grids.borrow_mut();
                 let ui_model = match grids.current_model_mut() {
                     Some(ui_model) => ui_model,
                     None => return,
                 };
 
-                let snapshot = snapshot_nvim(font_ctx, ui_model, hl, bg_alpha);
+                let snapshot = snapshot_nvim(font_ctx, ui_model, hl);
                 snapshot_in.append_node(&snapshot);
                 inner.snapshot_cache = Some(snapshot);
-            } else {
-                self.snapshot_initializing(widget, snapshot_in, &render_state);
             }
-        }
 
-        if nvim_initialized {
+            if push_opacity {
+                snapshot_in.pop();
+            }
+
             if let Some(cursor) = state.cursor() {
                 if let Some(model) = state.grids.borrow().current_model() {
-                    snapshot_cursor(snapshot_in, cursor, font_ctx, model, hl);
+                    snapshot_cursor(snapshot_in, cursor, font_ctx, model, hl, transparency);
                 }
             }
+        } else {
+            self.snapshot_initializing(widget, snapshot_in, &render_state);
         }
     }
 }
