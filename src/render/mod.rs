@@ -11,57 +11,134 @@ use crate::{
     shell::TransparencySettings,
     ui_model,
 };
+
 use pango;
 use gtk::graphene::Rect;
+use gsk;
+
+/// A single step in a render plan
+#[derive(Clone, Copy)]
+struct RenderStep<'a> {
+    color: &'a color::Color,
+    kind: RenderStepKind,
+    len: usize, // (in cells)
+    pos: (usize, usize), // (rows, cols)
+}
+
+impl<'a> RenderStep<'a> {
+    pub fn new(kind: RenderStepKind, color: &'a color::Color, pos: (usize, usize)) -> Self {
+        Self {
+            color,
+            kind,
+            pos,
+            len: 1
+        }
+    }
+
+    fn to_snapshot(
+        self,
+        snapshot: &gtk::Snapshot,
+        cell_metrics: &CellMetrics
+    ) {
+        let (x, y) = cell_metrics.get_coords(self.pos);
+        let len = cell_metrics.get_cell_len(self.len);
+        match self.kind {
+            RenderStepKind::Background =>
+                snapshot_bg(snapshot, cell_metrics, self.color, (x, y), len),
+            RenderStepKind::Strikethrough =>
+                snapshot_strikethrough(snapshot, cell_metrics, self.color, (x, y), len),
+            RenderStepKind::Underline =>
+                snapshot_underline(snapshot, cell_metrics, self.color, (x, y), len),
+            RenderStepKind::Undercurl =>
+                snapshot_undercurl(snapshot, cell_metrics, self.color, (x, y), len),
+        }
+    }
+
+    #[inline]
+    pub fn extend(
+        &mut self,
+        kind: RenderStepKind,
+        color: &'a color::Color,
+    ) -> bool {
+        if kind == self.kind && *color == *self.color {
+            self.len += 1;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RenderStepKind {
+    Background,
+    Underline,
+    Undercurl,
+    Strikethrough,
+}
 
 pub fn snapshot_nvim(
     font_ctx: &Context,
-    ui_model: &mut ui_model::UiModel,
+    ui_model: &ui_model::UiModel,
     hl: &HighlightMap,
 ) -> Option<gsk::RenderNode> {
     let snapshot = gtk::Snapshot::new();
     let cell_metrics = font_ctx.cell_metrics();
-    let &CellMetrics { char_width, line_height, .. } = cell_metrics;
-    let model = ui_model.model_mut();
+    let (rows, columns) = (ui_model.rows, ui_model.columns);
 
-    // We group each batch of nodes based on their type, since GTK+ does a better job of
+    // Various operations for text formatting come at the end, so store them in a list until then.
+    // We set the capacity to twice the size of the grid, since at most each cell can have
+    // strikethrough + a type of underline. Most of the time though, we optimistically expect this
+    // list to be much smaller than iterating through the UI model.
+    let mut text_fmt_steps = Vec::with_capacity(columns * rows * 2);
+
+    // Note that we group each batch of nodes based on their type, since GTK+ does a better job of
     // optimizing contiguous series of similar drawing operations (source: Company)
-    let mut line_x;
-    let mut line_y = 0.0;
-    for line in model.iter() {
-        line_x = 0.0;
-        for (col, cell) in line.line.iter().enumerate() {
-            let pos = (line_x, line_y);
+    let model = ui_model.model();
+    for (row, line) in model.iter().enumerate() {
+        let mut pending_bg = None;
+        let mut pending_strikethrough = None;
+        let mut pending_underline = None;
 
-            snapshot_cell_bg(&snapshot, line, hl, cell, col, pos, cell_metrics);
-            line_x += char_width as f32;
+        for (col, cell) in line.line.iter().enumerate() {
+            // Plan each step of the process of creating this snapshot as much as possible. We use
+            // the term "plan" to describe the process of generating as few snapshot nodes as
+            // possible in order to accomplish each step in creating a snapshot for the final image.
+            // For example, if multiple adjacent background nodes have identical background colors -
+            // our planning phase will generate a single snapshot node for any contiguous group of
+            // cells. Where possible, we immediately generate nodes and add them to the snapshot.
+            //
+            // Currently, the only step of the rendering process we don't do this for is with
+            // text nodes - where we rely on the itemization process to have already done this for
+            // us. Additionally, all optimizations are limited to each row. We do not for instance,
+            // combine the background nodes of multiple identical adjacent rows.
+            plan_and_snapshot_cell_bg(
+                &snapshot, &mut pending_bg, hl, cell, cell_metrics, (row, col)
+            );
+            plan_underline_strikethrough(
+                &mut pending_strikethrough,
+                &mut pending_underline,
+                &mut text_fmt_steps,
+                hl,
+                cell,
+                (row, col),
+            );
         }
-        line_y += line_height as f32;
+
+        // Since background nodes come first, we can add them to the snapshot immediately
+        if let Some(pending_bg) = pending_bg {
+            pending_bg.to_snapshot(&snapshot, cell_metrics);
+        }
     }
 
-    line_y = 0.0;
-    for line in model.iter_mut() {
-        line_x = 0.0;
+    for (row, line) in model.iter().enumerate() {
         for (col, cell) in line.line.iter().enumerate() {
-            let pos = (line_x, line_y);
-            let items = &mut *line.item_line[col];
-
-            snapshot_cell(&snapshot, items, hl, cell, pos, cell_metrics);
-            line_x += char_width as f32;
+            snapshot_cell(&snapshot, &line.item_line[col], hl, cell, (row, col), cell_metrics);
         }
-        line_y += line_height as f32;
     }
 
-    line_y = 0.0;
-    for line in model.iter() {
-        line_x = 0.0;
-        for cell in line.line.iter() {
-            let pos = (line_x, line_y);
-
-            snapshot_underline_strikethrough(&snapshot, hl, cell, pos, cell_metrics, 0.0);
-            line_x += char_width as f32;
-        }
-        line_y += line_height as f32;
+    for step in text_fmt_steps.into_iter() {
+        step.to_snapshot(&snapshot, cell_metrics);
     }
 
     snapshot.to_node()
@@ -83,13 +160,10 @@ pub fn snapshot_cursor<C: Cursor>(
     let CellMetrics {
         ascent,
         char_width,
-        line_height,
         ..
     } = *cell_metrics;
     let (cursor_row, cursor_col) = ui_model.get_cursor();
-
-    let x = cursor_col as f64 * char_width;
-    let y = cursor_row as f64 * line_height;
+    let (x, y) = cell_metrics.get_coords((cursor_row, cursor_col));
 
     let cursor_line = match ui_model.model().get(cursor_row) {
         Some(cursor_line) => cursor_line,
@@ -151,146 +225,203 @@ pub fn snapshot_cursor<C: Cursor>(
 
         snapshot.pop();
 
-        let mut pos = (x as f32, y as f32);
-        snapshot_underline_strikethrough(snapshot, hl, cell, pos, cell_metrics, fade_percentage);
-        if let Some(next_cell) = next_cell {
-            if double_width {
-                pos.0 += char_width as f32;
-                snapshot_underline_strikethrough(
-                    snapshot, hl, next_cell, pos, cell_metrics, fade_percentage
-                );
-            }
+        if cell.hl.strikethrough {
+            snapshot_strikethrough(snapshot, cell_metrics, &fg, (x, y), clip_width);
         }
-    }
-}
 
-/* TODO: Come up with a struct to keep track of cells whose underlines can be combined into one
- * operation
- */
-fn snapshot_underline_strikethrough(
-    snapshot: &gtk::Snapshot,
-    hl: &HighlightMap,
-    cell: &ui_model::Cell,
-    (x, mut y): (f32, f32),
-    cell_metrics: &CellMetrics,
-    inverse_level: f64,
-) {
-    let &CellMetrics {
-        mut char_width,
-        strikethrough_position,
-        strikethrough_thickness,
-        underline_position,
-        underline_thickness,
-        ..
-    } = cell_metrics;
-    char_width = char_width.ceil();
-    let bg = hl.bg();
-
-    if cell.hl.strikethrough {
-        let fg = hl.actual_cell_fg(cell).fade(bg, inverse_level);
-
-        snapshot.append_color(
-            &fg.as_ref().into(),
-            &Rect::new(
-                x,
-                y + strikethrough_position as f32,
-                char_width as f32,
-                strikethrough_thickness as f32,
-            )
-        );
-    }
-
-    y += underline_position as f32;
-    let rect = Rect::new(x, y, char_width as f32, underline_thickness as f32);
-    if cell.hl.undercurl {
-        let sp = hl
-            .cell_sp(cell)
-            .unwrap_or(&color::COLOR_RED)
-            .fade(bg, inverse_level)
-            .as_ref()
-            .into();
-
-        let width = (char_width / 6.0).min(underline_thickness);
-        let seg_rect = Rect::new(
-            x - (width / 2.0) as f32,
-            y,
-            width as f32,
-            underline_thickness as f32
-        );
-        let mut dot = gsk::RoundedRect::from_rect(seg_rect, (underline_thickness / 2.0) as f32);
-
-        snapshot.push_repeat(&rect, None);
-        snapshot.push_rounded_clip(&dot);
-        snapshot.append_color(&sp, dot.bounds());
-        snapshot.pop();
-
-        // TODO: figure out if we can get rid of this, we really just need some way to express
-        // that we want to repeat an area of (2x, y)
-        dot.offset(dot.bounds().width(), 0.0);
-        snapshot.append_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0), dot.bounds());
-        snapshot.pop();
-    } else if cell.hl.underline {
-        let sp = hl
-            .cell_sp(cell)
-            .unwrap_or_else(|| hl.actual_cell_fg(cell))
-            .fade(bg, inverse_level);
-
-        snapshot.append_color(&sp.as_ref().into(), &rect);
-    }
-}
-
-fn snapshot_cell_bg(
-    snapshot: &gtk::Snapshot,
-    line: &ui_model::Line,
-    hl: &HighlightMap,
-    cell: &ui_model::Cell,
-    col: usize,
-    (line_x, line_y): (f32, f32),
-    cell_metrics: &CellMetrics,
-) {
-    let &CellMetrics {
-        char_width,
-        line_height,
-        ..
-    } = cell_metrics;
-
-    if let Some(bg) = hl.cell_bg(cell) {
-        if !line.is_binded_to_item(col) {
-            if bg != hl.bg() {
-                snapshot.append_color(
-                    &bg.into(),
-                    &Rect::new(line_x, line_y, char_width.ceil() as f32, line_height as f32)
-                );
-            }
-        } else {
-            snapshot.append_color(
-                &bg.into(),
-                &Rect::new(
-                    line_x,
-                    line_y,
-                    (char_width * line.item_len_from_idx(col) as f64) as f32,
-                    line_height as f32
-                )
+        if cell.hl.undercurl {
+            snapshot_undercurl(
+                snapshot,
+                cell_metrics,
+                &undercurl_color(cell, hl).fade(hl.bg(), fade_percentage),
+                (x, y),
+                clip_width
+            );
+        } else if cell.hl.underline {
+            snapshot_underline(
+                snapshot,
+                cell_metrics,
+                &underline_color(cell, hl).fade(hl.bg(), fade_percentage),
+                (x, y),
+                clip_width
             );
         }
     }
 }
 
+fn snapshot_strikethrough(
+    snapshot: &gtk::Snapshot,
+    cell_metrics: &CellMetrics,
+    color: &color::Color,
+    (x, y): (f64, f64),
+    len: f64,
+) {
+    snapshot.append_color(
+        &color.into(),
+        &Rect::new(
+            x as f32,
+            (y + cell_metrics.strikethrough_position) as f32,
+            len as f32,
+            cell_metrics.strikethrough_thickness as f32
+        )
+    )
+}
+
+fn underline_rect(cell_metrics: &CellMetrics, (x, y): (f64, f64), len: f64) -> Rect {
+    Rect::new(
+        x as f32,
+        (y + cell_metrics.underline_position) as f32,
+        len as f32,
+        cell_metrics.underline_thickness as f32
+    )
+}
+
+fn snapshot_underline(
+    snapshot: &gtk::Snapshot,
+    cell_metrics: &CellMetrics,
+    color: &color::Color,
+    (x, y): (f64, f64),
+    len: f64,
+) {
+    snapshot.append_color(&color.into(), &underline_rect(cell_metrics, (x, y), len))
+}
+
+fn snapshot_undercurl(
+    snapshot: &gtk::Snapshot,
+    cell_metrics: &CellMetrics,
+    color: &color::Color,
+    (x, y): (f64, f64),
+    len: f64,
+) {
+    let CellMetrics {
+        char_width,
+        underline_position,
+        underline_thickness,
+        ..
+    } = *cell_metrics;
+
+    let rect = underline_rect(cell_metrics, (x, y), len);
+    let width = (char_width / 6.0).min(underline_thickness);
+    let seg_rect = Rect::new(
+        (x - (width / 2.0)) as f32,
+        (y + underline_position) as f32,
+        width as f32,
+        underline_thickness as f32
+    );
+    let mut dot = gsk::RoundedRect::from_rect(seg_rect, (underline_thickness / 2.0) as f32);
+
+    snapshot.push_repeat(&rect, None);
+    snapshot.push_rounded_clip(&dot);
+    snapshot.append_color(&color.into(), dot.bounds());
+    snapshot.pop();
+
+    // TODO: figure out if we can get rid of this, we really just need some way to express
+    // that we want to repeat an area of (2x, y)
+    dot.offset(dot.bounds().width(), 0.0);
+    snapshot.append_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0), dot.bounds());
+    snapshot.pop();
+}
+
+fn plan_and_snapshot_cell_bg<'a>(
+    snapshot: &gtk::Snapshot,
+    pending_bg: &mut Option<RenderStep<'a>>,
+    hl: &'a HighlightMap,
+    cell: &'a ui_model::Cell,
+    cell_metrics: &CellMetrics,
+    (row, col): (usize, usize),
+) {
+    if let Some(cell_bg) = hl.cell_bg(cell).filter(|bg| *bg != hl.bg()) {
+        if let Some(cur_pending_bg) = pending_bg {
+            if cur_pending_bg.extend(RenderStepKind::Background, cell_bg) {
+                return;
+            }
+            cur_pending_bg.to_snapshot(snapshot, cell_metrics);
+        }
+        *pending_bg = Some(RenderStep::new(RenderStepKind::Background, cell_bg, (row, col)));
+    } else if let Some(pending_bg) = pending_bg.take() {
+        pending_bg.to_snapshot(snapshot, cell_metrics);
+    }
+}
+
+fn underline_color<'a>(cell: &'a ui_model::Cell, hl: &'a HighlightMap) -> &'a color::Color {
+    hl.cell_sp(cell).unwrap_or_else(|| hl.actual_cell_fg(cell))
+}
+
+fn undercurl_color<'a>(cell: &'a ui_model::Cell, hl: &'a HighlightMap) -> &'a color::Color {
+    hl.cell_sp(cell).unwrap_or(&color::COLOR_RED)
+}
+
+fn plan_underline_strikethrough<'a>(
+    pending_strikethrough: &mut Option<usize>,
+    pending_underline: &mut Option<usize>,
+    pending_fmt_ops: &mut Vec<RenderStep<'a>>,
+    hl: &'a HighlightMap,
+    cell: &'a ui_model::Cell,
+    pos: (usize, usize),
+) {
+    if cell.hl.strikethrough {
+        let fg = hl.actual_cell_fg(cell);
+        let mut extended = false;
+        if let Some(idx) = *pending_strikethrough {
+            extended = pending_fmt_ops[idx].extend(RenderStepKind::Strikethrough, fg);
+        }
+
+        if !extended {
+            *pending_strikethrough = Some(pending_fmt_ops.len());
+            pending_fmt_ops.push(RenderStep::new(RenderStepKind::Strikethrough, fg, pos));
+        }
+    } else {
+        *pending_strikethrough = None;
+    }
+
+    let (kind, color) = if cell.hl.undercurl {
+        (RenderStepKind::Undercurl, undercurl_color(cell, hl))
+    } else if cell.hl.underline {
+        (RenderStepKind::Underline, underline_color(cell, hl))
+    } else {
+        *pending_underline = None;
+        return;
+    };
+
+    if let Some(idx) = *pending_underline {
+        if pending_fmt_ops[idx].extend(kind, color) {
+            return;
+        }
+    }
+    *pending_underline = Some(pending_fmt_ops.len());
+    pending_fmt_ops.push(RenderStep::new(kind, color, pos));
+}
+
+#[inline]
+fn snapshot_bg(
+    snapshot: &gtk::Snapshot,
+    cell_metrics: &CellMetrics,
+    color: &color::Color,
+    (x, y): (f64, f64),
+    len: f64,
+) {
+    snapshot.append_color(
+        &color.into(),
+        &Rect::new(x as f32, y as f32, len as f32, cell_metrics.line_height as f32)
+    )
+}
+
 /// Generate render nodes for the current cell
 fn snapshot_cell(
     snapshot: &gtk::Snapshot,
-    items: &mut [ui_model::Item],
+    items: &[ui_model::Item],
     hl: &HighlightMap,
     cell: &ui_model::Cell,
-    (x, y): (f32, f32),
+    pos: (usize, usize),
     cell_metrics: &CellMetrics,
 ) {
+    let (x, y) = cell_metrics.get_coords(pos);
     for item in items {
         let fg = hl.actual_cell_fg(cell);
 
         if item.glyphs().is_some() {
             snapshot.append_node(item.render_node(
-                fg.into(), (x, y + cell_metrics.ascent as f32)
+                fg.into(), (x as f32, (y + cell_metrics.ascent) as f32)
             ));
         }
     }

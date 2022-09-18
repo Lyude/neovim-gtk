@@ -197,7 +197,7 @@ impl ActionWidgets {
 }
 
 pub struct State {
-    pub grids: Rc<RefCell<GridMap>>,
+    pub grids: GridMap,
 
     mouse_enabled: bool,
     nvim: Rc<NeovimClient>,
@@ -252,7 +252,7 @@ impl State {
         let display = Display::default().unwrap();
 
         State {
-            grids: Rc::new(RefCell::new(GridMap::new())),
+            grids: GridMap::new(),
             nvim: Rc::new(NeovimClient::new()),
             mouse_enabled: true,
             cursor: None,
@@ -382,7 +382,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update(pango_context);
-        self.grids.borrow_mut().clear_glyphs();
+        self.grids.clear_glyphs();
         self.try_nvim_resize();
         self.queue_draw(RedrawMode::All);
     }
@@ -394,7 +394,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update_font_features(font_features);
-        self.grids.borrow_mut().clear_glyphs();
+        self.grids.clear_glyphs();
         self.queue_draw(RedrawMode::All);
     }
 
@@ -411,7 +411,7 @@ impl State {
             .borrow_mut()
             .font_ctx
             .update_line_space(line_space);
-        self.grids.borrow_mut().clear_glyphs();
+        self.grids.clear_glyphs();
         self.try_nvim_resize();
         self.queue_draw(RedrawMode::All);
     }
@@ -490,7 +490,7 @@ impl State {
 
     fn update_dirty_glyphs(&mut self) {
         let render_state = self.render_state.borrow();
-        if let Some(model) = self.grids.borrow_mut().current_model_mut() {
+        if let Some(model) = self.grids.current_model_mut() {
             render::shape_dirty(&render_state.font_ctx, model, &render_state.hl);
         }
     }
@@ -525,7 +525,7 @@ impl State {
     }
 
     fn set_im_location(&self) {
-        if let Some((row, col)) = self.grids.borrow().current().map(|g| g.get_cursor()) {
+        if let Some((row, col)) = self.grids.current().map(|g| g.get_cursor()) {
             let (x, y, width, height) = ModelRect::point(col, row)
                 .to_area(self.render_state.borrow().font_ctx.cell_metrics());
 
@@ -1592,23 +1592,23 @@ impl State {
         cells: Vec<Vec<Value>>,
     ) -> RedrawMode {
         let hl = &self.render_state.borrow().hl;
-        self.grids.borrow_mut()[grid].line(row as usize, col_start as usize, cells, hl);
+        self.grids[grid].line(row as usize, col_start as usize, cells, hl);
         RedrawMode::All
     }
 
     pub fn grid_clear(&mut self, grid: u64) -> RedrawMode {
         let hl = &self.render_state.borrow().hl;
-        self.grids.borrow_mut()[grid].clear(&hl.default_hl());
+        self.grids[grid].clear(&hl.default_hl());
         RedrawMode::All
     }
 
     pub fn grid_destroy(&mut self, grid: u64) -> RedrawMode {
-        self.grids.borrow_mut().destroy(grid);
+        self.grids.destroy(grid);
         RedrawMode::All
     }
 
     pub fn grid_cursor_goto(&mut self, grid: u64, row: u64, column: u64) -> RedrawMode {
-        self.grids.borrow_mut()[grid].cursor_goto(row as usize, column as usize);
+        self.grids[grid].cursor_goto(row as usize, column as usize);
         self.set_im_location();
         RedrawMode::Cursor
     }
@@ -1628,7 +1628,7 @@ impl State {
             }
         });
 
-        self.grids.borrow_mut().get_or_create(grid).resize(columns, rows);
+        self.grids.get_or_create(grid).resize(columns, rows);
         RedrawMode::Nothing
     }
 
@@ -1643,7 +1643,7 @@ impl State {
         cols: i64,
     ) -> RedrawMode {
         let hl = &self.render_state.borrow().hl.default_hl();
-        self.grids.borrow_mut()[grid].scroll(top, bot, left, right, rows, cols, hl);
+        self.grids[grid].scroll(top, bot, left, right, rows, cols, hl);
         RedrawMode::All
     }
 
@@ -1697,7 +1697,7 @@ impl State {
     }
 
     fn cur_point_area(&self) -> RedrawMode {
-        if self.grids.borrow().current().is_some() {
+        if self.grids.current().is_some() {
             RedrawMode::Cursor
         } else {
             RedrawMode::Nothing
@@ -1852,7 +1852,7 @@ impl State {
         level: u64,
     ) -> RedrawMode {
         {
-            let cursor = self.grids.borrow().current().unwrap().cur_point();
+            let cursor = self.grids.current().unwrap().cur_point();
             let render_state = self.render_state.borrow();
             let (x, y, width, height) = cursor.to_area(render_state.font_ctx.cell_metrics());
             let ctx = CmdLineContext {

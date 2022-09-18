@@ -243,8 +243,7 @@ impl WidgetImpl for NvimViewportObject {
             // Render scenes get pretty huge here, so we cache them as often as possible
             let font_ctx = &render_state.font_ctx;
             if inner.snapshot_cache.is_none() {
-                let mut grids = state.grids.borrow_mut();
-                let ui_model = match grids.current_model_mut() {
+                let ui_model = match state.grids.current_model() {
                     Some(ui_model) => ui_model,
                     None => return,
                 };
@@ -265,7 +264,7 @@ impl WidgetImpl for NvimViewportObject {
             }
 
             if let Some(cursor) = state.cursor() {
-                if let Some(model) = state.grids.borrow().current_model() {
+                if let Some(model) = state.grids.current_model() {
                     snapshot_cursor(snapshot_in, cursor, font_ctx, model, hl, transparency);
                 }
             }

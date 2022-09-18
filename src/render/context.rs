@@ -229,6 +229,16 @@ impl CellMetrics {
             strikethrough_thickness: 0.0,
         }
     }
+
+    // Translate the given grid coordinates into their actual pixel coordinates
+    pub fn get_coords(&self, (row, col): (usize, usize)) -> (f64, f64) {
+        (self.char_width * col as f64, self.line_height * row as f64)
+    }
+
+    // Convert a count of cells to its respective length in pixels
+    pub fn get_cell_len(&self, len: usize) -> f64 {
+        self.char_width * len as f64
+    }
 }
 
 pub struct FontFeatures {
