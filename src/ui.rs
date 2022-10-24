@@ -133,9 +133,7 @@ impl Ui {
         settings.init();
 
         let window = ApplicationWindow::new(app);
-        // Remove the background color for the window so we can control the alpha content through
-        // NvimViewport
-        window.remove_css_class("background");
+        window.add_css_class("nvim-background");
 
         let main = Paned::new(Orientation::Horizontal);
 
