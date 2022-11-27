@@ -336,11 +336,14 @@ impl PopupMenu {
     }
 
     pub fn hide(&mut self) {
+        let popover = &self.popover;
         self.open = false;
-        // popdown() in case of fast hide/show
-        // situation does not work and just close popup window
-        // so hide() is important here
-        self.popover.hide();
+        glib::idle_add_local_once(clone!(popover => move || {
+            // popdown() in case of fast hide/show
+            // situation does not work and just close popup window
+            // so hide() is important here
+            popover.hide();
+        }));
     }
 
     pub fn select(&self, selected: Option<u32>) {
