@@ -1094,7 +1094,8 @@ impl Shell {
         state.nvim_viewport.add_controller(&focus_controller);
 
         let scroll_controller = gtk::EventControllerScroll::new(
-            gtk::EventControllerScrollFlags::BOTH_AXES
+            gtk::EventControllerScrollFlags::BOTH_AXES |
+            gtk::EventControllerScrollFlags::DISCRETE
         );
         scroll_controller.connect_scroll(clone!(
             state_ref, ui_state_ref => move |controller, dx, dy| {
