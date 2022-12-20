@@ -2,14 +2,11 @@ use std::env;
 
 use gdk;
 use gtk::Inhibit;
-use lazy_static::lazy_static;
 use phf;
 
 use crate::nvim::{ErrorReport, NvimSession};
 
 include!(concat!(env!("OUT_DIR"), "/key_map_table.rs"));
-
-const NVIM_GTK_CMD_AS_META: &str = "NVIM_GTK_CMD_AS_META";
 
 pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> String {
     let mut val = in_str;
@@ -24,6 +21,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     if state.contains(gdk::ModifierType::CONTROL_MASK)
         && !state.contains(gdk::ModifierType::SHIFT_MASK)
         && !state.contains(gdk::ModifierType::ALT_MASK)
+        && !state.contains(gdk::ModifierType::META_MASK)
     {
         if val == "6" {
             val = "^";
@@ -54,7 +52,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     if state.contains(gdk::ModifierType::CONTROL_MASK) {
         mod_chars.push("C");
     }
-    if state.contains(gdk::ModifierType::ALT_MASK) {
+    if state.contains(gdk::ModifierType::ALT_MASK) || state.contains(gdk::ModifierType::META_MASK) {
         mod_chars.push("A");
     }
 
@@ -68,38 +66,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     }
 }
 
-#[derive(Default)]
-pub struct ModifierOptions {
-    cmd_as_meta: bool,
-}
-
-pub fn modify_modifiers(
-    in_state: gdk::ModifierType,
-    options: &ModifierOptions,
-) -> gdk::ModifierType {
-    let mut state = in_state;
-
-    // TODO: I have no idea if this is actually correct, since MOD2 has been removed. Need to check
-    // with @jacobmishka (see #23)
-    if options.cmd_as_meta && state.contains(gdk::ModifierType::SUPER_MASK) {
-        state.remove(gdk::ModifierType::SUPER_MASK);
-        state.insert(gdk::ModifierType::ALT_MASK);
-    }
-
-    state
-}
-
-pub fn convert_key(keyval: gdk::Key, mut modifiers: gdk::ModifierType) -> Option<String> {
-    lazy_static! {
-        static ref MODIFIER_OPTIONS: ModifierOptions = ModifierOptions {
-            cmd_as_meta: env::var(NVIM_GTK_CMD_AS_META)
-                .map(|opt| opt.trim() == "1")
-                .unwrap_or(false)
-        };
-    }
-
-    modifiers = modify_modifiers(modifiers, &MODIFIER_OPTIONS);
-
+pub fn convert_key(keyval: gdk::Key, modifiers: gdk::ModifierType) -> Option<String> {
     if let Some(ref keyval_name) = keyval.name() {
         if let Some(cnvt) = KEYVAL_MAP.get(keyval_name.as_str()).cloned() {
             return Some(keyval_to_input_string(cnvt, modifiers));
@@ -168,37 +135,10 @@ mod tests {
             "a", SHIFT_MASK == "<S-a>";
             "a", SHIFT_MASK | CONTROL_MASK | ALT_MASK == "<S-C-A-a>";
             "6", CONTROL_MASK == "<C-^>";
-            "6", CONTROL_MASK | ALT_MASK == "<C-A-6>";
+            "6", CONTROL_MASK | META_MASK == "<C-A-6>";
             "2", CONTROL_MASK == "<C-@>";
             "2", CONTROL_MASK | ALT_MASK == "<C-A-2>";
             "j", SUPER_MASK == "j";
         }
-    }
-
-    #[test]
-    fn test_cmd_as_meta() {
-        let options = ModifierOptions { cmd_as_meta: true };
-
-        assert_eq!(
-            keyval_to_input_string("k", modify_modifiers(gdk::ModifierType::empty(), &options)),
-            "k"
-        );
-        assert_eq!(
-            keyval_to_input_string(
-                "j",
-                modify_modifiers(gdk::ModifierType::SUPER_MASK, &options)
-            ),
-            "<A-j>"
-        );
-        assert_eq!(
-            keyval_to_input_string(
-                "l",
-                modify_modifiers(
-                    gdk::ModifierType::SUPER_MASK | gdk::ModifierType::SHIFT_MASK,
-                    &options
-                )
-            ),
-            "<S-A-l>"
-        );
     }
 }
