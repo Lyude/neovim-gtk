@@ -201,6 +201,14 @@ impl Ui {
             window.set_decorated(false);
         }
 
+        // Override default shortcuts which are easy to press accidentally
+        if let Some(app) = window.application() {
+            app.set_accels_for_action("app.preferences", &[]);
+            app.set_accels_for_action("gtkinternal.hide", &[]);
+            app.set_accels_for_action("gtkinternal.hide-others", &[]);
+            app.set_accels_for_action("app.quit", &[]);
+        }
+
         let (update_subtitle, header_bar) = if use_header_bar {
             let (subscription, header_bar) = self.create_header_bar(app);
             (Some(subscription), Some(header_bar))
