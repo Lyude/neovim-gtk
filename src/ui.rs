@@ -144,7 +144,12 @@ impl Ui {
         settings.init();
 
         let window = ApplicationWindow::new(app);
-        window.add_css_class("nvim-background");
+
+        // For some reason, having a transparent window breaks window behavior on macOS.
+        // See #46
+        if cfg!(not(target_os = "macos")) {
+            window.add_css_class("nvim-background");
+        }
 
         let main = Paned::new(Orientation::Horizontal);
 
