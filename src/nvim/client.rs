@@ -104,13 +104,8 @@ impl NeovimClient {
         self.nvim.write().unwrap().replace(nvim);
     }
 
-    pub fn api_info(&self) -> Rc<NeovimApiInfo> {
-        self.state
-            .borrow()
-            .api_info
-            .as_ref()
-            .expect("API info should be initialized by the time this is called")
-            .clone()
+    pub fn api_info(&self) -> Option<Rc<NeovimApiInfo>> {
+        self.state.borrow().api_info.as_ref().cloned()
     }
 
     pub fn set_initialized(&self, api_info: NeovimApiInfo) {

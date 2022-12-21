@@ -405,7 +405,10 @@ impl Ui {
         let commands = commands.join("|");
         let nvim_client = shell.nvim_clone();
         let nvim = nvim_client.nvim().unwrap();
-        let channel_id = nvim_client.api_info().channel;
+        let channel_id = nvim_client
+            .api_info()
+            .expect("API info should be initialized by the time this is called")
+            .channel;
         nvim.clone().spawn(async move {
             let res = nvim.command(&commands).await;
 

@@ -239,18 +239,46 @@ pub fn call_gui_event(
             match opt_name.as_str() {
                 "Popupmenu" => set_ui_opt(
                     &nvim,
-                    &[("ext_popupmenu", api_info.ext_popupmenu)],
+                    &[(
+                        "ext_popupmenu",
+                        api_info
+                            .as_ref()
+                            .map(|api_info| api_info.ext_popupmenu)
+                            .unwrap_or_default(),
+                    )],
                     opt_value,
                 )?,
                 "Tabline" => {
-                    set_ui_opt(&nvim, &[("ext_tabline", api_info.ext_tabline)], opt_value)?;
+                    set_ui_opt(
+                        &nvim,
+                        &[(
+                            "ext_tabline",
+                            api_info
+                                .as_ref()
+                                .map(|api_info| api_info.ext_tabline)
+                                .unwrap_or_default(),
+                        )],
+                        opt_value,
+                    )?;
                     ui.set_tabline(opt_value);
                 }
                 "Cmdline" => set_ui_opt(
                     &nvim,
                     &[
-                        ("ext_cmdline", api_info.ext_cmdline),
-                        ("ext_wildmenu", api_info.ext_wildmenu),
+                        (
+                            "ext_cmdline",
+                            api_info
+                                .as_ref()
+                                .map(|api_info| api_info.ext_cmdline)
+                                .unwrap_or_default(),
+                        ),
+                        (
+                            "ext_wildmenu",
+                            api_info
+                                .as_ref()
+                                .map(|api_info| api_info.ext_wildmenu)
+                                .unwrap_or_default(),
+                        ),
                     ],
                     opt_value,
                 )?,

@@ -1229,10 +1229,11 @@ impl Shell {
         let nvim_client = state.nvim.clone();
 
         if let Some(nvim) = nvim_client.nvim() {
-            let api_info = nvim_client.api_info();
             nvim_client.clear();
             nvim.block_timeout(nvim.ui_detach()).report_err();
-            nvim.block_on(nvim.shutdown(api_info.channel));
+            if let Some(api_info) = nvim_client.api_info() {
+                nvim.block_on(nvim.shutdown(api_info.channel));
+            }
         }
     }
 
