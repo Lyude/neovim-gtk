@@ -2,8 +2,6 @@ use std::collections::HashSet;
 
 use pango::{self, prelude::*};
 
-use crate::sys::pango as sys_pango;
-
 use super::itemize::ItemizeIterator;
 use crate::ui_model::StyledLine;
 
@@ -254,7 +252,7 @@ impl FontFeatures {
         }
 
         FontFeatures {
-            attr: sys_pango::attribute::new_features(&font_features),
+            attr: Some(pango::AttrFontFeatures::new(&font_features).upcast()),
         }
     }
 

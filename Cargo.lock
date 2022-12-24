@@ -786,7 +786,6 @@ dependencies = [
  "log",
  "nvim-rs",
  "pango",
- "pango-sys",
  "percent-encoding",
  "phf",
  "phf_codegen",

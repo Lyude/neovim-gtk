@@ -8,8 +8,6 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-mod sys;
-
 mod color;
 mod dirs;
 mod mode;
