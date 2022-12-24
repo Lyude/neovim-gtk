@@ -1,4 +1,3 @@
-use crate::env_dirs;
 use std;
 use std::path::PathBuf;
 

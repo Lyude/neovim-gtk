@@ -1,9 +1,3 @@
-extern crate build_version;
-extern crate phf_codegen;
-
-#[cfg(windows)]
-extern crate winres;
-
 use std::env;
 use std::fs::File;
 use std::io::{BufWriter, Write};
