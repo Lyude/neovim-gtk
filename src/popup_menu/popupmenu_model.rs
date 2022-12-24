@@ -24,7 +24,6 @@ pub struct PopupMenuModelObject(RefCell<Rc<Vec<PopupMenuItem>>>);
 impl ObjectSubclass for PopupMenuModelObject {
     const NAME: &'static str = "NvimPopupMenuModel";
     type Type = PopupMenuModel;
-    type ParentType = glib::Object;
     type Interfaces = (gio::ListModel,);
 }
 
