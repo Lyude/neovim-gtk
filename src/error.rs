@@ -4,7 +4,6 @@ use log::error;
 
 use htmlescape::encode_minimal;
 
-use gtk;
 use gtk::prelude::*;
 
 use crate::shell;

@@ -2,8 +2,6 @@ use std::{cell::RefCell, convert::*, rc::Rc, sync::Arc};
 
 use log::{error, warn};
 
-use glib;
-use gtk;
 use gtk::prelude::*;
 use gtk::{ButtonsType, MessageDialog, MessageType};
 

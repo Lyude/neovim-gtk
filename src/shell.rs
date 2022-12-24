@@ -1,4 +1,3 @@
-use std;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -15,16 +14,12 @@ use futures::{executor::block_on, FutureExt};
 
 use tokio::sync::{Mutex as AsyncMutex, Notify};
 
-use clap::{self, value_t};
+use clap::value_t;
 
-use gdk::{self, prelude::*, Display, ModifierType};
-use gio;
+use gdk::{prelude::*, Display, ModifierType};
 use gio::ApplicationCommandLine;
-use glib;
-use gtk;
 use gtk::prelude::*;
 use gtk::{Button, MenuButton, Notebook};
-use pango;
 use pango::FontDescription;
 
 use nvim_rs::Value;

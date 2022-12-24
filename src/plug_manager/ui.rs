@@ -7,7 +7,7 @@ use log::error;
 
 use crate::ui::UiMutex;
 
-use gtk::{self, prelude::*, Inhibit};
+use gtk::{prelude::*, Inhibit};
 
 use super::manager;
 use super::plugin_settings_dlg;

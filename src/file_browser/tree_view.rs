@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
 
-use glib;
-use gtk::{self, prelude::*, subclass::prelude::*};
+use gtk::{prelude::*, subclass::prelude::*};
 
 glib::wrapper! {
     pub struct TreeView(ObjectSubclass<TreeViewObject>)

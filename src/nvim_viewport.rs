@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
 
-use glib;
-use gtk::{self, graphene::Rect, prelude::*, subclass::prelude::*};
+use gtk::{graphene::Rect, prelude::*, subclass::prelude::*};
 
 use std::{
     cell::RefCell,

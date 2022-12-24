@@ -13,9 +13,7 @@ use crate::{
     ui_model,
 };
 
-use gsk;
 use gtk::{graphene::Rect, prelude::*};
-use pango;
 
 /// A single step in a render plan
 #[derive(Clone, Copy)]

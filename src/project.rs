@@ -5,14 +5,11 @@ use std::sync::Arc;
 
 use log::error;
 
-use glib;
-use gtk;
 use gtk::prelude::*;
 use gtk::{
     CellRendererPixbuf, CellRendererText, CellRendererToggle, ListStore, MenuButton, Orientation,
     PolicyType, ScrolledWindow, TreeIter, TreeModel, TreeView, TreeViewColumn,
 };
-use pango;
 
 use serde::{Deserialize, Serialize};
 
@@ -602,7 +599,6 @@ impl Entry {
 // ----- Store / Load settings
 //
 use crate::settings::SettingsLoader;
-use toml;
 
 #[derive(Serialize, Deserialize, Default)]
 struct ProjectSettings {

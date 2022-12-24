@@ -2,13 +2,9 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use gtk;
 use gtk::prelude::*;
 
-use glib;
 use glib::signal;
-
-use pango;
 
 use crate::{
     nvim::{self, ErrorReport, Tabpage},

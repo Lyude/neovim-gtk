@@ -12,10 +12,8 @@ use std::sync::Arc;
 
 use log::error;
 
-use gdk;
-use gio;
 use gio::prelude::*;
-use gtk::{self, prelude::*, Inhibit};
+use gtk::{prelude::*, Inhibit};
 
 use crate::misc::escape_filename;
 use crate::nvim::NvimSession;

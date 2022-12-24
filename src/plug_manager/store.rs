@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use toml;
 
 use log::error;
 

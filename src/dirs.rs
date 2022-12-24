@@ -1,4 +1,3 @@
-use std;
 use std::path::PathBuf;
 
 pub fn get_app_config_dir_create() -> Result<PathBuf, String> {

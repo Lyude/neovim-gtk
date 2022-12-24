@@ -13,7 +13,6 @@ use async_trait::async_trait;
 use crate::nvim::{Neovim, NvimWriter};
 use crate::shell;
 use crate::ui::UiMutex;
-use glib;
 
 use super::redraw_handler::{self, PendingPopupMenu, RedrawMode};
 

@@ -2,8 +2,7 @@ use std::cell::*;
 
 use crate::color;
 
-use gsk::{self, graphene};
-use pango;
+use gsk::graphene;
 
 #[derive(Clone)]
 pub struct Item {

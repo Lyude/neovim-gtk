@@ -1,8 +1,6 @@
 use lazy_static::lazy_static;
 
-use glib;
 use gtk::{
-    self,
     graphene::{Point, Rect},
     prelude::*,
     subclass::prelude::*,

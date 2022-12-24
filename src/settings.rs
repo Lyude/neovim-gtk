@@ -102,9 +102,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-use serde;
-use toml;
-
 use crate::dirs;
 
 pub trait SettingsLoader: Sized + serde::Serialize + Default {

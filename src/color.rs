@@ -1,8 +1,4 @@
-use std;
 use std::borrow::Cow;
-
-use gdk;
-use pango;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Color(pub f64, pub f64, pub f64);

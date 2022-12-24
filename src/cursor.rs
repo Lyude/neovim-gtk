@@ -1,4 +1,3 @@
-use glib;
 use gtk::{graphene::Rect, prelude::*};
 
 use std::{

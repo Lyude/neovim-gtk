@@ -1,11 +1,8 @@
 use std::env;
 
-use gdk;
 use gtk::Inhibit;
 
 use log::debug;
-
-use phf;
 
 use crate::nvim::{ErrorReport, NvimSession};
 

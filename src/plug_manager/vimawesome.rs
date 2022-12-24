@@ -4,10 +4,7 @@ use std::rc::Rc;
 use std::thread;
 
 use serde::Deserialize;
-use serde_json;
 
-use glib;
-use gtk;
 use gtk::prelude::*;
 
 use super::store::PlugInfo;

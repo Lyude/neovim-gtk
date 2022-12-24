@@ -5,8 +5,6 @@ use std::{
     slice::Iter,
 };
 
-use pango;
-
 use super::cell::Cell;
 use super::item::Item;
 use crate::color;

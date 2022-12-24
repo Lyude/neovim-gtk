@@ -33,7 +33,6 @@ use tokio_util::compat::*;
 use futures::future::{BoxFuture, FutureExt};
 
 use nvim_rs::{
-    self,
     compat::tokio::Compat,
     error::{CallError, DecodeError, LoopError},
     UiAttachOptions, Value,

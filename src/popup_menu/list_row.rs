@@ -4,8 +4,7 @@ use std::{cell::RefCell, convert::*, rc::*};
 
 use lazy_static::lazy_static;
 
-use glib;
-use gtk::{self, prelude::*, subclass::prelude::*};
+use gtk::{prelude::*, subclass::prelude::*};
 
 pub const PADDING: i32 = 2;
 

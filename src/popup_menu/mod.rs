@@ -9,8 +9,6 @@ use std::rc::Rc;
 
 use unicode_width::*;
 
-use glib;
-use gtk;
 use gtk::prelude::*;
 
 use crate::{

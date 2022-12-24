@@ -8,10 +8,7 @@ use std::sync::Arc;
 
 use log::error;
 
-use glib;
-use gtk;
 use gtk::prelude::*;
-use pango;
 
 use unicode_segmentation::UnicodeSegmentation;
 

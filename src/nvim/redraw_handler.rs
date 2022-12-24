@@ -8,8 +8,6 @@ use crate::nvim::{NvimSession, Tabpage};
 use crate::shell;
 use crate::ui::UiMutex;
 
-use rmpv;
-
 use crate::value::ValueMapExt;
 
 /// Indicates whether we should queue a draw and if so, whether we should invalidate any internal

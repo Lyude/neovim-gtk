@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
 
-use gio::{self, prelude::*, subclass::prelude::*};
-use glib;
+use gio::{prelude::*, subclass::prelude::*};
 
 use std::{cell::RefCell, convert::*, ops::Deref, rc::Rc};
 

@@ -11,12 +11,10 @@ use gio::prelude::*;
 use gio::{ApplicationCommandLine, Menu, MenuItem, SimpleAction};
 use glib::variant::FromVariant;
 use gtk::{
-    self, prelude::*, AboutDialog, ApplicationWindow, Button, HeaderBar, Inhibit, Orientation,
-    Paned,
+    prelude::*, AboutDialog, ApplicationWindow, Button, HeaderBar, Inhibit, Orientation, Paned,
 };
 
 use serde::{Deserialize, Serialize};
-use toml;
 
 use crate::file_browser::FileBrowserWidget;
 use crate::highlight::BackgroundState;
