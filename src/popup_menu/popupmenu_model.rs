@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use gio::{prelude::*, subclass::prelude::*};
 
@@ -30,15 +30,15 @@ impl ObjectSubclass for PopupMenuModelObject {
 
 impl ObjectImpl for PopupMenuModelObject {
     fn properties() -> &'static [glib::ParamSpec] {
-        lazy_static! {
-            static ref PROPERTIES: Vec<glib::ParamSpec> = vec![glib::ParamSpecObject::new(
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![glib::ParamSpecObject::new(
                 "items",
                 "PopupMenu items",
                 "A reference to the list of completion items",
                 glib::BoxedAnyObject::static_type(),
                 glib::ParamFlags::WRITABLE,
-            )];
-        }
+            )]
+        });
 
         PROPERTIES.as_ref()
     }

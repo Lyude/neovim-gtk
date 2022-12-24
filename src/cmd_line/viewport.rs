@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use gtk::{
     graphene::{Point, Rect},
@@ -61,8 +61,8 @@ impl ObjectSubclass for CmdlineViewportObject {
 
 impl ObjectImpl for CmdlineViewportObject {
     fn properties() -> &'static [glib::ParamSpec] {
-        lazy_static! {
-            static ref PROPERTIES: Vec<glib::ParamSpec> = vec![
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![
                 glib::ParamSpecObject::new(
                     "cmdline-state",
                     "Cmdline state",
@@ -78,8 +78,8 @@ impl ObjectImpl for CmdlineViewportObject {
                     false,
                     glib::ParamFlags::READWRITE
                 ),
-            ];
-        }
+            ]
+        });
 
         PROPERTIES.as_ref()
     }

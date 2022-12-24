@@ -2,7 +2,7 @@ use super::popupmenu_model::PopupMenuItemRef;
 
 use std::{cell::RefCell, convert::*, rc::*};
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use gtk::{prelude::*, subclass::prelude::*};
 
@@ -72,8 +72,8 @@ impl ObjectImpl for PopupMenuListRowObject {
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
-        lazy_static! {
-            static ref PROPERTIES: Vec<glib::ParamSpec> = vec![
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![
                 glib::ParamSpecObject::new(
                     "state",
                     "Popup menu list row state",
@@ -88,8 +88,8 @@ impl ObjectImpl for PopupMenuListRowObject {
                     glib::BoxedAnyObject::static_type(),
                     glib::ParamFlags::WRITABLE,
                 ),
-            ];
-        }
+            ]
+        });
 
         PROPERTIES.as_ref()
     }

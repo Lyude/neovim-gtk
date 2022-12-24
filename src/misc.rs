@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::mem;
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use percent_encoding::percent_decode;
 use regex::Regex;
@@ -38,15 +38,15 @@ pub fn split_at_comma(source: &str) -> Vec<String> {
 
 /// Escape special ASCII characters with a backslash.
 pub fn escape_filename<'t>(filename: &'t str) -> Cow<'t, str> {
-    lazy_static! {
-        static ref SPECIAL_CHARS: Regex = if cfg!(target_os = "windows") {
+    static SPECIAL_CHARS: Lazy<Regex> = Lazy::new(|| {
+        if cfg!(target_os = "windows") {
             // On Windows, don't escape `:` and `\`, as these are valid components of the path.
             Regex::new(r"[[:ascii:]&&[^0-9a-zA-Z._:\\-]]").unwrap()
         } else {
             // Similarly, don't escape `/` on other platforms.
             Regex::new(r"[[:ascii:]&&[^0-9a-zA-Z._/-]]").unwrap()
-        };
-    }
+        }
+    });
     SPECIAL_CHARS.replace_all(&*filename, r"\$0")
 }
 
@@ -61,9 +61,7 @@ pub fn decode_uri(uri: &str) -> Option<String> {
     };
     let path = percent_decode(path.as_bytes()).decode_utf8().ok()?;
     if cfg!(target_os = "windows") {
-        lazy_static! {
-            static ref SLASH: Regex = Regex::new(r"/").unwrap();
-        }
+        static SLASH: Lazy<Regex> = Lazy::new(|| Regex::new(r"/").unwrap());
         Some(String::from(SLASH.replace_all(&*path, r"\")))
     } else {
         Some("/".to_owned() + &path)

@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use gtk::{prelude::*, subclass::prelude::*};
 
@@ -38,15 +38,15 @@ impl ObjectImpl for TreeViewObject {
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
-        lazy_static! {
-            static ref PROPERTIES: Vec<glib::ParamSpec> = vec![glib::ParamSpecObject::new(
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![glib::ParamSpecObject::new(
                 "context-menu",
                 "Context menu",
                 "PopoverMenu to use as the context menu",
                 gtk::PopoverMenu::static_type(),
-                glib::ParamFlags::READWRITE
-            ),];
-        }
+                glib::ParamFlags::READWRITE,
+            )]
+        });
 
         PROPERTIES.as_ref()
     }

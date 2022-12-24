@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use gtk::{graphene::Rect, prelude::*, subclass::prelude::*};
 
@@ -87,14 +87,14 @@ impl ObjectImpl for NvimViewportObject {
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
-        lazy_static! {
-            static ref PROPERTIES: Vec<glib::ParamSpec> = vec![
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
+            vec![
                 glib::ParamSpecObject::new(
                     "shell-state",
                     "Shell state",
                     "A back-reference to the main state structure for nvim-gtk",
                     glib::BoxedAnyObject::static_type(),
-                    glib::ParamFlags::WRITABLE
+                    glib::ParamFlags::WRITABLE,
                 ),
                 glib::ParamSpecBoolean::new(
                     "snapshot-cached",
@@ -102,14 +102,14 @@ impl ObjectImpl for NvimViewportObject {
                     "Whether or not we have a snapshot of the nvim grid cached. Ignores non-false \
                     writes.",
                     false,
-                    glib::ParamFlags::READWRITE
+                    glib::ParamFlags::READWRITE,
                 ),
                 glib::ParamSpecObject::new(
                     "context-menu",
                     "Popover menu",
                     "PopoverMenu to use as the context menu",
                     gtk::PopoverMenu::static_type(),
-                    glib::ParamFlags::READWRITE
+                    glib::ParamFlags::READWRITE,
                 ),
                 glib::ParamSpecObject::new(
                     "completion-popover",
@@ -125,8 +125,8 @@ impl ObjectImpl for NvimViewportObject {
                     gtk::Popover::static_type(),
                     glib::ParamFlags::READWRITE,
                 ),
-            ];
-        }
+            ]
+        });
 
         PROPERTIES.as_ref()
     }
