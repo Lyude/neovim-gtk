@@ -10,6 +10,8 @@ use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use log::error;
+
 use gdk;
 use gio;
 use gio::prelude::*;

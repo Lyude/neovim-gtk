@@ -3,6 +3,8 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use log::error;
+
 use crate::ui::UiMutex;
 
 use gtk::{self, prelude::*, Inhibit};

@@ -2,6 +2,8 @@ use std::{convert::*, mem, num::ParseFloatError, result, sync::Arc};
 
 use nvim_rs::Value;
 
+use log::{debug, error, warn};
+
 use crate::nvim::{NvimSession, Tabpage};
 use crate::shell;
 use crate::ui::UiMutex;

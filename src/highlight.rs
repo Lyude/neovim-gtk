@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use log::error;
+
 use fnv::FnvHashMap;
 
 use crate::color::*;

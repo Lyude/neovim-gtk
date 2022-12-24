@@ -4,6 +4,8 @@ use std::{
     time::Duration,
 };
 
+use log::{debug, error};
+
 use nvim_rs::{compat::tokio::Compat, Handler, Value};
 
 use async_trait::async_trait;

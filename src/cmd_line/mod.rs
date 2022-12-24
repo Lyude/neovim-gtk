@@ -6,6 +6,8 @@ use std::iter;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use log::error;
+
 use glib;
 use gtk;
 use gtk::prelude::*;

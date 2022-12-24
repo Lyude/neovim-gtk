@@ -9,6 +9,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use log::{debug, error};
+
 use futures::{executor::block_on, FutureExt};
 
 use tokio::sync::{Mutex as AsyncMutex, Notify};
@@ -41,7 +43,6 @@ use crate::{spawn_timeout, spawn_timeout_user_err};
 
 use crate::cmd_line::{CmdLine, CmdLineContext};
 use crate::cursor::{BlinkCursor, CursorRedrawCb};
-use crate::error;
 use crate::input;
 use crate::input::keyval_to_input_string;
 use crate::mode;
@@ -210,7 +211,7 @@ pub struct State {
     pub pending_popupmenu: PendingPopupMenu,
     tabs: Tabline,
     im_context: gtk::IMMulticontext,
-    error_area: error::ErrorArea,
+    error_area: crate::error::ErrorArea,
 
     pub options: RefCell<ShellOptions>,
     transparency_settings: TransparencySettings,
@@ -277,7 +278,7 @@ impl State {
             pending_popupmenu: PendingPopupMenu::None,
             tabs: Tabline::new(),
             im_context: gtk::IMMulticontext::new(),
-            error_area: error::ErrorArea::new(),
+            error_area: crate::error::ErrorArea::new(),
 
             options: RefCell::new(options),
             transparency_settings: TransparencySettings::new(),

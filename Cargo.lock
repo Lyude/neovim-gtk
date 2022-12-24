@@ -790,7 +790,6 @@ dependencies = [
  "regex",
  "rmpv",
  "serde",
- "serde_derive",
  "serde_json",
  "tokio",
  "tokio-util",
@@ -1203,6 +1202,9 @@ name = "serde"
 version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fed41fc1a24994d044e6db6935e69511a1153b52c15eb42493b26fa87feba0"
+dependencies = [
+ "serde_derive",
+]
 
 [[package]]
 name = "serde_bytes"

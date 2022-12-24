@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use log::error;
+
 use nvim_rs::Value;
 
 use crate::{nvim::NvimSession, spawn_timeout};

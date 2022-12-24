@@ -3,6 +3,8 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use log::error;
+
 use glib;
 use gtk;
 use gtk::prelude::*;
@@ -11,6 +13,8 @@ use gtk::{
     PolicyType, ScrolledWindow, TreeIter, TreeModel, TreeView, TreeViewColumn,
 };
 use pango;
+
+use serde::{Deserialize, Serialize};
 
 use crate::nvim::{ErrorReport, NvimSession};
 use crate::shell::Shell;

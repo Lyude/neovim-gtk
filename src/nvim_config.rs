@@ -2,6 +2,8 @@ use std::fs::{remove_file, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
+use log::{debug, error};
+
 use crate::dirs;
 use crate::plug_manager;
 

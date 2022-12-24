@@ -3,6 +3,8 @@ mod itemize;
 
 pub use self::context::{CellMetrics, Context, FontFeatures};
 
+use log::warn;
+
 use crate::{
     color,
     cursor::{cursor_rect, Cursor},

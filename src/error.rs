@@ -1,5 +1,7 @@
 use std::ops::Deref;
 
+use log::error;
+
 use htmlescape::encode_minimal;
 
 use gtk;

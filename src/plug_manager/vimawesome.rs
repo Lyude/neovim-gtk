@@ -3,6 +3,7 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::thread;
 
+use serde::Deserialize;
 use serde_json;
 
 use glib;

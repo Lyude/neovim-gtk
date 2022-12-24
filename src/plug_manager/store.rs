@@ -1,4 +1,7 @@
+use serde::{Deserialize, Serialize};
 use toml;
+
+use log::error;
 
 use super::vim_plug;
 use crate::settings::SettingsLoader;

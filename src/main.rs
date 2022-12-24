@@ -1,10 +1,5 @@
 #![windows_subsystem = "windows"]
 
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate serde_derive;
-
 mod color;
 mod dirs;
 mod mode;
@@ -32,6 +27,8 @@ mod shell;
 mod shell_dlg;
 mod subscriptions;
 mod tabline;
+
+use log::error;
 
 use gio::prelude::*;
 use gio::ApplicationCommandLine;

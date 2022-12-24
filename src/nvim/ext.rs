@@ -1,6 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 use std::error::Error;
 
+use log::error;
+
 use nvim_rs::error::CallError;
 
 use crate::nvim::{NvimSession, SessionError};

@@ -5,6 +5,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::{env, thread};
 
+use log::{debug, warn};
+
 use gio::prelude::*;
 use gio::{ApplicationCommandLine, Menu, MenuItem, SimpleAction};
 use glib::variant::FromVariant;
@@ -13,6 +15,7 @@ use gtk::{
     Paned,
 };
 
+use serde::{Deserialize, Serialize};
 use toml;
 
 use crate::file_browser::FileBrowserWidget;

@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+use log::error;
+
 use crate::shell::Shell;
 #[cfg(unix)]
 use gio::{self, prelude::*};

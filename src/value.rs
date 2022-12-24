@@ -1,3 +1,4 @@
+use log::error;
 use nvim_rs::Value;
 use std::collections::HashMap;
 
