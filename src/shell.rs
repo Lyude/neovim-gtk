@@ -201,6 +201,7 @@ pub struct State {
     resize_status: Arc<ResizeState>,
     focus_state: Arc<AsyncMutex<FocusState>>,
 
+    pub backend: gdk::Backend,
     pub clipboard_clipboard: gdk::Clipboard,
     pub clipboard_primary: gdk::Clipboard,
 
@@ -267,6 +268,7 @@ impl State {
                 is_pending: false,
             })),
 
+            backend: display.backend(),
             clipboard_clipboard: display.clipboard(),
             clipboard_primary: display.primary_clipboard(),
 
@@ -752,6 +754,9 @@ pub struct UiState {
 
     scroll_delta: (f64, f64),
 
+    /// Used to drop misbehaved scroll events
+    last_nonzero_scroll_event_deltas: (f64, f64),
+
     /// Last reported editor position (col, row)
     last_nvim_pos: (u64, u64),
     /// Last reported motion position
@@ -764,6 +769,7 @@ impl UiState {
             mouse_pressed: false,
             cursor_visible: None,
             scroll_delta: (0.0, 0.0),
+            last_nonzero_scroll_event_deltas: (0.0, 0.0),
             last_nvim_pos: (0, 0),
             last_pos: (0.0, 0.0),
         }
@@ -1326,6 +1332,27 @@ fn gtk_scroll_event(
     modifier_state: ModifierType,
 ) {
     if !state.mouse_enabled && !state.nvim.is_initializing() {
+        return;
+    }
+
+    let (prev_dx, prev_dy) = ui_state.last_nonzero_scroll_event_deltas;
+    if dx != 0.0 {
+        ui_state.last_nonzero_scroll_event_deltas.0 = dx;
+    }
+    if dy != 0.0 {
+        ui_state.last_nonzero_scroll_event_deltas.1 = dy;
+    }
+
+    // On X11, GTK4 currently reports some garbage scroll events consisting
+    // of buffered deltas from other windows. We try to disregard those by
+    // dropping scroll deltas larger than the previous nonzero delta on each
+    // axis.
+    //
+    // https://gitlab.gnome.org/GNOME/gtk/-/issues/4160
+    if state.backend.is_x11()
+        && ((prev_dx != 0.0 && dx.abs() > prev_dx.abs())
+            || (prev_dy != 0.0 && dy.abs() > prev_dy.abs()))
+    {
         return;
     }
 
