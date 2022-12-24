@@ -12,9 +12,7 @@ license = "GPLv3"
 [dependencies]
 clap = "2.0"
 glib = "0.16.0"
-glib-sys = "0.16.0"
 gio = "0.16.0"
-gobject-sys = "0.16.0"
 async-trait = "0.1.0"
 futures = { version = "0.3.0", features = ["io-compat", "thread-pool"] }
 tokio = { version = "1.0", features = ["full"] }

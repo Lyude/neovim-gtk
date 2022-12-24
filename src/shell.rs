@@ -866,7 +866,7 @@ async fn gtk_drop_receive(drop: &gdk::Drop) -> Result<Vec<String>, Box<dyn std::
     // type. So, use witch magic to extract the boxed GSList pointer ourselves.
     let raw_value = value.into_raw();
     let value = unsafe {
-        let value = gobject_sys::g_value_get_boxed(&raw_value) as *mut glib_sys::GSList;
+        let value = glib::gobject_ffi::g_value_get_boxed(&raw_value) as *mut glib::ffi::GSList;
 
         glib::SList::<gio::File>::from_glib_full(value)
     };

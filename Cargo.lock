@@ -775,8 +775,6 @@ dependencies = [
  "gdk4-sys",
  "gio",
  "glib",
- "glib-sys",
- "gobject-sys",
  "gsk4",
  "gsk4-sys",
  "gtk4",

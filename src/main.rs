@@ -1,8 +1,6 @@
 #![windows_subsystem = "windows"]
 
 extern crate dirs as env_dirs;
-extern crate glib_sys as glib_ffi;
-extern crate gobject_sys as gobject_ffi;
 #[macro_use]
 extern crate log;
 #[macro_use]
