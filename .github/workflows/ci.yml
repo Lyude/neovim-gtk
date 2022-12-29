@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ main v*.*-stable ]
+  pull_request:
+    branches: [ main v*.*-stable ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  NVIM_GTK_LOG_FILE: nvim-gtk-stdout.log
+  NVIM_GTK_LOG_LEVEL: debug
+  NVIM_GTK_STDERR: nvim-gtk-stderr.log
+  RUSTFLAGS: -C opt-level=0
+
+jobs:
+  main:
+    runs-on: [ubuntu-latest]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # TODO: Windows, any volunteers? 🐱
+        # TODO: OSX, this should be a bit easier hopefully
+        os: [ubuntu-latest]
+        rust: [stable]
+        include:
+          - os: ubuntu-latest
+            rust: stable
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache Base Fedora container
+        id: cache-container-images
+        uses: jamesmortensen/cache-container-images-action@v1
+        with:
+          prefix-key: 'neovim-gtk-base'
+          images: fedora:37
+
+      - name: Get Fedora container ID
+        id: base-container-id
+        run: |
+          echo "id=$(podman image inspect fedora:37 --format '{{.Id}}')" >> $GITHUB_OUTPUT
+
+      - name: Cache neovim-gtk container
+        id: cache-neovim-gtk-container
+        uses: actions/cache@v3
+        with:
+          path: ~/neovim-gtk-archive.tar
+          key: "${{ steps.base-container-id.outputs.id }}-${{ hashFiles('Containerfile.fedora') }}-neovim-gtk"
+
+      - name: Build neovim-gtk container
+        if: ${{ steps.cache-neovim-gtk-container.outputs.cache-hit != 'true' }}
+        run: podman build -f $GITHUB_WORKSPACE/Containerfile.fedora --squash-all -t neovim-gtk
+
+      - name: Save neovim-gtk container image
+        if: ${{ steps.cache-neovim-gtk-container.outputs.cache-hit != 'true' }}
+        run: podman save -o ~/neovim-gtk-archive.tar neovim-gtk
+
+      - name: Import neovim-gtk container into podman
+        if: ${{ steps.cache-neovim-gtk-container.outputs.cache-hit == 'true' }}
+        run: podman load -i ~/neovim-gtk-archive.tar
+
+      - name: Run cargo test
+        run: |
+          podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo test
+
+      # This is intended to prevent mistakes such as accidentally committing an out of date
+      # Cargo.lock
+      - name: Check that git repo is still clean after cargo test
+        run: |
+          cd $GITHUB_WORKSPACE
+          git status -s
+
+      - name: Check that rust-fmt is happy
+        run: podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo fmt --check -v

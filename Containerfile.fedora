@@ -1,0 +1,5 @@
+FROM fedora:37
+
+RUN dnf update -y
+RUN dnf install -y --nodocs --setopt=install_weak_deps=False rust cargo rustfmt atk-devel glib2-devel pango-devel gtk4-devel
+RUN dnf clean all
