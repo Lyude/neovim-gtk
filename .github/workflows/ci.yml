@@ -2,9 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [ main v*.*-stable ]
+    branches:
+      - "main"
+      - "wip/ci"
+      - "stable-v*.*"
+    #branches: [ "main", "wip/ci" ]
   pull_request:
-    branches: [ main v*.*-stable ]
+    branches:
+      - "main"
+      - "wip/ci"
+      - "stable-v*.*"
 
 env:
   CARGO_TERM_COLOR: always
