@@ -70,9 +70,7 @@ jobs:
       # This is intended to prevent mistakes such as accidentally committing an out of date
       # Cargo.lock
       - name: Check that git repo is still clean after cargo test
-        run: |
-          cd $GITHUB_WORKSPACE
-          git status -s
+        run: ${GITHUB_WORKSPACE}/.github/workflows/check-dirty.sh
 
       - name: Check that rust-fmt is happy
         run: podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo fmt --check -v
