@@ -1,3 +1,65 @@
+# v1.0.3
+
+## Bugs fixed:
+
+* Cargo.lock was out of sync, oops 😳. Will look into setting up a release workflow to prevent this
+  from happening in the future. (fixes #58)
+
+# v1.0.2
+
+New stable release, bugs fixed:
+
+* OSX (thanks @jacobmischka)
+  * #46 - Workaround transparent windows bug in GTK4
+  * Disable default shortcuts
+* All
+  * Fix appearance of error window that displays when initialization fails, which regressed since
+    GTK4
+
+## Additional thanks to
+
+* @jacobmischka
+
+# v1.0.1
+
+* Update dependencies
+* Drop some leftover dead cairo code I missed, and our explicit cairo dependency
+* Some bugfixes:
+  * Fix funny window sizing issue with long file names
+    (https://github.com/Lyude/neovim-gtk/issues/41)
+  * Fix scrolling speed on devices like touchpads (https://github.com/Lyude/neovim-gtk/pull/40)
+  * Aesthetic improvements to the new underline style (underline should no longer look like it's
+    moving under the text cursor)
+  * Fix issue with underlines disappearing under the text cursor if no pango item was below the
+    cursor
+
+## Additional thanks to
+
+* @jadahl
+
+# v1.0.0
+
+We're finally ready to move to GTK4! There's a number of other nice changes that come with this:
+
+- We now use a `gtk::Snapshot` based renderer instead of cairo, and introduce a new `NvimViewport`
+  widget that implements the new renderer
+- We also convert the `ext_cmdline` over to using the new renderer
+- The `ext_popupmenu` popover now uses a `GtkListView` instead of a `GtkTreeView`
+- We actually make use of nvim's `flush` event now for screen redraws, which probably should have
+  been done from the start. Supporting this means we're dramatically less likely to display screen
+  updates to the user before we've finished parsing a full batch of GUI events from nvim
+- We also use the `flush` event for popup menu updates, in addition to flattening all of the which
+  replaces the previous hacks that were in place to prevent the user from seeing intermediate
+  `popup_menu` events. This also allows us to avoid having to use a timed delay for displaying the
+  popup menu, which makes things a bit faster :)
+- Long taps from touchscreens should register as right clicks now
+
+## Additional thanks to
+
+- @baco
+- @jadahl
+- Company and the other folks in `#gtk`  who helped a ton with answering questions
+
 # v0.4.1
 
 ## Bug fixes
