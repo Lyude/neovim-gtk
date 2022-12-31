@@ -5,6 +5,8 @@
 * Cargo.lock was out of sync, oops 😳. Will look into setting up a release workflow to prevent this
   from happening in the future. (fixes #58)
 
+---
+
 # v1.0.2
 
 New stable release, bugs fixed:
@@ -19,6 +21,8 @@ New stable release, bugs fixed:
 ## Additional thanks to
 
 * @jacobmischka
+
+---
 
 # v1.0.1
 
@@ -36,6 +40,8 @@ New stable release, bugs fixed:
 ## Additional thanks to
 
 * @jadahl
+
+---
 
 # v1.0.0
 
@@ -60,11 +66,15 @@ We're finally ready to move to GTK4! There's a number of other nice changes that
 - @jadahl
 - Company and the other folks in `#gtk`  who helped a ton with answering questions
 
+---
+
 # v0.4.1
 
 ## Bug fixes
 
 - Revert default background type back to dark (#21)
+
+---
 
 # v0.4.0
 
