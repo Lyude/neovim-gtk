@@ -1,3 +1,13 @@
+# v1.0.4
+
+## Bugs fixed:
+
+* Fixed an issue where the GTK+ paned container could potentially steal focus from the NvimViewport
+  widget
+* Undercurl appearance fixed
+
+---
+
 # v1.0.3
 
 ## Bugs fixed:

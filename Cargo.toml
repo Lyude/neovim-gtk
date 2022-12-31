@@ -1,6 +1,6 @@
 [package]
 name = "nvim-gtk"
-version = "1.0.3"
+version = "1.0.4"
 authors = [
     "daa84 <daa84@inbox.ru>",
     "Lyude Paul <thatslyude@gmail.com>",
