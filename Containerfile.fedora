@@ -1,5 +1,10 @@
 FROM fedora:37
 
+ARG GITHUB_WORKSPACE
+
 RUN dnf update -y
 RUN dnf install -y --nodocs --setopt=install_weak_deps=False rust cargo rustfmt atk-devel glib2-devel pango-devel gtk4-devel
 RUN dnf clean all
+
+VOLUME ${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw
+WORKDIR ${GITHUB_WORKSPACE}

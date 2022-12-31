@@ -53,7 +53,8 @@ jobs:
 
       - name: Build neovim-gtk container
         if: ${{ steps.cache-neovim-gtk-container.outputs.cache-hit != 'true' }}
-        run: podman build -f $GITHUB_WORKSPACE/Containerfile.fedora --squash-all -t neovim-gtk
+        run: |
+          podman build -f $GITHUB_WORKSPACE/Containerfile.fedora --build-arg=GITHUB_WORKSPACE="${GITHUB_WORKSPACE}" --squash-all -t neovim-gtk
 
       - name: Save neovim-gtk container image
         if: ${{ steps.cache-neovim-gtk-container.outputs.cache-hit != 'true' }}
@@ -65,7 +66,7 @@ jobs:
 
       - name: Run cargo test
         run: |
-          podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo test
+          podman run neovim-gtk cargo test
 
       # This is intended to prevent mistakes such as accidentally committing an out of date
       # Cargo.lock
@@ -73,4 +74,4 @@ jobs:
         run: ${GITHUB_WORKSPACE}/.github/workflows/check-dirty.sh
 
       - name: Check that rust-fmt is happy
-        run: podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo fmt --check -v
+        run: podman run neovim-gtk cargo fmt --check -v
