@@ -75,3 +75,6 @@ jobs:
 
       - name: Check that rust-fmt is happy
         run: podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo fmt --check -v
+
+      - name: Check for clippy lints
+        run: podman run -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" -w ${GITHUB_WORKSPACE} neovim-gtk cargo clippy -- -Dwarnings
