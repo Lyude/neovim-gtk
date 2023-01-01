@@ -13,11 +13,14 @@ pub use self::line::{Line, StyledLine};
 pub use self::model_layout::ModelLayout;
 pub use self::model_rect::ModelRect;
 
+#[derive(Default)]
 pub struct UiModel {
     pub columns: usize,
     pub rows: usize,
-    cur_row: usize,
-    cur_col: usize,
+    /// (row, col)
+    cur_pos: (usize, usize),
+    /// (row, col)
+    pending_pos: Option<(usize, usize)>,
     model: Box<[Line]>,
 }
 
@@ -31,19 +34,9 @@ impl UiModel {
         UiModel {
             columns: columns as usize,
             rows: rows as usize,
-            cur_row: 0,
-            cur_col: 0,
+            cur_pos: (0, 0),
+            pending_pos: None,
             model: model.into_boxed_slice(),
-        }
-    }
-
-    pub fn empty() -> UiModel {
-        UiModel {
-            columns: 0,
-            rows: 0,
-            cur_row: 0,
-            cur_col: 0,
-            model: Box::new([]),
         }
     }
 
@@ -58,16 +51,30 @@ impl UiModel {
     }
 
     pub fn cur_point(&self) -> ModelRect {
-        ModelRect::point(self.cur_col, self.cur_row)
+        let (row, col) = self.cur_pos;
+        ModelRect::point(col, row)
     }
 
     pub fn set_cursor(&mut self, row: usize, col: usize) {
-        self.cur_row = row;
-        self.cur_col = col;
+        self.pending_pos = Some((row, col));
     }
 
+    pub fn flush_cursor(&mut self) {
+        if let Some(pos) = self.pending_pos.take() {
+            self.cur_pos = pos;
+        }
+    }
+
+    /// Get the "real" cursor position, e.g. use the intermediate position if there is one. This is
+    /// usually what you want for UI model operations
+    pub fn get_real_cursor(&self) -> (usize, usize) {
+        self.pending_pos.unwrap_or(self.cur_pos)
+    }
+
+    /// Get the position of the cursor from the last 'flush' event. This is usually what you want
+    /// for snapshot generation
     pub fn get_cursor(&self) -> (usize, usize) {
-        (self.cur_row, self.cur_col)
+        self.cur_pos
     }
 
     pub fn put_one(

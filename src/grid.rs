@@ -65,6 +65,14 @@ impl GridMap {
             grid.model.clear_glyphs();
         }
     }
+
+    /// Flush any pending cursor position updates (e.g. updates we received before getting a 'flush'
+    /// event)
+    pub fn flush_cursor(&mut self) {
+        for grid in self.grids.values_mut() {
+            grid.flush_cursor();
+        }
+    }
 }
 
 pub struct Grid {
@@ -74,12 +82,16 @@ pub struct Grid {
 impl Grid {
     pub fn new() -> Self {
         Grid {
-            model: UiModel::empty(),
+            model: UiModel::default(),
         }
     }
 
     pub fn get_cursor(&self) -> (usize, usize) {
-        self.model.get_cursor()
+        self.model.get_real_cursor()
+    }
+
+    pub fn flush_cursor(&mut self) {
+        self.model.flush_cursor();
     }
 
     pub fn cur_point(&self) -> ModelRect {

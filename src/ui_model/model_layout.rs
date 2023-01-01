@@ -51,7 +51,7 @@ impl ModelLayout {
 
     pub fn size(&self) -> (usize, usize) {
         (
-            max(self.cols_filled, self.model.get_cursor().1 + 1),
+            max(self.cols_filled, self.model.get_real_cursor().1 + 1),
             self.rows_filled,
         )
     }
@@ -60,7 +60,7 @@ impl ModelLayout {
         if rows > self.model.rows {
             let model_cols = self.model.columns;
             let model_rows = ((rows / (ModelLayout::ROWS_STEP + 1)) + 1) * ModelLayout::ROWS_STEP;
-            let (cur_row, cur_col) = self.model.get_cursor();
+            let (cur_row, cur_col) = self.model.get_real_cursor();
 
             let mut model = UiModel::new(model_rows as u64, model_cols as u64);
             self.model.swap_rows(&mut model, self.rows_filled - 1);
@@ -74,7 +74,7 @@ impl ModelLayout {
             return;
         }
 
-        let (row, col) = self.model.get_cursor();
+        let (row, col) = self.model.get_real_cursor();
 
         if shift {
             self.insert_into_lines(ch);
@@ -87,7 +87,7 @@ impl ModelLayout {
     fn insert_into_lines(&mut self, ch: String) {
         let line = &mut self.lines[0];
 
-        let cur_col = self.model.cur_col;
+        let (_, cur_col) = self.model.get_real_cursor();
 
         let mut col_idx = 0;
         for &mut (_, ref mut chars) in line {

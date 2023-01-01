@@ -1615,6 +1615,7 @@ impl State {
             self.nvim_viewport.clear_snapshot_cache();
         }
 
+        self.grids.flush_cursor();
         self.nvim_viewport.queue_draw();
     }
 
