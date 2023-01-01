@@ -68,7 +68,7 @@ impl Color {
     }
 
     pub fn fade<'a>(&'a self, into: &'a Self, percentage: f64) -> Cow<Self> {
-        debug_assert!(percentage >= 0.0 && percentage <= 1.0);
+        debug_assert!((0.0..=1.0).contains(&percentage));
 
         match percentage {
             _ if percentage <= 0.000001 => Cow::Borrowed(self),

@@ -432,7 +432,7 @@ impl State {
     pub fn open_file(&self, path: &str) {
         if let Some(nvim) = self.nvim() {
             let action_widgets = self.action_widgets();
-            let path = format!("e {}", path).to_owned();
+            let path = format!("e {path}");
 
             action_widgets.borrow().as_ref().unwrap().set_enabled(false);
 
@@ -459,7 +459,7 @@ impl State {
 
     pub fn cd(&self, path: &str) {
         if let Some(nvim) = self.nvim() {
-            let path = format!("cd {}", path);
+            let path = format!("cd {path}");
             spawn_timeout!(nvim.command(&path));
         }
     }
@@ -617,16 +617,16 @@ impl State {
             if render_state.mode.is(&mode::NvimMode::Insert)
                 || render_state.mode.is(&mode::NvimMode::Normal)
             {
-                spawn_timeout_user_err!(nvim.command(&format!("normal! \"{}P", clipboard)));
+                spawn_timeout_user_err!(nvim.command(&format!("normal! \"{clipboard}P")));
             } else {
-                spawn_timeout_user_err!(nvim.input(&format!("<C-r>{}", clipboard)));
+                spawn_timeout_user_err!(nvim.input(&format!("<C-r>{clipboard}")));
             };
         }
     }
 
     fn edit_copy(&self, clipboard: &'static str) {
         if let Some(nvim) = self.nvim() {
-            spawn_timeout_user_err!(nvim.command(&format!("normal! \"{}y", clipboard)));
+            spawn_timeout_user_err!(nvim.command(&format!("normal! \"{clipboard}y")));
         }
     }
 
@@ -712,14 +712,10 @@ impl State {
                     focus_state.last = focus_state.next;
                     focus_state.next
                 };
-                let autocmd = if next == true {
-                    "FocusGained"
-                } else {
-                    "FocusLost"
-                };
+                let autocmd = if next { "FocusGained" } else { "FocusLost" };
 
                 debug!("Triggering {} autocmd", autocmd);
-                nvim.command(&format!("if exists('#{a}')|doau {a}|endif", a = autocmd))
+                nvim.command(&format!("if exists('#{autocmd}')|doau {autocmd}|endif"))
                     .await
                     .report_err();
             }
@@ -819,7 +815,7 @@ impl ShellOptions {
             args_for_neovim: matches
                 .values_of("nvim-args")
                 .map(|args| args.map(str::to_owned).collect())
-                .unwrap_or_else(|| vec![]),
+                .unwrap_or_else(std::vec::Vec::new),
             post_config_cmds: matches
                 .values_of("post-config-cmds")
                 .map(|args| args.map(str::to_owned).collect())
@@ -885,7 +881,7 @@ fn gtk_handle_drop(state: &State, context: &glib::MainContext, drop: &gdk::Drop)
         let input = match gtk_drop_receive(&drop).await {
             Ok(input) => input,
             Err(e) => {
-                nvim.err_writeln(&format!("Drag and drop failed: {}", e))
+                nvim.err_writeln(&format!("Drag and drop failed: {e}"))
                     .await
                     .report_err();
                 drop.finish(gdk::DragAction::empty());
@@ -963,7 +959,7 @@ impl Shell {
         app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>,
         components: &Arc<UiMutex<Components>>,
     ) {
-        self.state.borrow_mut().app_cmdline = app_cmdline.clone();
+        self.state.borrow_mut().app_cmdline = app_cmdline;
 
         let state_ref = &self.state;
         let ui_state_ref = &self.ui_state;
@@ -976,7 +972,7 @@ impl Shell {
         state.nvim_viewport.set_receives_default(true);
         state
             .nvim_viewport
-            .set_completion_popover(&*state.popup_menu);
+            .set_completion_popover(&state.popup_menu);
 
         state.im_context.set_use_preedit(false);
 
@@ -995,7 +991,7 @@ impl Shell {
             state_ref, ui_state_ref => move |controller, x, y| {
                 gtk_motion_notify(
                     &state_ref.borrow(),
-                    &mut *ui_state_ref.borrow_mut(),
+                    &mut ui_state_ref.borrow_mut(),
                     (x, y),
                     controller.current_event_state()
                 );
@@ -1005,7 +1001,7 @@ impl Shell {
             state_ref, ui_state_ref => move |controller, x, y| {
                 gtk_motion_notify(
                     &state_ref.borrow(),
-                    &mut *ui_state_ref.borrow_mut(),
+                    &mut ui_state_ref.borrow_mut(),
                     (x, y),
                     controller.current_event_state()
                 );
@@ -1042,7 +1038,7 @@ impl Shell {
         click_controller.connect_pressed(clone!(
             state_ref, ui_state_ref, menu => move |controller, _, x, y| {
                 gtk_button_press(
-                    &mut *state_ref.borrow_mut(),
+                    &mut state_ref.borrow_mut(),
                     &ui_state_ref,
                     get_button(controller),
                     x,
@@ -1056,7 +1052,7 @@ impl Shell {
             state_ref, ui_state_ref => move |controller, _, x, y| {
                 gtk_button_release(
                     &state_ref.borrow(),
-                    &mut *ui_state_ref.borrow_mut(),
+                    &mut ui_state_ref.borrow_mut(),
                     get_button(controller),
                     x,
                     y,
@@ -1104,8 +1100,8 @@ impl Shell {
         scroll_controller.connect_scroll(clone!(
             state_ref, ui_state_ref => move |controller, dx, dy| {
                 gtk_scroll_event(
-                    &mut *state_ref.borrow_mut(),
-                    &mut *ui_state_ref.borrow_mut(),
+                    &mut state_ref.borrow_mut(),
+                    &mut ui_state_ref.borrow_mut(),
                     (dx, dy),
                     controller.current_event_state()
                 );
@@ -1489,7 +1485,7 @@ fn show_nvim_init_error(
     state_arc: Arc<UiMutex<State>>,
     comps: Arc<UiMutex<Components>>,
 ) {
-    let error_msg = format!("{}", err);
+    let error_msg = format!("{err}");
 
     glib::idle_add_once(move || {
         let state = state_arc.borrow();
@@ -1536,7 +1532,7 @@ fn init_nvim_async(
         glib::idle_add_once(move || {
             cb_state_arc.borrow().nvim.clear();
             if let Some(ref cb) = cb_state_arc.borrow().detach_cb {
-                (&mut *cb.borrow_mut())();
+                (*cb.borrow_mut())();
             }
         });
     }));
@@ -1559,14 +1555,14 @@ fn set_nvim_to_state(state_arc: Arc<UiMutex<State>>, nvim: &NvimSession) {
     glib::idle_add_once(move || {
         state_arc.borrow().nvim.set(nvim.clone().unwrap());
 
-        let &(ref lock, ref cvar) = &*pair2;
+        let (lock, cvar) = &*pair2;
         let mut started = lock.lock().unwrap();
         *started = Some(nvim.clone());
         cvar.notify_one();
     });
 
     // Wait idle set nvim properly
-    let &(ref lock, ref cvar) = &*pair;
+    let (lock, cvar) = &*pair;
     let mut started = lock.lock().unwrap();
     while started.is_none() {
         started = cvar.wait(started).unwrap();
@@ -1801,7 +1797,7 @@ impl State {
                     let exists_fonts = self.render_state.borrow().font_ctx.font_families();
                     let fonts = split_at_comma(&val);
                     for font in &fonts {
-                        let desc = FontDescription::from_string(&font);
+                        let desc = FontDescription::from_string(font);
                         if desc.size() > 0
                             && exists_fonts.contains(&desc.family().unwrap_or_else(|| "".into()))
                         {
@@ -1827,10 +1823,7 @@ impl State {
         cursor_style_enabled: bool,
         mode_infos: Vec<HashMap<String, Value>>,
     ) -> RedrawMode {
-        let mode_info_arr = mode_infos
-            .iter()
-            .map(|mode_info_map| mode::ModeInfo::new(mode_info_map))
-            .collect();
+        let mode_info_arr = mode_infos.iter().map(mode::ModeInfo::new).collect();
 
         match mode_info_arr {
             Ok(mode_info_arr) => {
@@ -1904,19 +1897,19 @@ impl State {
 
     pub fn cmdline_pos(&mut self, pos: u64, level: u64) -> RedrawMode {
         let render_state = self.render_state.borrow();
-        self.cmd_line.pos(&*render_state, pos, level);
+        self.cmd_line.pos(&render_state, pos, level);
         RedrawMode::Nothing
     }
 
     pub fn cmdline_special_char(&mut self, c: String, shift: bool, level: u64) -> RedrawMode {
         let render_state = self.render_state.borrow();
-        self.cmd_line.special_char(&*render_state, c, shift, level);
+        self.cmd_line.special_char(&render_state, c, shift, level);
         RedrawMode::Nothing
     }
 
     pub fn wildmenu_show(&self, items: Vec<String>) -> RedrawMode {
         self.cmd_line
-            .show_wildmenu(items, &*self.render_state.borrow(), self.max_popup_width());
+            .show_wildmenu(items, &self.render_state.borrow(), self.max_popup_width());
         RedrawMode::Nothing
     }
 

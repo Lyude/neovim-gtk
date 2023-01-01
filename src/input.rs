@@ -60,7 +60,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     let input = [mod_chars.as_slice(), &[val]].concat().join(sep);
 
     if !empty && input.chars().count() > 1 {
-        format!("<{}>", input)
+        format!("<{input}>")
     } else {
         input
     }
@@ -73,11 +73,9 @@ pub fn convert_key(keyval: gdk::Key, modifiers: gdk::ModifierType) -> Option<Str
         }
     }
 
-    if let Some(ch) = keyval.to_unicode() {
-        Some(keyval_to_input_string(&ch.to_string(), modifiers))
-    } else {
-        None
-    }
+    keyval
+        .to_unicode()
+        .map(|ch| keyval_to_input_string(&ch.to_string(), modifiers))
 }
 
 pub fn im_input(nvim: &NvimSession, input: &str) {

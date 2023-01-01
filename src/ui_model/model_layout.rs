@@ -116,7 +116,7 @@ impl ModelLayout {
         let mut col_idx = 0;
         let mut row_idx = row_offset;
         for content in lines {
-            for &(ref hl, ref ch_list) in content {
+            for (hl, ch_list) in content {
                 for ch in ch_list {
                     let ch_width = max(1, ch.width());
 

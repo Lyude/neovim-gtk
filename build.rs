@@ -16,7 +16,7 @@ fn main() {
     }
 
     let path = Path::new(out_dir).join("key_map_table.rs");
-    let mut file = BufWriter::new(File::create(&path).unwrap());
+    let mut file = BufWriter::new(File::create(path).unwrap());
 
     writeln!(
         &mut file,
@@ -65,7 +65,7 @@ fn main() {
         .unwrap()
     );
 
-    if let Ok(output) = Command::new("git").args(&["rev-parse", "HEAD"]).output() {
+    if let Ok(output) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
         println!(
             "cargo:rustc-env=GIT_COMMIT={}",
             String::from_utf8(output.stdout).unwrap()

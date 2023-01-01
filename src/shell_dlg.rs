@@ -32,7 +32,7 @@ pub fn can_close_window(
                     glib::MainContext::default().spawn_local(async move {
                         let res = {
                             let mut comps = comps.borrow_mut();
-                            let res = show_not_saved_dlg(&*comps, shell, &vec).await;
+                            let res = show_not_saved_dlg(&comps, shell, &vec).await;
 
                             comps.exit_confirmed = res;
                             res
@@ -74,7 +74,7 @@ async fn show_not_saved_dlg(
         flags,
         MessageType::Question,
         ButtonsType::None,
-        &format!("Save changes to '{}'?", changed_files),
+        &format!("Save changes to '{changed_files}'?"),
     );
 
     dlg.add_buttons(&[

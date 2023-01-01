@@ -336,11 +336,11 @@ impl CmdLine {
 
         if ctx.level_idx as usize == state.levels.len() {
             let level = state.levels.last_mut().unwrap();
-            level.replace_from_ctx(ctx, &*render_state);
-            level.update_cache(&*render_state);
+            level.replace_from_ctx(ctx, &render_state);
+            level.update_cache(&render_state);
         } else {
-            let mut level = Level::from_ctx(ctx, &*render_state);
-            level.update_cache(&*render_state);
+            let mut level = Level::from_ctx(ctx, &render_state);
+            level.update_cache(&render_state);
             state.levels.push(level);
         }
 
@@ -369,7 +369,7 @@ impl CmdLine {
 
         if let Some(level) = state.levels.get_mut((level - 1) as usize) {
             level.insert(c, shift, render_state);
-            level.update_cache(&*render_state);
+            level.update_cache(render_state);
         } else {
             error!("Level {} does not exists", level);
         }
@@ -394,8 +394,8 @@ impl CmdLine {
     pub fn show_block(&mut self, content: &Vec<Vec<(u64, String)>>, max_width: i32) {
         let mut state = self.state.borrow_mut();
         let mut block =
-            Level::from_multiline_content(content, max_width, &*state.render_state.borrow());
-        block.update_cache(&*state.render_state.borrow());
+            Level::from_multiline_content(content, max_width, &state.render_state.borrow());
+        block.update_cache(&state.render_state.borrow());
         state.block = Some(block);
         state.request_area_size();
     }
@@ -408,8 +408,8 @@ impl CmdLine {
 
             let block = state.block.as_mut().unwrap();
             block.replace_line(attr_content, true);
-            block.update_preferred_size(&*render_state.borrow());
-            block.update_cache(&*render_state.borrow());
+            block.update_preferred_size(&render_state.borrow());
+            block.update_cache(&render_state.borrow());
         }
         state.request_area_size();
     }
@@ -486,7 +486,7 @@ impl CmdLine {
         if selected >= 0 {
             let wild_tree = self.wild_tree.clone();
             glib::idle_add_local_once(move || {
-                let selected_path = gtk::TreePath::from_string(&format!("{}", selected)).unwrap();
+                let selected_path = gtk::TreePath::from_string(&format!("{selected}")).unwrap();
                 wild_tree.selection().select_path(&selected_path);
                 wild_tree.scroll_to_cell(
                     Some(&selected_path),
@@ -527,10 +527,8 @@ impl<'a> CmdLineContext<'a> {
 
         if content.is_empty() {
             content.push(content_line.remove(0));
-        } else {
-            if let Some(line) = content.last_mut() {
-                line.extend(content_line.remove(0))
-            }
+        } else if let Some(line) = content.last_mut() {
+            line.extend(content_line.remove(0))
         }
 
         LineContent {
@@ -639,7 +637,7 @@ fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
     let fg = hl.pmenu_fg_sel();
 
     css_provider.load_from_data(
-        &format!(
+        format!(
             ".view :selected {{ color: {}; background-color: {};}}\n
                 .view {{ background-color: {}; }}",
             fg.to_hex(),

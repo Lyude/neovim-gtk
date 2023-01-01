@@ -47,7 +47,7 @@ fn request(query: Option<&str>) -> io::Result<DescriptionList> {
             format!(
                 "curl exit with error:\n{}",
                 match out.status.code() {
-                    Some(code) => format!("Exited with status code: {}", code),
+                    Some(code) => format!("Exited with status code: {code}"),
                     None => "Process terminated by signal".to_owned(),
                 }
             ),
@@ -132,7 +132,7 @@ fn create_plug_label(plug: &Description) -> gtk::Box {
     name_lbl.set_halign(gtk::Align::Start);
     let url_lbl = gtk::Label::new(None);
     if let Some(url) = plug.github_url.as_ref() {
-        url_lbl.set_markup(&format!("<a href=\"{}\">{}</a>", url, url));
+        url_lbl.set_markup(&format!("<a href=\"{url}\">{url}</a>"));
     }
     url_lbl.set_halign(gtk::Align::Start);
 

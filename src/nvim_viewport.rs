@@ -143,7 +143,7 @@ impl ObjectImpl for NvimViewportObject {
                     Arc::downgrade(&value.get::<glib::BoxedAnyObject>().unwrap().borrow());
             }
             "snapshot-cached" => {
-                if value.get::<bool>().unwrap() == false {
+                if !value.get::<bool>().unwrap() {
                     self.inner.borrow_mut().snapshot_cache = None;
                 }
             }

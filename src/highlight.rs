@@ -135,7 +135,7 @@ impl HighlightMap {
         hl: &HashMap<String, Value>,
         info: &[HashMap<String, Value>],
     ) -> HighlightUpdates {
-        let hl = Rc::new(Highlight::from_value_map(&hl));
+        let hl = Rc::new(Highlight::from_value_map(hl));
         let mut updates = HighlightUpdates::default();
 
         for item in info {
@@ -284,7 +284,7 @@ impl Highlight {
     pub fn from_value_map(attrs: &HashMap<String, Value>) -> Self {
         let mut model_attrs = Highlight::new();
 
-        for (ref key, ref val) in attrs {
+        for (ref key, val) in attrs {
             match key.as_ref() {
                 "foreground" => {
                     if let Some(fg) = val.as_u64() {

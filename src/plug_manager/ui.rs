@@ -74,7 +74,7 @@ impl<'a> Ui<'a> {
         let plugins = gtk::Box::new(gtk::Orientation::Vertical, 3);
         let plugs_panel = self.fill_plugin_list(&plugins, &self.manager.borrow().store);
 
-        add_vimawesome_tab(&pages, &self.manager, &plugs_panel);
+        add_vimawesome_tab(&pages, self.manager, &plugs_panel);
 
         let plugins_lbl = gtk::Label::new(Some("Plugins"));
         pages.add_page(&plugins_lbl, &plugins, "plugins");
@@ -116,10 +116,7 @@ impl<'a> Ui<'a> {
                 let mut manager = manager.borrow_mut();
                 manager.clear_removed();
                 manager.save();
-                if let Some(path) = NvimConfig::new(manager.generate_config())
-                    .generate_config()
-                    .and_then(|config_path| Some(config_path))
-                {
+                if let Some(path) = NvimConfig::new(manager.generate_config()).generate_config() {
                     manager.vim_plug.reload(path.to_str().unwrap());
                 }
             }
@@ -136,13 +133,13 @@ impl<'a> Ui<'a> {
             .build();
 
         for (idx, plug_info) in store.get_plugs().iter().enumerate() {
-            let row = create_plug_row(idx, plug_info, &self.manager);
+            let row = create_plug_row(idx, plug_info, self.manager);
 
             plugs_panel.append(&row);
         }
 
         panel.append(&scroll);
-        panel.append(&create_up_down_btns(&plugs_panel, &self.manager));
+        panel.append(&create_up_down_btns(&plugs_panel, self.manager));
 
         plugs_panel
     }
@@ -208,14 +205,14 @@ fn populate_get_plugins(
                 let result = vimawesome::build_result_panel(&list, move |new_plug| {
                     glib::MainContext::new().spawn_local(
                         clone!(manager, plugs_panel => async move {
-                            add_plugin(&manager, &*plugs_panel.borrow(), new_plug).await;
+                            add_plugin(&manager, &plugs_panel.borrow(), new_plug).await;
                         }),
                     );
                 });
                 panel.append(&result);
             }
             Err(e) => {
-                panel.append(&gtk::Label::new(Some(format!("{}", e).as_str())));
+                panel.append(&gtk::Label::new(Some(format!("{e}").as_str())));
                 error!("{}", e)
             }
         }
@@ -405,10 +402,10 @@ impl SettingsPages {
 
         categories.connect_row_selected(
             clone!(stack, rows => move |_, row| if let Some(row) = row {
-                if let Some(ref r) = rows.borrow().iter().find(|r| r.0 == *row) {
-                    if let Some(child) = stack.child_by_name(&r.1) {
+                if let Some(r) = rows.borrow().iter().find(|r| r.0 == *row) {
+                    if let Some(child) = stack.child_by_name(r.1) {
                         stack.set_visible_child(&child);
-                        row_selected(&r.1);
+                        row_selected(r.1);
                     }
 
                 }

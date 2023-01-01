@@ -31,13 +31,13 @@ impl NeovimApiInfo {
 
         let metadata = match api_info.next().ok_or("Metadata is missing")? {
             Value::Map(pairs) => Ok(pairs),
-            v @ _ => Err(format!("Metadata is wrong type, got {:?}", v)),
+            v => Err(format!("Metadata is wrong type, got {v:?}")),
         }?;
 
         for (key, value) in metadata.into_iter() {
             match key
                 .as_str()
-                .ok_or(format!("Metadata key {:?} isn't string", key))?
+                .ok_or(format!("Metadata key {key:?} isn't string"))?
             {
                 "ui_options" => self_.parse_ui_options(value)?,
                 "functions" => self_.parse_functions(value)?,
@@ -51,11 +51,11 @@ impl NeovimApiInfo {
     fn parse_ui_options(&mut self, extensions: Value) -> Result<(), String> {
         for extension in extensions
             .as_array()
-            .ok_or(format!("UI option list is invalid: {:?}", extensions))?
+            .ok_or(format!("UI option list is invalid: {extensions:?}"))?
         {
             match extension
                 .as_str()
-                .ok_or(format!("UI option isn't string: {:?}", extensions))?
+                .ok_or(format!("UI option isn't string: {extensions:?}"))?
             {
                 "ext_cmdline" => self.ext_cmdline = true,
                 "ext_wildmenu" => self.ext_wildmenu = true,
@@ -74,18 +74,18 @@ impl NeovimApiInfo {
     fn parse_functions(&mut self, functions: Value) -> Result<(), String> {
         for function in functions
             .as_array()
-            .ok_or_else(|| format!("Function list is not a list: {:?}", functions))?
+            .ok_or_else(|| format!("Function list is not a list: {functions:?}"))?
         {
             match function
                 .as_map()
-                .ok_or_else(|| format!("Function info is not a map: {:?}", function))?
-                .into_iter()
+                .ok_or_else(|| format!("Function info is not a map: {function:?}"))?
+                .iter()
                 .find_map(|(key, value)| {
                     key.as_str()
                         .filter(|k| *k == "name")
                         .and_then(|_| value.as_str())
                 })
-                .ok_or_else(|| format!("Function info is missing name: {:?}", functions))?
+                .ok_or_else(|| format!("Function info is missing name: {functions:?}"))?
             {
                 "nvim_ui_pum_set_height" => self.ui_pum_set_height = true,
                 "nvim_ui_pum_set_bounds" => self.ui_pum_set_bounds = true,

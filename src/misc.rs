@@ -47,7 +47,7 @@ pub fn escape_filename<'t>(filename: &'t str) -> Cow<'t, str> {
             Regex::new(r"[[:ascii:]&&[^0-9a-zA-Z._/-]]").unwrap()
         }
     });
-    SPECIAL_CHARS.replace_all(&*filename, r"\$0")
+    SPECIAL_CHARS.replace_all(filename, r"\$0")
 }
 
 /// Decode a file URI.
@@ -62,7 +62,7 @@ pub fn decode_uri(uri: &str) -> Option<String> {
     let path = percent_decode(path.as_bytes()).decode_utf8().ok()?;
     if cfg!(target_os = "windows") {
         static SLASH: Lazy<Regex> = Lazy::new(|| Regex::new(r"/").unwrap());
-        Some(String::from(SLASH.replace_all(&*path, r"\")))
+        Some(String::from(SLASH.replace_all(&path, r"\")))
     } else {
         Some("/".to_owned() + &path)
     }

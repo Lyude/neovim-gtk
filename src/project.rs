@@ -155,7 +155,7 @@ impl Projects {
             .connect_row_activated(clone!(projects => move |tree, _, column| {
                 // Don't activate if the user clicked the checkbox.
                 let toggle_column = tree.column(2).unwrap();
-                if column.as_deref() == Some(&toggle_column) {
+                if column == Some(&toggle_column) {
                     return;
                 }
                 let selection = tree.selection();
@@ -450,7 +450,7 @@ impl EntryStore {
         match nvim.block_timeout(nvim.call_function("getcwd", vec![])) {
             Ok(pwd) => {
                 if let Some(pwd) = pwd.as_str() {
-                    if entries.iter().find(|e| e.project && e.uri == pwd).is_none() {
+                    if !entries.iter().any(|e| e.project && e.uri == pwd) {
                         entries.insert(0, Entry::new_current_project(pwd));
                     }
                 } else {
@@ -628,7 +628,7 @@ impl SettingsLoader for ProjectSettings {
     const SETTINGS_FILE: &'static str = "projects.toml";
 
     fn from_str(s: &str) -> Result<Self, String> {
-        toml::from_str(&s).map_err(|e| format!("{}", e))
+        toml::from_str(s).map_err(|e| format!("{e}"))
     }
 }
 

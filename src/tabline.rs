@@ -30,7 +30,7 @@ impl State {
         let target = &self.data[idx as usize];
         if Some(target) != self.selected.as_ref() {
             if let Some(nvim) = self.nvim.as_ref().unwrap().nvim() {
-                nvim.block_timeout(nvim.set_current_tabpage(&target))
+                nvim.block_timeout(nvim.set_current_tabpage(target))
                     .report_err();
             }
         }

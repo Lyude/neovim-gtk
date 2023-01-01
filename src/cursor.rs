@@ -247,11 +247,7 @@ impl<CB: CursorRedrawCb + 'static> Cursor<CB> {
             return false;
         }
 
-        if state.alpha.0 < 0.000001 {
-            false
-        } else {
-            true
-        }
+        state.alpha.0 >= 0.000001
     }
 
     pub fn is_focused(&self) -> bool {

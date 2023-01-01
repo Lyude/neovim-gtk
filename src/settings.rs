@@ -71,14 +71,12 @@ impl Settings {
     pub fn init(&mut self) {
         let shell = Weak::upgrade(self.shell.as_ref().unwrap()).unwrap();
         let state = self.state.clone();
-        self.state
-            .borrow_mut()
-            .update_font(&mut *shell.borrow_mut());
+        self.state.borrow_mut().update_font(&mut shell.borrow_mut());
         self.state
             .borrow()
             .gnome_interface_settings
             .connect_changed(None, move |_, _| {
-                monospace_font_changed(&mut *shell.borrow_mut(), &mut *state.borrow_mut())
+                monospace_font_changed(&mut shell.borrow_mut(), &mut state.borrow_mut())
             });
     }
 
@@ -91,10 +89,10 @@ impl Settings {
 }
 
 #[cfg(unix)]
-fn monospace_font_changed(mut shell: &mut Shell, state: &mut State) {
+fn monospace_font_changed(shell: &mut Shell, state: &mut State) {
     // rpc is priority for font
     if state.font_source != FontSource::Rpc {
-        state.update_font(&mut shell);
+        state.update_font(shell);
     }
 }
 
@@ -138,10 +136,10 @@ pub trait SettingsLoader: Sized + serde::Serialize + Default {
 
 fn load_from_file<T: SettingsLoader>(path: &Path) -> Result<T, String> {
     if path.exists() {
-        let mut file = File::open(path).map_err(|e| format!("{}", e))?;
+        let mut file = File::open(path).map_err(|e| format!("{e}"))?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)
-            .map_err(|e| format!("{}", e))?;
+            .map_err(|e| format!("{e}"))?;
         T::from_str(&contents)
     } else {
         Ok(Default::default())
@@ -157,11 +155,11 @@ fn load_err<T: SettingsLoader>() -> Result<T, String> {
 fn save_err<T: SettingsLoader>(sl: &T) -> Result<(), String> {
     let mut toml_path = dirs::get_app_config_dir_create()?;
     toml_path.push(T::SETTINGS_FILE);
-    let mut file = File::create(toml_path).map_err(|e| format!("{}", e))?;
+    let mut file = File::create(toml_path).map_err(|e| format!("{e}"))?;
 
-    let contents = toml::to_vec::<T>(sl).map_err(|e| format!("{}", e))?;
+    let contents = toml::to_vec::<T>(sl).map_err(|e| format!("{e}"))?;
 
-    file.write_all(&contents).map_err(|e| format!("{}", e))?;
+    file.write_all(&contents).map_err(|e| format!("{e}"))?;
 
     Ok(())
 }

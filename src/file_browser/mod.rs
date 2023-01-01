@@ -170,7 +170,7 @@ impl FileBrowserWidget {
 
         context_menu.set_menu_model(Some(&menu));
 
-        let file_browser = FileBrowserWidget {
+        FileBrowserWidget {
             store,
             tree,
             widget,
@@ -191,8 +191,7 @@ impl FileBrowserWidget {
                 selected_path: None,
             })),
             shell_state: shell_state.clone(),
-        };
-        file_browser
+        }
     }
 
     fn nvim(&self) -> Option<NvimSession> {
@@ -213,7 +212,7 @@ impl FileBrowserWidget {
         let state_ref = &self.state;
         self.tree
             .connect_test_expand_row(clone!(store, state_ref => move |_, iter, _| {
-                store.set(&iter, &[(Column::IconName as u32, &ICON_FOLDER_OPEN)]);
+                store.set(iter, &[(Column::IconName as u32, &ICON_FOLDER_OPEN)]);
                 // We cannot recursively populate all directories. Instead, we have prepared a single
                 // empty child entry for all non-empty directories, so the row will be expandable. Now,
                 // when a directory is expanded, populate its children.
@@ -222,7 +221,7 @@ impl FileBrowserWidget {
                     let filename = store.get_value(&child, Column::Filename as i32);
                     if filename.get::<&str>().is_err() {
                         store.remove(&child);
-                        let dir: String = store.get(&iter, Column::Path as i32);
+                        let dir: String = store.get(iter, Column::Path as i32);
                         populate_tree_nodes(&store, &state, &dir, Some(iter));
                     } else {
                         // This directory is already populated, i.e. it has been expanded and collapsed
@@ -243,7 +242,7 @@ impl FileBrowserWidget {
 
         self.tree
             .connect_row_collapsed(clone!(store => move |_, iter, _| {
-                store.set(&iter, &[(Column::IconName as u32, &ICON_FOLDER_CLOSED)]);
+                store.set(iter, &[(Column::IconName as u32, &ICON_FOLDER_CLOSED)]);
             }));
 
         // Further initialization.
@@ -319,8 +318,8 @@ impl FileBrowserWidget {
                 let dir = args_iter.next().unwrap();
                 let file_path = args_iter.next().unwrap();
                 let could_reveal =
-                    if let Ok(rel_path) = Path::new(&file_path).strip_prefix(&Path::new(&dir)) {
-                        reveal_path_in_tree(&store, &tree, &rel_path)
+                    if let Ok(rel_path) = Path::new(&file_path).strip_prefix(Path::new(&dir)) {
+                        reveal_path_in_tree(&store, &tree, rel_path)
                     } else {
                         false
                     };
@@ -369,8 +368,8 @@ impl FileBrowserWidget {
 
                         if dir != *current_dir {
                             *current_dir = dir.to_owned();
-                            update_dir_list(&dir, &dir_list_model, &dir_list);
-                            tree_reload(&store, &*state_ref);
+                            update_dir_list(&dir, &dir_list_model, dir_list);
+                            tree_reload(&store, &state_ref);
                         }
                     }
                 }
@@ -389,7 +388,7 @@ impl FileBrowserWidget {
                     controller,
                     x,
                     y,
-                    &mut *state_ref.borrow_mut(),
+                    &mut state_ref.borrow_mut(),
                     &store,
                     &context_menu,
                     &cd_action
@@ -408,7 +407,7 @@ impl FileBrowserWidget {
                     controller,
                     x,
                     y,
-                    &mut *state_ref.borrow_mut(),
+                    &mut state_ref.borrow_mut(),
                     &store,
                     &context_menu,
                     &cd_action
@@ -447,7 +446,7 @@ fn open_context_menu<E>(
         .and_then(|path| store.iter(&path));
     let file_type = iter
         .as_ref()
-        .map(|iter| store.get::<u8>(&iter, Column::FileType as i32));
+        .map(|iter| store.get::<u8>(iter, Column::FileType as i32));
     // Enable the "Go To Directory" action only if the user clicked on a folder.
     cd_action.set_enabled(file_type == Some(FileType::Dir as u8));
 
@@ -467,12 +466,10 @@ fn cmp_dirs_first(lhs: &DirEntry, rhs: &DirEntry) -> io::Result<Ordering> {
             .to_string_lossy()
             .to_lowercase()
             .cmp(&rhs.path().to_string_lossy().to_lowercase()))
+    } else if lhs_metadata.is_dir() {
+        Ok(Ordering::Less)
     } else {
-        if lhs_metadata.is_dir() {
-            Ok(Ordering::Less)
-        } else {
-            Ok(Ordering::Greater)
-        }
+        Ok(Ordering::Greater)
     }
 }
 

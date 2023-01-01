@@ -93,7 +93,7 @@ impl Store {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Settings {
     enabled: bool,
     plugs: Vec<PlugInfo>,
@@ -108,20 +108,11 @@ impl Settings {
     }
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Settings {
-            plugs: vec![],
-            enabled: false,
-        }
-    }
-}
-
 impl SettingsLoader for Settings {
     const SETTINGS_FILE: &'static str = "plugs.toml";
 
     fn from_str(s: &str) -> Result<Self, String> {
-        toml::from_str(&s).map_err(|e| format!("{}", e))
+        toml::from_str(s).map_err(|e| format!("{e}"))
     }
 }
 

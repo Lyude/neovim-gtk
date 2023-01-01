@@ -205,7 +205,7 @@ pub fn snapshot_cursor<T: CursorRedrawCb + 'static>(
         (x, y),
         cell,
         double_width,
-        &hl,
+        hl,
         fade_percentage,
         alpha,
     );
@@ -451,7 +451,7 @@ fn snapshot_cell(
 
         if item.glyphs().is_some() {
             if let Some(render_node) =
-                item.render_node(fg.into(), (x as f32, (y + cell_metrics.ascent) as f32))
+                item.render_node(fg, (x as f32, (y + cell_metrics.ascent) as f32))
             {
                 snapshot.append_node(render_node);
             }
@@ -478,7 +478,7 @@ pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel, hl:
                         let offset = item.item.offset() as usize;
                         let length = item.item.length() as usize;
                         if let Some(line_str) = styled_line.line_str.get(offset..offset + length) {
-                            pango::shape(&line_str, analysis, &mut glyphs);
+                            pango::shape(line_str, analysis, &mut glyphs);
                         } else {
                             warn!("Wrong itemize split");
                         }

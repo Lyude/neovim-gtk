@@ -20,7 +20,7 @@ impl PopupMenuListRow {
     }
 
     pub fn set_row(&self, row: Option<&PopupMenuItemRef>) {
-        self.set_property("row", row.cloned().map(|r| glib::BoxedAnyObject::new(r)));
+        self.set_property("row", row.cloned().map(glib::BoxedAnyObject::new));
     }
 }
 

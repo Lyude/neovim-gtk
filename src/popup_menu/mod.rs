@@ -127,7 +127,7 @@ impl State {
         self.info_scroll.set_max_content_width(max_width);
         self.item_scroll.set_max_content_width(max_width);
         self.item_scroll
-            .set_max_content_height(self.row_height as i32 * MAX_VISIBLE_ROWS);
+            .set_max_content_height(self.row_height * MAX_VISIBLE_ROWS);
         self.item_scroll.hadjustment().set_value(0.0);
 
         self.select(selected);
@@ -167,13 +167,13 @@ impl State {
          */
 
         let layout = ctx.font_ctx.create_layout();
-        layout.set_text(&max_word);
+        layout.set_text(max_word);
         let (word_max_width, _) = layout.pixel_size();
         let word_column_width = word_max_width + DEFAULT_PADDING;
 
         let mut row_state = self.list_row_state.borrow_mut();
         if !max_kind.is_empty() {
-            layout.set_text(&max_kind);
+            layout.set_text(max_kind);
             let (mut kind_width, _) = layout.pixel_size();
 
             kind_width += DEFAULT_PADDING;
@@ -188,7 +188,7 @@ impl State {
             let space_left =
                 ctx.max_width - row_state.word_col_width - row_state.kind_col_width.unwrap_or(0);
 
-            layout.set_text(&max_menu);
+            layout.set_text(max_menu);
             row_state.menu_col_width =
                 Some((layout.pixel_size().0 + DEFAULT_PADDING).min(space_left));
         } else {
@@ -233,7 +233,7 @@ impl State {
         let font_desc = font_ctx.font_description();
 
         self.css_provider.load_from_data(
-            &format!(
+            format!(
                 "listview.nvim-popupmenu-list {{\
                     background-color: {bg};\
                     font-family: \"{font}\";\

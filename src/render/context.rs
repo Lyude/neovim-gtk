@@ -103,7 +103,7 @@ impl Context {
                     seen.insert(font_desc);
                 }
 
-                pango_context.set_font_description(Some(&our_font));
+                pango_context.set_font_description(Some(our_font));
                 new_res.unwrap_or(first_res)
             })
             .collect()
@@ -235,10 +235,10 @@ impl CellMetrics {
         (x, y, w, h): (f64, f64, f64, f64),
     ) -> (f64, f64, f64, f64) {
         (
-            x as f64 / self.char_width,
-            y as f64 / self.line_height,
-            w as f64 / self.char_width,
-            h as f64 / self.line_height,
+            x / self.char_width,
+            y / self.line_height,
+            w / self.char_width,
+            h / self.line_height,
         )
     }
 

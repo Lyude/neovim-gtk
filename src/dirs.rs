@@ -3,7 +3,7 @@ use std::path::PathBuf;
 pub fn get_app_config_dir_create() -> Result<PathBuf, String> {
     let config_dir = get_app_config_dir()?;
 
-    std::fs::create_dir_all(&config_dir).map_err(|e| format!("{}", e))?;
+    std::fs::create_dir_all(&config_dir).map_err(|e| format!("{e}"))?;
 
     Ok(config_dir)
 }

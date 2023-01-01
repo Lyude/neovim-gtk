@@ -94,7 +94,7 @@ impl ObjectImpl for CmdlineViewportObject {
                     Arc::downgrade(&value.get::<glib::BoxedAnyObject>().unwrap().borrow());
             }
             "snapshot-cached" => {
-                if value.get::<bool>().unwrap() == false {
+                if !value.get::<bool>().unwrap() {
                     let mut inner = self.inner.borrow_mut();
                     inner.block_cache = None;
                     inner.level_cache = None;

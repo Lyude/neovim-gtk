@@ -242,7 +242,7 @@ impl Ui {
         window.connect_default_width_notify(clone!(main, comps_ref => move |window| {
             gtk_window_resize(
                 window,
-                &mut *comps_ref.borrow_mut(),
+                &mut comps_ref.borrow_mut(),
                 &main,
                 gtk::Orientation::Horizontal,
             );
@@ -250,7 +250,7 @@ impl Ui {
         window.connect_default_height_notify(clone!(main, comps_ref => move |window| {
             gtk_window_resize(
                 window,
-                &mut *comps_ref.borrow_mut(),
+                &mut comps_ref.borrow_mut(),
                 &main,
                 gtk::Orientation::Vertical,
             );
@@ -288,19 +288,19 @@ impl Ui {
         let update_completeopt = shell.state.borrow().subscribe(
             SubscriptionKey::with_pattern("OptionSet", "completeopt"),
             &["&completeopt"],
-            clone!(shell_ref => move |args| set_completeopts(&*shell_ref, args)),
+            clone!(shell_ref => move |args| set_completeopts(&shell_ref, args)),
         );
 
         let update_background = shell.state.borrow().subscribe(
             SubscriptionKey::with_pattern("OptionSet", "background"),
             &["&background"],
-            clone!(shell_ref => move |args| set_background(&*shell_ref, args)),
+            clone!(shell_ref => move |args| set_background(&shell_ref, args)),
         );
 
         shell.state.borrow().subscribe(
             SubscriptionKey::from("VimLeave"),
             &["v:exiting ? v:exiting : 0"],
-            clone!(shell_ref => move |args| set_exit_status(&*shell_ref, args)),
+            clone!(shell_ref => move |args| set_exit_status(&shell_ref, args)),
         );
 
         window.connect_close_request(clone!(comps_ref, shell_ref => move |_| {
@@ -370,11 +370,11 @@ impl Ui {
             .init_nvim_client(shell.nvim_clone());
         file_browser.borrow_mut().init();
         shell.set_autocmds();
-        shell.run_now(&update_title);
-        shell.run_now(&update_completeopt);
-        shell.run_now(&update_background);
+        shell.run_now(update_title);
+        shell.run_now(update_completeopt);
+        shell.run_now(update_background);
         if let Some(ref update_subtitle) = update_subtitle {
-            shell.run_now(&update_subtitle);
+            shell.run_now(update_subtitle);
         }
 
         let mut commands = Vec::<String>::new();
@@ -437,7 +437,6 @@ impl Ui {
                 if let Ok(e) = NormalError::try_from(&*e) {
                     if e == NormalError::KeyboardInterrupt {
                         nvim.shutdown(channel_id).await;
-                        return;
                     } else if !e.has_code(325) {
                         // Filter out errors we get if the user is presented with a prompt
                         e.print(&nvim).await;
@@ -540,7 +539,7 @@ impl Ui {
         new_tab_btn.set_sensitive(false);
         header_bar.pack_start(&new_tab_btn);
 
-        let primary_menu_btn = self.create_primary_menu_btn(app, &window);
+        let primary_menu_btn = self.create_primary_menu_btn(app, window);
         primary_menu_btn.set_sensitive(false);
         header_bar.pack_end(&primary_menu_btn);
 
@@ -566,7 +565,7 @@ impl Ui {
         let update_subtitle = shell.state.borrow().subscribe(
             SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
-            move |args| header_bar_subtitle.set_label(&*args[0]),
+            move |args| header_bar_subtitle.set_label(&args[0]),
         );
 
         (
@@ -660,7 +659,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.set_logo_icon_name(Some("org.daa.NeovimGtk"));
     about.set_authors(
         env!("CARGO_PKG_AUTHORS")
-            .split(":")
+            .split(':')
             .collect::<Vec<_>>()
             .as_slice(),
     );
@@ -677,7 +676,7 @@ fn gtk_close_request(comps: &Arc<UiMutex<Components>>, shell: &Rc<RefCell<Shell>
     }
 
     let nvim = shell_ref.state.borrow().nvim_clone();
-    Inhibit(if shell_dlg::can_close_window(comps, &*shell, &nvim) {
+    Inhibit(if shell_dlg::can_close_window(comps, shell, &nvim) {
         let comps = comps.borrow();
         comps.close_window();
         shell_ref.detach_ui();
@@ -753,13 +752,13 @@ fn update_window_title(comps: &Arc<UiMutex<Components>>, args: Vec<String>) {
     let filename = if file_path.is_empty() {
         "[No Name]"
     } else if let Some(rel_path) = Path::new(&file_path)
-        .strip_prefix(&dir)
+        .strip_prefix(dir)
         .ok()
         .and_then(|p| p.to_str())
     {
         rel_path
     } else {
-        &file_path
+        file_path
     };
 
     comps.set_title(filename);
@@ -795,7 +794,7 @@ impl SettingsLoader for ToplevelState {
     const SETTINGS_FILE: &'static str = "window.toml";
 
     fn from_str(s: &str) -> Result<Self, String> {
-        toml::from_str(&s).map_err(|e| format!("{}", e))
+        toml::from_str(s).map_err(|e| format!("{e}"))
     }
 }
 

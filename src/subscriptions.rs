@@ -121,10 +121,9 @@ impl Subscriptions {
                 let args = subscription
                     .args
                     .iter()
-                    .fold("".to_owned(), |acc, arg| acc + ", " + &arg);
+                    .fold("".to_owned(), |acc, arg| acc + ", " + arg);
                 let autocmd = format!(
-                    "autocmd {} {} call rpcnotify(1, 'subscription', '{}', '{}', {} {})",
-                    event_name, pattern, event_name, pattern, i, args,
+                    "autocmd {event_name} {pattern} call rpcnotify(1, 'subscription', '{event_name}', '{pattern}', {i} {args})",
                 );
                 spawn_timeout!(nvim.command(&autocmd));
             }
@@ -188,7 +187,7 @@ impl Subscriptions {
                 res.ok().and_then(|val| {
                     val.as_str()
                         .map(str::to_owned)
-                        .or_else(|| val.as_u64().map(|uint: u64| format!("{}", uint)))
+                        .or_else(|| val.as_u64().map(|uint: u64| format!("{uint}")))
                 })
             })
             .collect::<Option<Vec<String>>>();

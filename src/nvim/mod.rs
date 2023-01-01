@@ -65,7 +65,7 @@ impl NvimInitError {
         E: Into<Box<dyn error::Error>>,
     {
         NvimInitError::ResponseError {
-            cmd: Some(format!("{:?}", cmd)),
+            cmd: Some(format!("{cmd:?}")),
             source: error.into(),
         }
     }
@@ -76,7 +76,7 @@ impl NvimInitError {
 
     pub fn source(&self) -> String {
         match self {
-            Self::ResponseError { source, .. } => format!("{}", source),
+            Self::ResponseError { source, .. } => format!("{source}"),
             Self::MissingCapability(_) => "".to_string(),
         }
     }
@@ -93,9 +93,9 @@ impl NvimInitError {
 impl fmt::Display for NvimInitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::ResponseError { source, .. } => write!(f, "{:?}", source),
+            Self::ResponseError { source, .. } => write!(f, "{source:?}"),
             Self::MissingCapability(cap) => {
-                write!(f, "Nvim version is too old, missing support for {}", cap)
+                write!(f, "Nvim version is too old, missing support for {cap}")
             }
         }
     }
@@ -133,8 +133,8 @@ impl error::Error for SessionError {
 impl fmt::Display for SessionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::CallError(e) => write!(f, "{:?}", e),
-            Self::TimeoutError(e) => write!(f, "{:?}", e),
+            Self::CallError(e) => write!(f, "{e:?}"),
+            Self::TimeoutError(e) => write!(f, "{e:?}"),
         }
     }
 }
@@ -302,7 +302,7 @@ impl NvimSession {
             .report_err();
 
         let res = self
-            .timeout(self.command(&format!("cal chanclose({})", channel)))
+            .timeout(self.command(&format!("cal chanclose({channel})")))
             .await;
         if let Err(ref e) = res {
             if let SessionError::CallError(ref e) = *e {
@@ -319,7 +319,7 @@ impl NvimSession {
 
     /// A helper for checking if nvim is currently blocked waiting on user input or not
     pub fn is_blocked(&self) -> bool {
-        let &(_, ref blocked) = &self.block_on(self.get_mode()).unwrap()[1];
+        let (_, blocked) = &self.block_on(self.get_mode()).unwrap()[1];
 
         blocked.as_bool().unwrap()
     }
@@ -391,7 +391,7 @@ pub fn start<'a>(
 
     if let Some(nvim_config) = NvimConfig::config_path() {
         if let Some(path) = nvim_config.to_str() {
-            cmd.arg("--cmd").arg(format!("source {}", path));
+            cmd.arg("--cmd").arg(format!("source {path}"));
         }
     }
 

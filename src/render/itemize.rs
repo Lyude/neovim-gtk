@@ -85,15 +85,9 @@ impl<'a> Iterator for ItemizeIterator<'a> {
             }
         };
 
-        if let Some(start_index) = start_index {
-            Some(ItemizeResult::new(
-                start_index,
-                end_index - start_index,
-                avoid_break,
-            ))
-        } else {
-            None
-        }
+        start_index.map(|start_index| {
+            ItemizeResult::new(start_index, end_index - start_index, avoid_break)
+        })
     }
 }
 

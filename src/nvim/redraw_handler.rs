@@ -190,8 +190,7 @@ fn set_ui_opt(nvim: &NvimSession, opts: &[(&str, bool)], enable: bool) -> Result
         if !supported {
             return if enable {
                 Err(format!(
-                    "{} is not supported by your version of neovim, please update!",
-                    ext
+                    "{ext} is not supported by your version of neovim, please update!"
                 ))
             } else {
                 Ok(())
@@ -315,18 +314,15 @@ pub fn call_gui_event(
                 }
                 "SetCursorBlink" => {
                     let blink_count =
-                        match try_str!(args.get(1).cloned().unwrap_or_else(|| Value::from(-1)))
+                        try_str!(args.get(1).cloned().unwrap_or_else(|| Value::from(-1)))
                             .parse::<i32>()
-                        {
-                            Ok(val) => val,
-                            Err(_) => -1,
-                        };
+                            .unwrap_or(-1);
                     ui.set_cursor_blink(blink_count);
                 }
                 _ => error!("Unknown command"),
             };
         }
-        _ => return Err(format!("Unsupported event {}({:?})", method, args)),
+        _ => return Err(format!("Unsupported event {method}({args:?})")),
     }
     Ok(())
 }
@@ -359,10 +355,10 @@ pub fn call_gui_request(
                         t.split('\n').map(|s| s.into()).collect::<Vec<Value>>(),
                     ))
                 }
-                opt => Err(format!("Unknown option: {}", opt).into()),
+                opt => Err(format!("Unknown option: {opt}").into()),
             }
         }
-        _ => Err(format!("Unsupported request {}({:?})", method, args).into()),
+        _ => Err(format!("Unsupported request {method}({args:?})").into()),
     }
 }
 
@@ -546,7 +542,7 @@ mod tests {
         };
 
         let mut test_val = PendingPopupMenu::Select(None);
-        test_val.update(SHOW.clone());
+        test_val.update(SHOW);
         assert_eq!(test_val, SHOW);
 
         test_val.update(PendingPopupMenu::None);

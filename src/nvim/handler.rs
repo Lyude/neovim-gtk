@@ -41,9 +41,7 @@ impl NvimHandler {
                                 let ui = &mut ui.borrow_mut();
                                 redraw_handler::call_gui_event(
                                     ui,
-                                    ev_name
-                                        .as_str()
-                                        .ok_or_else(|| "Event name does not exists")?,
+                                    ev_name.as_str().ok_or("Event name does not exists")?,
                                     args,
                                 )?;
                                 ui.queue_draw(RedrawMode::All);
@@ -88,9 +86,7 @@ impl NvimHandler {
                                 sender
                                     .send(redraw_handler::call_gui_request(
                                         &ui.clone(),
-                                        req_name
-                                            .as_str()
-                                            .ok_or_else(|| "Event name does not exists")?,
+                                        req_name.as_str().ok_or("Event name does not exists")?,
                                         &args,
                                     ))
                                     .unwrap();
@@ -177,7 +173,7 @@ fn call_redraw_handler(
             let (call_repaint_mode, call_popupmenu) =
                 match redraw_handler::call(&mut ui_ref, ev_name, args) {
                     Ok(mode) => mode,
-                    Err(desc) => return Err(format!("Event {}\n{}", ev_name, desc)),
+                    Err(desc) => return Err(format!("Event {ev_name}\n{desc}")),
                 };
             repaint_mode = repaint_mode.max(call_repaint_mode);
             pending_popupmenu.update(call_popupmenu);
