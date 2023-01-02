@@ -1,7 +1,7 @@
 use super::UiModel;
 use crate::render::CellMetrics;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ModelRect {
     pub top: usize,
     pub bot: usize,

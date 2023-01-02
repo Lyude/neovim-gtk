@@ -37,7 +37,7 @@ pub fn split_at_comma(source: &str) -> Vec<String> {
 }
 
 /// Escape special ASCII characters with a backslash.
-pub fn escape_filename<'t>(filename: &'t str) -> Cow<'t, str> {
+pub fn escape_filename(filename: &str) -> Cow<str> {
     static SPECIAL_CHARS: Lazy<Regex> = Lazy::new(|| {
         if cfg!(target_os = "windows") {
             // On Windows, don't escape `:` and `\`, as these are valid components of the path.

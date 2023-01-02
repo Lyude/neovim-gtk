@@ -1,4 +1,9 @@
 #![windows_subsystem = "windows"]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::comparison_chain)]
+#![allow(clippy::await_holding_refcell_ref)]
 
 mod color;
 mod dirs;

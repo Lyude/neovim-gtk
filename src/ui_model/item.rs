@@ -64,7 +64,7 @@ impl Item {
     ) -> Option<gsk::TextNode> {
         gsk::TextNode::new(
             &self.font,
-            &mut self.glyphs().as_ref().unwrap().clone(),
+            &self.glyphs().as_ref().unwrap().clone(),
             &color.into(),
             &graphene::Point::new(x, y),
         )

@@ -317,8 +317,8 @@ impl CmdLine {
             let state = state.borrow_mut();
             let nvim = state.nvim.as_ref().unwrap().nvim();
             let tree = controller.widget().downcast().unwrap();
-            if let Some(mut nvim) = nvim {
-                tree_button_press(&tree, x, y, &mut nvim, "");
+            if let Some(nvim) = nvim {
+                tree_button_press(&tree, x, y, &nvim, "");
             }
         }));
         tree.add_controller(&controller);

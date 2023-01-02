@@ -2,7 +2,7 @@ use log::error;
 use nvim_rs::Value;
 use std::collections::HashMap;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum NvimMode {
     Normal,
     Insert,
@@ -51,7 +51,7 @@ impl Mode {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum CursorShape {
     Block,
     Horizontal,
@@ -77,7 +77,7 @@ impl CursorShape {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ModeInfo {
     cursor_shape: Option<CursorShape>,
     cell_percentage: Option<u64>,

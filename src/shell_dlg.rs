@@ -101,7 +101,7 @@ async fn show_not_saved_dlg(
             }
         }
         gtk::ResponseType::No => true,
-        gtk::ResponseType::Cancel | _ => false,
+        _ => false,
     };
 
     dlg.close();

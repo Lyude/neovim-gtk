@@ -30,7 +30,7 @@ impl Color {
         Color(r / 255.0, g / 255.0, b / 255.0)
     }
 
-    pub fn to_u16(&self) -> (u16, u16, u16) {
+    pub fn to_u16(self) -> (u16, u16, u16) {
         (
             (std::u16::MAX as f64 * self.0) as u16,
             (std::u16::MAX as f64 * self.1) as u16,
@@ -38,7 +38,7 @@ impl Color {
         )
     }
 
-    pub fn to_hex(&self) -> String {
+    pub fn to_hex(self) -> String {
         format!(
             "#{:02X}{:02X}{:02X}",
             (self.0 * 255.0) as u8,
@@ -47,17 +47,17 @@ impl Color {
         )
     }
 
-    pub fn to_rgbo(&self, alpha: f64) -> gdk::RGBA {
+    pub fn to_rgbo(self, alpha: f64) -> gdk::RGBA {
         gdk::RGBA::new(self.0 as f32, self.1 as f32, self.2 as f32, alpha as f32)
     }
 
-    pub fn to_pango_bg(&self) -> pango::AttrColor {
+    pub fn to_pango_bg(self) -> pango::AttrColor {
         let (r, g, b) = self.to_u16();
 
         pango::AttrColor::new_background(r, g, b)
     }
 
-    pub fn to_pango_fg(&self) -> pango::AttrColor {
+    pub fn to_pango_fg(self) -> pango::AttrColor {
         let (r, g, b) = self.to_u16();
 
         pango::AttrColor::new_foreground(r, g, b)

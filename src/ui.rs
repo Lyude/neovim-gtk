@@ -357,7 +357,7 @@ impl Ui {
         shell: &shell::State,
         plug_manager: &UiMutex<plug_manager::Manager>,
         file_browser: &UiMutex<FileBrowserWidget>,
-        files_list: &Box<[String]>,
+        files_list: &[String],
         update_title: &SubscriptionHandle,
         update_subtitle: &Option<SubscriptionHandle>,
         update_completeopt: &SubscriptionHandle,

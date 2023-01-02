@@ -200,7 +200,7 @@ impl FileBrowserWidget {
 
     pub fn init(&mut self) {
         // Initialize values.
-        if let Some(dir) = get_current_dir(&mut self.nvim().unwrap()) {
+        if let Some(dir) = get_current_dir(&self.nvim().unwrap()) {
             update_dir_list(&dir, &self.comps.dir_list_model, &self.comps.dir_list);
             self.state.borrow_mut().current_dir = dir;
         }

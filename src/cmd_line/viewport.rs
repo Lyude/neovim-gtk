@@ -144,7 +144,7 @@ impl WidgetImpl for CmdlineViewportObject {
 
         if let Some(block) = state.block.as_mut() {
             if inner.block_cache.is_none() {
-                inner.block_cache = snapshot_nvim(font_ctx, &mut block.model_layout.model, hl);
+                inner.block_cache = snapshot_nvim(font_ctx, &block.model_layout.model, hl);
             }
             if let Some(ref cache) = inner.block_cache {
                 snapshot.append_node(cache);
@@ -155,7 +155,7 @@ impl WidgetImpl for CmdlineViewportObject {
 
         if let Some(level) = state.levels.last_mut() {
             if inner.level_cache.is_none() {
-                inner.level_cache = snapshot_nvim(font_ctx, &mut level.model_layout.model, hl);
+                inner.level_cache = snapshot_nvim(font_ctx, &level.model_layout.model, hl);
             }
             if let Some(ref cache) = inner.level_cache {
                 snapshot.append_node(cache);

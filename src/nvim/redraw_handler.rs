@@ -301,14 +301,10 @@ pub fn call_gui_event(
                         .map_err(|e: ParseFloatError| e.to_string())?,
                 )),
                 "PreferDarkTheme" => {
-                    let prefer_dark_theme = match try_str!(args
-                        .get(1)
-                        .cloned()
-                        .unwrap_or_else(|| Value::from("off")))
-                    {
-                        "on" => true,
-                        _ => false,
-                    };
+                    let prefer_dark_theme = matches!(
+                        try_str!(args.get(1).cloned().unwrap_or_else(|| Value::from("off"))),
+                        "on"
+                    );
 
                     ui.on_command(NvimCommand::PreferDarkTheme(prefer_dark_theme))
                 }
@@ -349,7 +345,7 @@ pub fn call_gui_request(
                     let t = glib::MainContext::default()
                         .block_on(clipboard.read_text_future())
                         .unwrap_or(None)
-                        .unwrap_or("".into());
+                        .unwrap_or_else(|| "".into());
 
                     Ok(Value::Array(
                         t.split('\n').map(|s| s.into()).collect::<Vec<Value>>(),
@@ -472,7 +468,7 @@ pub fn call(
 }
 
 /// Represents the next pending popup menu action before we've actually performed a redraw
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum PendingPopupMenu {
     Show {
         items: Vec<PopupMenuItem>,

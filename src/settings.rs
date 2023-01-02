@@ -7,7 +7,7 @@ use crate::shell::Shell;
 #[cfg(unix)]
 use gio::{self, prelude::*};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum FontSource {
     Rpc,
     #[cfg(unix)]

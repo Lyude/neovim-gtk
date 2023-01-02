@@ -488,8 +488,8 @@ impl State {
     }
 
     fn im_commit(&self, ch: &str) {
-        if let Some(mut nvim) = self.nvim() {
-            input::im_input(&mut nvim, ch);
+        if let Some(nvim) = self.nvim() {
+            input::im_input(&nvim, ch);
         }
     }
 
@@ -654,7 +654,7 @@ impl State {
     pub fn run_now(&self, handle: &SubscriptionHandle) {
         self.subscriptions
             .borrow()
-            .run_now(handle, &mut self.nvim().unwrap());
+            .run_now(handle, &self.nvim().unwrap());
     }
 
     pub fn set_font(&mut self, font_desc: String) {
@@ -1038,7 +1038,7 @@ impl Shell {
         click_controller.connect_pressed(clone!(
             state_ref, ui_state_ref, menu => move |controller, _, x, y| {
                 gtk_button_press(
-                    &mut state_ref.borrow_mut(),
+                    &state_ref.borrow_mut(),
                     &ui_state_ref,
                     get_button(controller),
                     x,
