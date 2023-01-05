@@ -30,7 +30,7 @@ use crate::highlight::{BackgroundState, HighlightMap};
 use crate::misc::{decode_uri, escape_filename, split_at_comma};
 use crate::nvim::{
     self, CallErrorExt, ErrorReport, NeovimApiInfo, NeovimClient, NormalError, NvimHandler,
-    NvimSession, PendingPopupMenu, RedrawMode, Tabpage,
+    NvimInitError, NvimSession, PendingPopupMenu, RedrawMode, Tabpage,
 };
 use crate::settings::{FontSource, Settings};
 use crate::ui_model::ModelRect;
@@ -1559,9 +1559,26 @@ fn init_nvim_async(
     // attach ui
     let input_data = options.input_data;
     session.clone().spawn(async move {
-        match nvim::post_start_init(session, cols, rows, input_data).await {
-            Ok(api_info) => set_nvim_initialized(state_arc, api_info),
-            Err(ref e) => show_nvim_init_error(e, state_arc, comps),
+        let mut initialized = false;
+
+        {
+            match nvim::post_start_init(session.clone(), cols, rows, input_data).await {
+                Ok(api_info) => {
+                    set_nvim_initialized(state_arc.clone(), api_info);
+                    initialized = true;
+                }
+                Err(ref e) => show_nvim_init_error(e, state_arc.clone(), comps.clone()),
+            }
+        }
+
+        if initialized {
+            if let Err(ref e) = session
+                .timeout(session.command("runtime! ginit.vim"))
+                .await
+                .map_err(NvimInitError::new_post_init)
+            {
+                show_nvim_init_error(e, state_arc, comps);
+            }
         }
     });
 }

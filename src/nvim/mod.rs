@@ -454,10 +454,6 @@ pub async fn post_start_init(
     .await
     .map_err(NvimInitError::new_post_init)?;
 
-    nvim.timeout(nvim.command("runtime! ginit.vim"))
-        .await
-        .map_err(NvimInitError::new_post_init)?;
-
     if let Some(input_data) = input_data {
         let buf = nvim.timeout(nvim.get_current_buf()).await.ok_and_report();
 
