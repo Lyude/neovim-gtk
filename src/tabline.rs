@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -109,45 +110,49 @@ impl Tabline {
         signal::signal_handler_block(&self.tabs, &self.switch_handler_id);
 
         let count = self.tabs.n_pages() as usize;
-        if count < tabs.len() {
-            for _ in count..tabs.len() {
-                let empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                let title = gtk::Label::builder()
-                    .ellipsize(pango::EllipsizeMode::Middle)
-                    .width_chars(25)
-                    .hexpand(true)
-                    .build();
+        match count.cmp(&tabs.len()) {
+            Less => {
+                for _ in count..tabs.len() {
+                    let empty = gtk::Box::new(gtk::Orientation::Vertical, 0);
+                    let title = gtk::Label::builder()
+                        .ellipsize(pango::EllipsizeMode::Middle)
+                        .width_chars(25)
+                        .hexpand(true)
+                        .build();
 
-                let close_btn = gtk::Button::from_icon_name("window-close-symbolic");
-                close_btn.set_has_frame(false);
-                close_btn.set_focus_on_click(false);
+                    let close_btn = gtk::Button::from_icon_name("window-close-symbolic");
+                    close_btn.set_has_frame(false);
+                    close_btn.set_focus_on_click(false);
 
-                let label_box = gtk::Box::builder()
-                    .orientation(gtk::Orientation::Horizontal)
-                    .hexpand(true)
-                    .build();
-                label_box.append(&title);
-                label_box.append(&close_btn);
+                    let label_box = gtk::Box::builder()
+                        .orientation(gtk::Orientation::Horizontal)
+                        .hexpand(true)
+                        .build();
+                    label_box.append(&title);
+                    label_box.append(&close_btn);
 
-                self.tabs.append_page(&empty, Some(&label_box));
+                    self.tabs.append_page(&empty, Some(&label_box));
 
-                let tabs = self.tabs.clone();
-                let state_ref = Rc::clone(&self.state);
-                close_btn.connect_clicked(move |btn| {
-                    let current_label = btn.parent().unwrap();
-                    for i in 0..tabs.n_pages() {
-                        let page = tabs.nth_page(Some(i)).unwrap();
-                        let label = tabs.tab_label(&page).unwrap();
-                        if label == current_label {
-                            state_ref.borrow().close_tab(i);
+                    let tabs = self.tabs.clone();
+                    let state_ref = Rc::clone(&self.state);
+                    close_btn.connect_clicked(move |btn| {
+                        let current_label = btn.parent().unwrap();
+                        for i in 0..tabs.n_pages() {
+                            let page = tabs.nth_page(Some(i)).unwrap();
+                            let label = tabs.tab_label(&page).unwrap();
+                            if label == current_label {
+                                state_ref.borrow().close_tab(i);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
-        } else if count > tabs.len() {
-            for _ in tabs.len()..count {
-                self.tabs.remove_page(None);
+            Greater => {
+                for _ in tabs.len()..count {
+                    self.tabs.remove_page(None);
+                }
             }
+            Equal => (),
         }
 
         for (idx, tab) in tabs.iter().enumerate() {

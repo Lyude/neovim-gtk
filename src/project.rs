@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -378,12 +379,16 @@ impl Projects {
         let previous_height = self.scroll.max_content_height();
 
         // strange solution to make gtk assertions happy
-        if previous_height < treeview_height {
-            self.scroll.set_max_content_height(treeview_height);
-            self.scroll.set_min_content_height(treeview_height);
-        } else if previous_height > treeview_height {
-            self.scroll.set_min_content_height(treeview_height);
-            self.scroll.set_max_content_height(treeview_height);
+        match previous_height.cmp(&treeview_height) {
+            Less => {
+                self.scroll.set_max_content_height(treeview_height);
+                self.scroll.set_min_content_height(treeview_height);
+            }
+            Greater => {
+                self.scroll.set_min_content_height(treeview_height);
+                self.scroll.set_max_content_height(treeview_height);
+            }
+            Equal => (),
         }
     }
 

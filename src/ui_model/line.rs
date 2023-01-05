@@ -10,6 +10,7 @@ use super::item::Item;
 use crate::color;
 use crate::highlight::{Highlight, HighlightMap};
 use crate::render;
+use std::cmp::Ordering::{Equal, Greater, Less};
 
 pub struct Line {
     pub line: Box<[Cell]>,
@@ -125,16 +126,14 @@ impl Line {
         while cell_idx < self.line.len() {
             let dirty = match next_item {
                 None => self.set_cell_to_empty(cell_idx),
-                Some(ref new_item) => {
-                    if cell_idx < new_item.start_cell {
-                        self.set_cell_to_empty(cell_idx)
-                    } else if cell_idx == new_item.start_cell {
+                Some(ref new_item) => match cell_idx.cmp(&new_item.start_cell) {
+                    Less => self.set_cell_to_empty(cell_idx),
+                    Equal => false,
+                    Greater => {
                         move_to_next_item = true;
                         self.set_cell_to_item(new_item)
-                    } else {
-                        false
                     }
-                }
+                },
             };
 
             self.dirty_line = self.dirty_line || dirty;
