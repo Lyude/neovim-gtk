@@ -6,11 +6,28 @@ use unicode_width::UnicodeWidthStr;
 use crate::highlight::Highlight;
 use crate::ui_model::UiModel;
 
+#[derive(Clone)]
+pub struct HighlightedRange {
+    pub highlight: Rc<Highlight>,
+    pub graphemes: Vec<String>,
+}
+
+impl HighlightedRange {
+    pub fn new(highlight: Rc<Highlight>, graphemes: Vec<String>) -> Self {
+        Self {
+            highlight,
+            graphemes,
+        }
+    }
+}
+
+pub type HighlightedLine = Vec<HighlightedRange>;
+
 pub struct ModelLayout {
     pub model: UiModel,
     rows_filled: usize,
     cols_filled: usize,
-    lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>,
+    lines: Vec<HighlightedLine>,
 }
 
 impl ModelLayout {
@@ -25,7 +42,7 @@ impl ModelLayout {
         }
     }
 
-    pub fn layout_append(&mut self, mut lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>) {
+    pub fn layout_append(&mut self, mut lines: Vec<HighlightedLine>) {
         let rows_filled = self.rows_filled;
         let take_from = self.lines.len();
 
@@ -34,7 +51,7 @@ impl ModelLayout {
         self.layout_replace(rows_filled, take_from);
     }
 
-    pub fn layout(&mut self, lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>) {
+    pub fn layout(&mut self, lines: Vec<HighlightedLine>) {
         self.lines = lines;
         self.layout_replace(0, 0);
     }
@@ -85,18 +102,18 @@ impl ModelLayout {
     }
 
     fn insert_into_lines(&mut self, ch: String) {
-        let line = &mut self.lines[0];
+        let highlight_ranges = &mut self.lines[0];
 
         let (_, cur_col) = self.model.get_real_cursor();
 
         let mut col_idx = 0;
-        for &mut (_, ref mut chars) in line {
-            if cur_col < col_idx + chars.len() {
+        for range in highlight_ranges.iter_mut() {
+            if cur_col < col_idx + range.graphemes.len() {
                 let col_sub_idx = cur_col - col_idx;
-                chars.insert(col_sub_idx, ch);
+                range.graphemes.insert(col_sub_idx, ch);
                 break;
             } else {
-                col_idx += chars.len();
+                col_idx += range.graphemes.len();
             }
         }
     }
@@ -115,8 +132,12 @@ impl ModelLayout {
         let mut max_col_idx = 0;
         let mut col_idx = 0;
         let mut row_idx = row_offset;
-        for content in lines {
-            for (hl, ch_list) in content {
+        for highlight_ranges in lines {
+            for HighlightedRange {
+                highlight: hl,
+                graphemes: ch_list,
+            } in highlight_ranges
+            {
                 for ch in ch_list {
                     let ch_width = max(1, ch.width());
 
@@ -156,11 +177,11 @@ impl ModelLayout {
         }
     }
 
-    fn count_lines(lines: &[Vec<(Rc<Highlight>, Vec<String>)>], max_columns: usize) -> usize {
+    fn count_lines(lines: &[HighlightedLine], max_columns: usize) -> usize {
         let mut row_count = 0;
 
         for line in lines {
-            let len: usize = line.iter().map(|c| c.1.len()).sum();
+            let len: usize = line.iter().map(|range| range.graphemes.len()).sum();
             row_count += len / (max_columns + 1) + 1;
         }
 
@@ -174,7 +195,10 @@ mod tests {
 
     #[test]
     fn test_count_lines() {
-        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 5])]];
+        let lines = vec![vec![HighlightedRange {
+            highlight: Rc::new(Highlight::new()),
+            graphemes: vec!["a".to_owned(); 5],
+        }]];
 
         let rows = ModelLayout::count_lines(&lines, 4);
         assert_eq!(2, rows);
@@ -183,7 +207,10 @@ mod tests {
     #[test]
     fn test_resize() {
         let lines = vec![
-            vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 5])];
+            vec![HighlightedRange {
+                highlight: Rc::new(Highlight::new()),
+                graphemes: vec!["a".to_owned(); 5]
+            }];
             ModelLayout::ROWS_STEP
         ];
         let mut model = ModelLayout::new(5);
@@ -202,7 +229,13 @@ mod tests {
 
     #[test]
     fn test_cols_filled() {
-        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 3])]; 1];
+        let lines = vec![
+            vec![HighlightedRange::new(
+                Rc::new(Highlight::new()),
+                vec!["a".to_owned(); 3]
+            )];
+            1
+        ];
         let mut model = ModelLayout::new(5);
 
         model.layout(lines);
@@ -212,7 +245,13 @@ mod tests {
         let (cols, _) = model.size();
         assert_eq!(4, cols); // size is 3 and 4 - is with cursor position
 
-        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 2])]; 1];
+        let lines = vec![
+            vec![HighlightedRange::new(
+                Rc::new(Highlight::new()),
+                vec!["a".to_owned(); 2]
+            )];
+            1
+        ];
 
         model.layout_append(lines);
         model.set_cursor(2);
@@ -222,7 +261,13 @@ mod tests {
 
     #[test]
     fn test_insert_shift() {
-        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 3])]; 1];
+        let lines = vec![
+            vec![HighlightedRange::new(
+                Rc::new(Highlight::new()),
+                vec!["a".to_owned(); 3]
+            )];
+            1
+        ];
         let mut model = ModelLayout::new(5);
         model.layout(lines);
         model.set_cursor(1);
@@ -236,7 +281,13 @@ mod tests {
 
     #[test]
     fn test_insert_no_shift() {
-        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["a".to_owned(); 3])]; 1];
+        let lines = vec![
+            vec![HighlightedRange::new(
+                Rc::new(Highlight::new()),
+                vec!["a".to_owned(); 3]
+            )];
+            1
+        ];
         let mut model = ModelLayout::new(5);
         model.layout(lines);
         model.set_cursor(1);
@@ -250,7 +301,13 @@ mod tests {
 
     #[test]
     fn test_double_width() {
-        let lines = vec![vec![(Rc::new(Highlight::new()), vec!["あ".to_owned(); 3])]; 1];
+        let lines = vec![
+            vec![HighlightedRange::new(
+                Rc::new(Highlight::new()),
+                vec!["あ".to_owned(); 3]
+            )];
+            1
+        ];
         let mut model = ModelLayout::new(7);
         model.layout(lines);
         model.set_cursor(1);

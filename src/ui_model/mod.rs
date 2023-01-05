@@ -10,7 +10,7 @@ mod model_rect;
 pub use self::cell::Cell;
 pub use self::item::Item;
 pub use self::line::{Line, StyledLine};
-pub use self::model_layout::ModelLayout;
+pub use self::model_layout::{HighlightedLine, HighlightedRange, ModelLayout};
 pub use self::model_rect::ModelRect;
 
 #[derive(Default)]

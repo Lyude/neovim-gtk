@@ -13,7 +13,7 @@ use gtk::prelude::*;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cursor;
-use crate::highlight::{Highlight, HighlightMap};
+use crate::highlight::HighlightMap;
 use crate::mode;
 use crate::nvim::{self, *};
 use crate::nvim_viewport::NvimViewport;
@@ -21,7 +21,7 @@ use crate::popup_menu;
 use crate::render::{self, CellMetrics};
 use crate::shell;
 use crate::ui::UiMutex;
-use crate::ui_model::ModelLayout;
+use crate::ui_model::{HighlightedLine, HighlightedRange, ModelLayout};
 
 use viewport::CmdlineViewport;
 
@@ -61,7 +61,7 @@ impl Level {
         level
     }
 
-    fn replace_line(&mut self, lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>, append: bool) {
+    fn replace_line(&mut self, lines: Vec<HighlightedLine>, append: bool) {
         if append {
             self.model_layout.layout_append(lines);
         } else {
@@ -93,7 +93,7 @@ impl Level {
     }
 
     pub fn from_lines(
-        lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>,
+        lines: Vec<HighlightedLine>,
         max_width: i32,
         render_state: &shell::RenderState,
     ) -> Self {
@@ -129,19 +129,20 @@ impl Level {
     }
 }
 
-type PromptLine = (Rc<Highlight>, Vec<String>);
-
 fn prompt_lines(
     firstc: &str,
     prompt: &str,
     indent: u64,
     hl: &HighlightMap,
-) -> (usize, Vec<PromptLine>) {
-    let prompt: Vec<PromptLine> = if !firstc.is_empty() {
+) -> (usize, Vec<HighlightedRange>) {
+    let prompt: Vec<HighlightedRange> = if !firstc.is_empty() {
         if firstc.len() >= indent as usize {
-            vec![(hl.default_hl(), vec![firstc.to_owned()])]
+            vec![HighlightedRange {
+                highlight: hl.default_hl(),
+                graphemes: vec![firstc.to_owned()],
+            }]
         } else {
-            vec![(
+            vec![HighlightedRange::new(
                 hl.default_hl(),
                 iter::once(firstc.to_owned())
                     .chain((firstc.len()..indent as usize).map(|_| " ".to_owned()))
@@ -151,18 +152,19 @@ fn prompt_lines(
     } else if !prompt.is_empty() {
         prompt
             .lines()
-            .map(|l| {
-                (
-                    hl.default_hl(),
-                    l.graphemes(true).map(|g| g.to_owned()).collect(),
-                )
+            .map(|l| HighlightedRange {
+                highlight: hl.default_hl(),
+                graphemes: l.graphemes(true).map(|g| g.to_owned()).collect(),
             })
             .collect()
     } else {
         vec![]
     };
 
-    let prompt_offset = prompt.last().map(|l| l.1.len()).unwrap_or(0);
+    let prompt_offset = prompt
+        .last()
+        .map(|range| range.graphemes.len())
+        .unwrap_or(0);
 
     (prompt_offset, prompt)
 }
@@ -541,25 +543,23 @@ impl<'a> CmdLineContext<'a> {
 }
 
 struct LineContent {
-    lines: Vec<Vec<(Rc<Highlight>, Vec<String>)>>,
+    lines: Vec<HighlightedLine>,
     prompt_offset: usize,
 }
 
 trait ToAttributedModelContent {
-    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>>;
+    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<HighlightedLine>;
 }
 
 impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
-    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>> {
+    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<HighlightedLine> {
         self.iter()
             .map(|line_chars| {
                 line_chars
                     .iter()
-                    .map(|c| {
-                        (
-                            hl.get(c.0.into()),
-                            c.1.graphemes(true).map(|g| g.to_owned()).collect(),
-                        )
+                    .map(|c| HighlightedRange {
+                        highlight: hl.get(c.0.into()),
+                        graphemes: c.1.graphemes(true).map(|g| g.to_owned()).collect(),
                     })
                     .collect()
             })
@@ -568,14 +568,12 @@ impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
 }
 
 impl ToAttributedModelContent for Vec<(u64, String)> {
-    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<Vec<(Rc<Highlight>, Vec<String>)>> {
+    fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<HighlightedLine> {
         vec![self
             .iter()
-            .map(|c| {
-                (
-                    hl.get(c.0.into()),
-                    c.1.graphemes(true).map(|g| g.to_owned()).collect(),
-                )
+            .map(|c| HighlightedRange {
+                highlight: hl.get(c.0.into()),
+                graphemes: c.1.graphemes(true).map(|g| g.to_owned()).collect(),
             })
             .collect()]
     }
