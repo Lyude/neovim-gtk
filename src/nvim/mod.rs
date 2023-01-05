@@ -203,12 +203,14 @@ pub struct NvimSession {
     runtime: Arc<Runtime>,
 }
 
+type IoFuture<'a> = BoxFuture<'a, Result<(), Box<LoopError>>>;
+
 impl NvimSession {
     pub fn new_child<'a>(
         mut cmd: Command,
         handler: NvimHandler,
         timeout: Duration,
-    ) -> Result<(NvimSession, BoxFuture<'a, Result<(), Box<LoopError>>>), NvimInitError> {
+    ) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
         let runtime = Arc::new(Runtime::new().map_err(|e| NvimInitError::new(&cmd, e))?);
         let mut child = runtime
             .block_on(async move { cmd.spawn().map_err(|e| NvimInitError::new(&cmd, e)) })?;
@@ -365,7 +367,7 @@ pub fn start<'a>(
     nvim_bin_path: Option<String>,
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
-) -> result::Result<(NvimSession, BoxFuture<'a, Result<(), Box<LoopError>>>), NvimInitError> {
+) -> result::Result<(NvimSession, IoFuture<'a>), NvimInitError> {
     let mut cmd = if let Some(path) = nvim_bin_path {
         Command::new(path)
     } else {

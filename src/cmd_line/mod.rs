@@ -129,13 +129,15 @@ impl Level {
     }
 }
 
+type PromptLine = (Rc<Highlight>, Vec<String>);
+
 fn prompt_lines(
     firstc: &str,
     prompt: &str,
     indent: u64,
     hl: &HighlightMap,
-) -> (usize, Vec<(Rc<Highlight>, Vec<String>)>) {
-    let prompt: Vec<(Rc<Highlight>, Vec<String>)> = if !firstc.is_empty() {
+) -> (usize, Vec<PromptLine>) {
+    let prompt: Vec<PromptLine> = if !firstc.is_empty() {
         if firstc.len() >= indent as usize {
             vec![(hl.default_hl(), vec![firstc.to_owned()])]
         } else {

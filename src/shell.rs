@@ -183,6 +183,10 @@ impl ActionWidgets {
     }
 }
 
+type CommandCallback = Box<dyn FnMut(&mut State, nvim::NvimCommand) + Send + 'static>;
+type DetachedCallback = Box<RefCell<dyn FnMut() + Send + 'static>>;
+type NvimStartedCallback = Box<RefCell<dyn FnMut() + Send + 'static>>;
+
 pub struct State {
     pub grids: GridMap,
 
@@ -211,9 +215,9 @@ pub struct State {
     pub options: RefCell<ShellOptions>,
     transparency_settings: TransparencySettings,
 
-    detach_cb: Option<Box<RefCell<dyn FnMut() + Send + 'static>>>,
-    nvim_started_cb: Option<Box<RefCell<dyn FnMut() + Send + 'static>>>,
-    command_cb: Option<Box<dyn FnMut(&mut State, nvim::NvimCommand) + Send + 'static>>,
+    detach_cb: Option<DetachedCallback>,
+    nvim_started_cb: Option<NvimStartedCallback>,
+    command_cb: Option<CommandCallback>,
 
     subscriptions: RefCell<Subscriptions>,
 
