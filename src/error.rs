@@ -75,6 +75,22 @@ impl ErrorArea {
         ));
         self.base.show();
     }
+
+    pub fn show_nvim_connect_error(&self, err: &str, addr: &str) {
+        error!("Can't connect to nvim on TCP address {}: {}\n", addr, err);
+        self.label.set_markup(&format!(
+            "<big>Can't connect to nvim instance on TCP address {}:</big>\n\
+             <i>{}</i>\n\
+             <big>Possible error reasons:</big>\n\
+             &#9679; Not supported nvim version (minimum supported version is <b>{}</b>)\n\
+             &#9679; Error in configuration file (init.vim or ginit.vim)\n\
+             &#9679; Invalid TCP address",
+            encode_text_minimal(addr),
+            encode_text_minimal(err),
+            shell::MINIMUM_SUPPORTED_NVIM_VERSION
+        ));
+        self.base.show();
+    }
 }
 
 impl Deref for ErrorArea {

@@ -10,6 +10,7 @@ pub use self::redraw_handler::{NvimCommand, PendingPopupMenu, PopupMenuItem, Red
 
 use super::shell::ResizeState;
 
+use std::net::SocketAddr;
 use std::{
     convert::TryFrom,
     env, error, fmt,
@@ -49,6 +50,10 @@ pub enum NvimInitError {
         cmd: Option<String>,
     },
     MissingCapability(String),
+    TcpConnectError {
+        source: Box<dyn error::Error>,
+        addr: SocketAddr,
+    },
 }
 
 impl NvimInitError {
@@ -76,9 +81,18 @@ impl NvimInitError {
         Self::MissingCapability(cap_msg.into())
     }
 
+    fn new_connection_err(addr: SocketAddr, error: io::Error) -> Self {
+        NvimInitError::TcpConnectError {
+            addr,
+            source: error.into(),
+        }
+    }
+
     pub fn source(&self) -> String {
         match self {
-            Self::ResponseError { source, .. } => format!("{source}"),
+            Self::ResponseError { source, .. } | Self::TcpConnectError { source, .. } => {
+                format!("{source}")
+            }
             Self::MissingCapability(_) => "".to_string(),
         }
     }
@@ -96,6 +110,9 @@ impl fmt::Display for NvimInitError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::ResponseError { source, .. } => write!(f, "{source:?}"),
+            Self::TcpConnectError { source, addr } => {
+                write!(f, "Failed to connect to {addr}: {source:?}")
+            }
             Self::MissingCapability(cap) => {
                 write!(f, "Nvim version is too old, missing support for {cap}")
             }
@@ -110,6 +127,8 @@ impl error::Error for NvimInitError {
 
     fn cause(&self) -> Option<&dyn error::Error> {
         if let Self::ResponseError { ref source, .. } = self {
+            Some(source.as_ref())
+        } else if let Self::TcpConnectError { ref source, .. } = self {
             Some(source.as_ref())
         } else {
             None
@@ -160,11 +179,18 @@ fn set_windows_creation_flags(cmd: &mut Command) {
 
 pub enum NvimWriter {
     ChildProcess(ChildStdin),
+    TcpStream(tokio::net::tcp::OwnedWriteHalf),
 }
 
 impl From<ChildStdin> for NvimWriter {
     fn from(stdin: ChildStdin) -> Self {
         Self::ChildProcess(stdin)
+    }
+}
+
+impl From<tokio::net::tcp::OwnedWriteHalf> for NvimWriter {
+    fn from(stream: tokio::net::tcp::OwnedWriteHalf) -> Self {
+        Self::TcpStream(stream)
     }
 }
 
@@ -176,18 +202,21 @@ impl AsyncWrite for NvimWriter {
     ) -> Poll<io::Result<usize>> {
         match *self {
             Self::ChildProcess(ref mut stdin) => Pin::new(stdin).poll_write(cx, buf),
+            Self::TcpStream(ref mut stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match *self {
             Self::ChildProcess(ref mut stdin) => Pin::new(stdin).poll_flush(cx),
+            Self::TcpStream(ref mut stream) => Pin::new(stream).poll_flush(cx),
         }
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match *self {
             Self::ChildProcess(ref mut stdin) => Pin::new(stdin).poll_shutdown(cx),
+            Self::TcpStream(ref mut stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
 }
@@ -219,6 +248,36 @@ impl NvimSession {
         let (nvim, io_future) = Neovim::new(
             child.stdout.take().unwrap().compat(),
             NvimWriter::from(child.stdin.take().unwrap()).compat_write(),
+            handler,
+        );
+
+        Ok((
+            Self {
+                nvim,
+                timeout,
+                runtime,
+            },
+            io_future.boxed(),
+        ))
+    }
+
+    pub fn new_tcp_client<'a>(
+        addr: SocketAddr,
+        handler: NvimHandler,
+        timeout: Duration,
+    ) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
+        let runtime =
+            Arc::new(Runtime::new().map_err(|e| NvimInitError::new_connection_err(addr, e))?);
+        let socket = runtime.block_on(async move {
+            tokio::net::TcpStream::connect(addr)
+                .await
+                .map_err(|e| NvimInitError::new_connection_err(addr, e))
+        })?;
+
+        let (reader, writer) = socket.into_split();
+        let (nvim, io_future) = Neovim::new(
+            reader.compat(),
+            NvimWriter::from(writer).compat_write(),
             handler,
         );
 
@@ -403,6 +462,14 @@ pub fn start<'a>(
     }
 
     NvimSession::new_child(cmd, handler, timeout.unwrap_or(Duration::from_secs(10)))
+}
+
+pub fn start_tcp_client<'a>(
+    handler: NvimHandler,
+    addr: SocketAddr,
+    timeout: Option<Duration>,
+) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
+    NvimSession::new_tcp_client(addr, handler, timeout.unwrap_or(Duration::from_secs(10)))
 }
 
 pub async fn post_start_init(

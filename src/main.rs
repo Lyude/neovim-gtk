@@ -37,6 +37,7 @@ use log::error;
 use gio::prelude::*;
 use gio::ApplicationCommandLine;
 
+use std::net::SocketAddr;
 use std::{
     cell::RefCell,
     convert::*,
@@ -154,6 +155,10 @@ pub struct Args {
     #[arg(long)]
     /// Path to the nvim binary
     pub nvim_bin_path: Option<String>,
+
+    #[arg(long)]
+    /// Nvim server to connect to (currently TCP only)
+    pub server: Option<SocketAddr>,
 
     /// Arguments that will be passed to nvim (see more with '--help' before using!)
     ///

@@ -1431,16 +1431,31 @@ fn show_nvim_start_error(
     state_arc: Arc<UiMutex<State>>,
     comps: Arc<UiMutex<Components>>,
 ) {
-    let source = err.source();
-    let cmd = err.cmd().unwrap().to_owned();
-
-    glib::idle_add_once(move || {
-        let state = state_arc.borrow();
-        state.nvim.set_error();
-        comps.borrow().window().remove_css_class("nvim-background");
-        state.error_area.show_nvim_start_error(&source, &cmd);
-        state.show_error_area();
-    });
+    match err {
+        NvimInitError::ResponseError { .. } => {
+            let source = err.source();
+            let cmd = err.cmd().unwrap().to_owned();
+            glib::idle_add_once(move || {
+                let state = state_arc.borrow();
+                state.nvim.set_error();
+                comps.borrow().window().remove_css_class("nvim-background");
+                state.error_area.show_nvim_start_error(&source, &cmd);
+                state.show_error_area();
+            });
+        }
+        NvimInitError::MissingCapability(_) => unreachable!(),
+        NvimInitError::TcpConnectError { ref addr, .. } => {
+            let addr = addr.to_string();
+            let source = err.source();
+            glib::idle_add_once(move || {
+                let state = state_arc.borrow();
+                state.nvim.set_error();
+                comps.borrow().window().remove_css_class("nvim-background");
+                state.error_area.show_nvim_connect_error(&source, &addr);
+                state.show_error_area();
+            });
+        }
+    }
 }
 
 fn show_nvim_init_error(
@@ -1468,13 +1483,18 @@ fn init_nvim_async(
     cols: i32,
     rows: i32,
 ) {
-    // execute nvim
-    let (session, io_future) = match nvim::start(
-        nvim_handler,
-        options.nvim_bin_path.clone(),
-        *options.timeout,
-        options.nvim_args,
-    ) {
+    let nvim_result = if let Some(addr) = options.server {
+        nvim::start_tcp_client(nvim_handler, addr, *options.timeout)
+    } else {
+        nvim::start(
+            nvim_handler,
+            options.nvim_bin_path.clone(),
+            *options.timeout,
+            options.nvim_args,
+        )
+    };
+
+    let (session, io_future) = match nvim_result {
         Ok(session) => session,
         Err(err) => {
             show_nvim_start_error(&err, state_arc, comps);
