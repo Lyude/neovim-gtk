@@ -161,34 +161,34 @@ impl HighlightMap {
     }
 
     pub fn cell_fg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
-        if !cell.hl.reverse {
-            cell.hl.foreground.as_ref()
-        } else {
+        if cell.hl.reverse {
             cell.hl.background.as_ref().or_else(|| Some(self.bg()))
+        } else {
+            cell.hl.foreground.as_ref()
         }
     }
 
     pub fn actual_cell_fg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
-        if !cell.hl.reverse {
-            cell.hl.foreground.as_ref().unwrap_or_else(|| self.fg())
-        } else {
+        if cell.hl.reverse {
             cell.hl.background.as_ref().unwrap_or_else(|| self.bg())
+        } else {
+            cell.hl.foreground.as_ref().unwrap_or_else(|| self.fg())
         }
     }
 
     pub fn cell_bg<'a>(&'a self, cell: &'a Cell) -> Option<&'a Color> {
-        if !cell.hl.reverse {
-            cell.hl.background.as_ref()
-        } else {
+        if cell.hl.reverse {
             cell.hl.foreground.as_ref().or_else(|| Some(self.fg()))
+        } else {
+            cell.hl.background.as_ref()
         }
     }
 
     pub fn actual_cell_bg<'a>(&'a self, cell: &'a Cell) -> &'a Color {
-        if !cell.hl.reverse {
-            cell.hl.background.as_ref().unwrap_or_else(|| self.bg())
-        } else {
+        if cell.hl.reverse {
             cell.hl.foreground.as_ref().unwrap_or_else(|| self.fg())
+        } else {
+            cell.hl.background.as_ref().unwrap_or_else(|| self.bg())
         }
     }
 
@@ -198,46 +198,46 @@ impl HighlightMap {
     }
 
     pub fn pmenu_bg(&self) -> &Color {
-        if !self.pmenu.reverse {
-            self.pmenu.background.as_ref().unwrap_or_else(|| self.bg())
-        } else {
+        if self.pmenu.reverse {
             self.pmenu.foreground.as_ref().unwrap_or_else(|| self.fg())
+        } else {
+            self.pmenu.background.as_ref().unwrap_or_else(|| self.bg())
         }
     }
 
     pub fn pmenu_fg(&self) -> &Color {
-        if !self.pmenu.reverse {
-            self.pmenu.foreground.as_ref().unwrap_or_else(|| self.fg())
-        } else {
+        if self.pmenu.reverse {
             self.pmenu.background.as_ref().unwrap_or_else(|| self.bg())
+        } else {
+            self.pmenu.foreground.as_ref().unwrap_or_else(|| self.fg())
         }
     }
 
     pub fn pmenu_bg_sel(&self) -> &Color {
-        if !self.pmenu_sel.reverse {
-            self.pmenu_sel
-                .background
-                .as_ref()
-                .unwrap_or_else(|| self.bg())
-        } else {
+        if self.pmenu_sel.reverse {
             self.pmenu_sel
                 .foreground
                 .as_ref()
                 .unwrap_or_else(|| self.fg())
+        } else {
+            self.pmenu_sel
+                .background
+                .as_ref()
+                .unwrap_or_else(|| self.bg())
         }
     }
 
     pub fn pmenu_fg_sel(&self) -> &Color {
-        if !self.pmenu_sel.reverse {
-            self.pmenu_sel
-                .foreground
-                .as_ref()
-                .unwrap_or_else(|| self.fg())
-        } else {
+        if self.pmenu_sel.reverse {
             self.pmenu_sel
                 .background
                 .as_ref()
                 .unwrap_or_else(|| self.bg())
+        } else {
+            self.pmenu_sel
+                .foreground
+                .as_ref()
+                .unwrap_or_else(|| self.fg())
         }
     }
 
