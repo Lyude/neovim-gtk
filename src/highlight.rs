@@ -242,17 +242,15 @@ impl HighlightMap {
     }
 
     pub fn cursor_bg(&self) -> Cow<Color> {
-        let (main, fallback): (Option<&Color>, fn(&HighlightMap) -> Color) = if !self.cursor.reverse
-        {
-            (self.cursor.background.as_ref(), |hl_map| {
-                hl_map.bg().invert()
-            })
+        if self.cursor.reverse {
+            Cow::Borrowed(self.cursor.foreground.as_ref().unwrap_or_else(|| self.fg()))
         } else {
-            (self.cursor.foreground.as_ref(), |hl_map| *hl_map.fg())
-        };
-
-        main.map(Cow::Borrowed)
-            .unwrap_or_else(|| Cow::Owned(fallback(self)))
+            self.cursor
+                .background
+                .as_ref()
+                .map(Cow::Borrowed)
+                .unwrap_or_else(|| Cow::Owned(self.bg().invert()))
+        }
     }
 }
 
