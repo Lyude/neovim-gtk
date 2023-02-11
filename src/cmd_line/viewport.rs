@@ -63,21 +63,15 @@ impl ObjectImpl for CmdlineViewportObject {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpecObject::new(
-                    "cmdline-state",
-                    "Cmdline state",
-                    "A back-reference to the main state structure for the external cmdline",
-                    glib::BoxedAnyObject::static_type(),
-                    glib::ParamFlags::WRITABLE
-                ),
-                glib::ParamSpecBoolean::new(
-                    "snapshot-cached",
-                    "Snapshot cached",
-                    "Whether or not we have a snapshot of the level or block grids cached. Ignores \
-                    non-false writes.",
-                    false,
-                    glib::ParamFlags::READWRITE
-                ),
+                glib::ParamSpecObject::builder::<glib::BoxedAnyObject>("cmdline-state")
+                    .nick("Cmdline state")
+                    .blurb("A back-reference to the main state structure for the external cmdline")
+                    .write_only()
+                    .build(),
+                glib::ParamSpecBoolean::builder("snapshot-cached")
+                    .nick("Snapshot cached")
+                    .blurb("Whether or not we have a snapshot of the level or block grids cached. Ignores non-false writes.")
+                    .build(),
             ]
         });
 

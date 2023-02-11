@@ -76,20 +76,16 @@ impl ObjectImpl for PopupMenuListRowObject {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpecObject::new(
-                    "state",
-                    "Popup menu list row state",
-                    "A reference to the shared state structure for all PopupMenuListRow widgets",
-                    glib::BoxedAnyObject::static_type(),
-                    glib::ParamFlags::WRITABLE,
-                ),
-                glib::ParamSpecObject::new(
-                    "row",
-                    "Row",
-                    "A reference to the current row we're displaying",
-                    glib::BoxedAnyObject::static_type(),
-                    glib::ParamFlags::WRITABLE,
-                ),
+                glib::ParamSpecObject::builder::<glib::BoxedAnyObject>("state")
+                    .nick("Popup menu list row state")
+                    .blurb("A reference to the shared state structure for all PopupMenuListRow widgets")
+                    .write_only()
+                    .build(),
+                glib::ParamSpecObject::builder::<glib::BoxedAnyObject>("row")
+                    .nick("Row")
+                    .blurb("A reference to the current row we're displaying")
+                    .write_only()
+                    .build(),
             ]
         });
 

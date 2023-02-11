@@ -32,13 +32,13 @@ impl ObjectSubclass for PopupMenuModelObject {
 impl ObjectImpl for PopupMenuModelObject {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpecObject::new(
-                "items",
-                "PopupMenu items",
-                "A reference to the list of completion items",
-                glib::BoxedAnyObject::static_type(),
-                glib::ParamFlags::WRITABLE,
-            )]
+            vec![
+                glib::ParamSpecObject::builder::<glib::BoxedAnyObject>("items")
+                    .nick("PopupMenu items")
+                    .blurb("A reference to the list of completion items")
+                    .write_only()
+                    .build(),
+            ]
         });
 
         PROPERTIES.as_ref()
