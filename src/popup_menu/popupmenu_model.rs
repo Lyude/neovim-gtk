@@ -13,7 +13,9 @@ glib::wrapper! {
 
 impl PopupMenuModel {
     pub fn new(items: &Rc<Vec<PopupMenuItem>>) -> Self {
-        glib::Object::new::<Self>(&[("items", &glib::BoxedAnyObject::new(items.clone()))])
+        glib::Object::builder::<Self>()
+            .property("items", glib::BoxedAnyObject::new(items.clone()))
+            .build()
     }
 }
 

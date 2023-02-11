@@ -182,7 +182,7 @@ impl FileBrowserWidget {
                 show_hidden_action: gio::SimpleAction::new_stateful(
                     "show-hidden",
                     None,
-                    &false.to_variant(),
+                    false.to_variant(),
                 ),
             },
             state: Rc::new(RefCell::new(State {
@@ -279,7 +279,7 @@ impl FileBrowserWidget {
         show_hidden_action.connect_activate(clone!(state_ref, store => move |action, _| {
             let mut state = state_ref.borrow_mut();
             state.show_hidden = !state.show_hidden;
-            action.set_state(&state.show_hidden.to_variant());
+            action.set_state(state.show_hidden.to_variant());
             tree_reload(&store, &state);
         }));
         actions.add_action(show_hidden_action);
@@ -395,7 +395,7 @@ impl FileBrowserWidget {
                 )
             }),
         );
-        self.tree.add_controller(&right_click_controller);
+        self.tree.add_controller(right_click_controller);
 
         #[rustfmt::skip]
         let long_tap_controller = gtk::GestureLongPress::builder()
@@ -414,7 +414,7 @@ impl FileBrowserWidget {
                 )
             }),
         );
-        self.tree.add_controller(&long_tap_controller);
+        self.tree.add_controller(long_tap_controller);
     }
 }
 

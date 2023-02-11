@@ -23,7 +23,7 @@ glib::wrapper! {
 
 impl CmdlineViewport {
     pub fn new() -> Self {
-        glib::Object::new::<Self>(&[])
+        glib::Object::new::<Self>()
     }
 
     pub fn set_state(&self, state: &Arc<UiMutex<State>>) {

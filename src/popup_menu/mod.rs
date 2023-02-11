@@ -232,9 +232,8 @@ impl State {
     fn update_css(&self, hl: &HighlightMap, font_ctx: &render::Context) {
         let font_desc = font_ctx.font_description();
 
-        self.css_provider.load_from_data(
-            format!(
-                "listview.nvim-popupmenu-list {{\
+        self.css_provider.load_from_data(&format!(
+            "listview.nvim-popupmenu-list {{\
                     background-color: {bg};\
                     font-family: \"{font}\";\
                     font-size: {size}pt;\
@@ -247,16 +246,14 @@ impl State {
                     background-color: {bg_sel};\
                     color: {fg_sel};\
                 }}",
-                margin = PADDING,
-                fg_sel = hl.pmenu_fg_sel().to_hex(),
-                bg_sel = hl.pmenu_bg_sel().to_hex(),
-                fg = hl.pmenu_fg().to_hex(),
-                bg = hl.pmenu_bg().to_hex(),
-                font = font_desc.family().unwrap().as_str(),
-                size = (font_desc.size() as f64 / pango::SCALE as f64),
-            )
-            .as_bytes(),
-        );
+            margin = PADDING,
+            fg_sel = hl.pmenu_fg_sel().to_hex(),
+            bg_sel = hl.pmenu_bg_sel().to_hex(),
+            fg = hl.pmenu_fg().to_hex(),
+            bg = hl.pmenu_bg().to_hex(),
+            font = font_desc.family().unwrap().as_str(),
+            size = (font_desc.size() as f64 / pango::SCALE as f64),
+        ));
     }
 
     fn select(&mut self, selected: Option<u32>) {

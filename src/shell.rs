@@ -949,7 +949,7 @@ impl Shell {
                 );
             }
         ));
-        state.nvim_viewport.add_controller(&motion_controller);
+        state.nvim_viewport.add_controller(motion_controller);
 
         let key_controller = gtk::EventControllerKey::new();
         key_controller.set_im_context(Some(&state.im_context));
@@ -967,7 +967,7 @@ impl Shell {
                 }
             }
         ));
-        state.nvim_viewport.add_controller(&key_controller);
+        state.nvim_viewport.add_controller(key_controller);
 
         fn get_button(controller: &gtk::GestureClick) -> u32 {
             match controller.current_button() {
@@ -1006,7 +1006,7 @@ impl Shell {
                 )
             }
         ));
-        state.nvim_viewport.add_controller(&click_controller);
+        state.nvim_viewport.add_controller(click_controller);
 
         let long_tap_controller = gtk::GestureLongPress::builder()
             .n_points(1)
@@ -1026,7 +1026,7 @@ impl Shell {
                 )
             }
         ));
-        state.nvim_viewport.add_controller(&long_tap_controller);
+        state.nvim_viewport.add_controller(long_tap_controller);
 
         let focus_controller = gtk::EventControllerFocus::new();
         focus_controller.connect_enter(glib::clone!(@weak state_ref => move |_| {
@@ -1039,7 +1039,7 @@ impl Shell {
             let redraw_mode = state.cursor.as_mut().unwrap().set_widget_focus(false);
             state.queue_draw(redraw_mode);
         }));
-        state.nvim_viewport.add_controller(&focus_controller);
+        state.nvim_viewport.add_controller(focus_controller);
 
         let scroll_controller = gtk::EventControllerScroll::new(
             gtk::EventControllerScrollFlags::BOTH_AXES | gtk::EventControllerScrollFlags::DISCRETE,
@@ -1058,11 +1058,11 @@ impl Shell {
                 gtk::Inhibit(false)
             }
         ));
-        state.nvim_viewport.add_controller(&scroll_controller);
+        state.nvim_viewport.add_controller(scroll_controller);
 
         let context = glib::MainContext::default();
         let dnd_target = gtk::DropTargetAsync::new(
-            Some(&gdk::ContentFormats::new(&["text/uri-list"])),
+            Some(gdk::ContentFormats::new(&["text/uri-list"])),
             gdk::DragAction::COPY,
         );
         dnd_target.connect_drop(glib::clone!(
@@ -1072,7 +1072,7 @@ impl Shell {
                 gtk_handle_drop(&state, &context, drop)
             }
         ));
-        state.nvim_viewport.add_controller(&dnd_target);
+        state.nvim_viewport.add_controller(dnd_target);
 
         state
             .nvim_viewport

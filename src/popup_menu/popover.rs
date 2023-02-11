@@ -12,7 +12,7 @@ glib::wrapper! {
 
 impl PopupMenuPopover {
     pub fn new() -> Self {
-        glib::Object::new::<Self>(&[])
+        glib::Object::new::<Self>()
     }
 
     pub fn connect_bounds_changed<F>(&self, cb: F) -> SignalHandlerId

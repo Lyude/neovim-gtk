@@ -325,7 +325,7 @@ impl CmdLine {
                 tree_button_press(&tree, x, y, &nvim, "");
             }
         }));
-        tree.add_controller(&controller);
+        tree.add_controller(controller);
 
         (scroll, tree, css_provider, renderer, column)
     }
@@ -636,14 +636,11 @@ fn update_css(css_provider: &gtk::CssProvider, hl: &HighlightMap) {
     let bg = hl.pmenu_bg_sel();
     let fg = hl.pmenu_fg_sel();
 
-    css_provider.load_from_data(
-        format!(
-            ".view :selected {{ color: {}; background-color: {};}}\n
+    css_provider.load_from_data(&format!(
+        ".view :selected {{ color: {}; background-color: {};}}\n
                 .view {{ background-color: {}; }}",
-            fg.to_hex(),
-            bg.to_hex(),
-            hl.pmenu_bg().to_hex(),
-        )
-        .as_bytes(),
-    );
+        fg.to_hex(),
+        bg.to_hex(),
+        hl.pmenu_bg().to_hex(),
+    ));
 }

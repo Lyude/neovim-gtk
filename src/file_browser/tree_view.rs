@@ -10,7 +10,7 @@ glib::wrapper! {
 /// A popup-aware TreeView widget for the file browser pane
 impl TreeView {
     pub fn new() -> Self {
-        glib::Object::new::<Self>(&[])
+        glib::Object::new::<Self>()
     }
 
     pub fn set_context_menu(&self, context_menu: &gtk::PopoverMenu) {

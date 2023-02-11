@@ -22,7 +22,7 @@ glib::wrapper! {
 
 impl NvimViewport {
     pub fn new() -> Self {
-        glib::Object::new::<Self>(&[])
+        glib::Object::new::<Self>()
     }
 
     pub fn set_shell_state(&self, state: &Arc<UiMutex<State>>) {

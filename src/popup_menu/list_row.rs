@@ -16,7 +16,9 @@ glib::wrapper! {
 
 impl PopupMenuListRow {
     pub fn new(state: &Rc<RefCell<PopupMenuListRowState>>) -> Self {
-        glib::Object::new::<Self>(&[("state", &glib::BoxedAnyObject::new(state.clone()))])
+        glib::Object::builder::<Self>()
+            .property("state", glib::BoxedAnyObject::new(state.clone()))
+            .build()
     }
 
     pub fn set_row(&self, row: Option<&PopupMenuItemRef>) {
