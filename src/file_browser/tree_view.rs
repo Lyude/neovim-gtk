@@ -39,12 +39,7 @@ impl ObjectImpl for TreeViewObject {
 
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![
-                glib::ParamSpecObject::builder::<gtk::PopoverMenu>("context-menu")
-                    .nick("Context menu")
-                    .blurb("PopoverMenu to use as the context menu")
-                    .build(),
-            ]
+            vec![glib::ParamSpecObject::builder::<gtk::PopoverMenu>("context-menu").build()]
         });
 
         PROPERTIES.as_ref()

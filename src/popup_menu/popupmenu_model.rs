@@ -34,8 +34,6 @@ impl ObjectImpl for PopupMenuModelObject {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
                 glib::ParamSpecObject::builder::<glib::BoxedAnyObject>("items")
-                    .nick("PopupMenu items")
-                    .blurb("A reference to the list of completion items")
                     .write_only()
                     .build(),
             ]

@@ -91,26 +91,12 @@ impl ObjectImpl for NvimViewportObject {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
                 glib::ParamSpecObject::builder::<glib::BoxedAnyObject>("shell-state")
-                    .nick("Shell state")
-                    .blurb("A back-reference to the main state structure for nvim-gtk")
                     .write_only()
                     .build(),
-                glib::ParamSpecBoolean::builder("snapshot-cached")
-                    .nick("Snapshot cached")
-                    .blurb("Whether or not we have a snapshot of the nvim grid cached. Ignores non-false writes.")
-                    .build(),
-                glib::ParamSpecObject::builder::<gtk::PopoverMenu>("context-menu")
-                    .nick("Popover menu")
-                    .blurb("PopoverMenu to use as the context menu")
-                    .build(),
-                glib::ParamSpecObject::builder::<PopupMenuPopover>("completion-popover")
-                    .nick("Completion popover")
-                    .blurb("Popover to use for completion results from neovim")
-                    .build(),
-                glib::ParamSpecObject::builder::<gtk::Popover>("ext-cmdline")
-                    .nick("External cmdline popover")
-                    .blurb("A popover for displaying the nvim cmdline (as provided by ext_cmdline)")
-                    .build(),
+                glib::ParamSpecBoolean::builder("snapshot-cached").build(),
+                glib::ParamSpecObject::builder::<gtk::PopoverMenu>("context-menu").build(),
+                glib::ParamSpecObject::builder::<PopupMenuPopover>("completion-popover").build(),
+                glib::ParamSpecObject::builder::<gtk::Popover>("ext-cmdline").build(),
             ]
         });
 
