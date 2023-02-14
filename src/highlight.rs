@@ -323,6 +323,8 @@ impl Highlight {
                 "underdashed" => model_attrs.underdashed = true,
                 "strikethrough" => model_attrs.strikethrough = true,
                 "blend" => (),
+                // TODO: These two are not documented anywhere but used by the fzf plugin
+                "fg_indexed" | "bg_indexed" => (),
                 attr_key => error!("unknown attribute {attr_key}={val:?}"),
             };
         }
