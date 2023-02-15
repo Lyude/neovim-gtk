@@ -30,7 +30,7 @@ use crate::nvim::{
 };
 use crate::settings::{FontSource, Settings};
 use crate::ui_model::ModelRect;
-use crate::{spawn_timeout, spawn_timeout_user_err};
+use crate::{spawn_timeout, spawn_timeout_user_err, NvimTransport};
 
 use crate::cmd_line::{CmdLine, CmdLineContext};
 use crate::cursor::{Cursor, CursorRedrawCb};
@@ -1451,7 +1451,21 @@ fn show_nvim_start_error(
                 let state = state_arc.borrow();
                 state.nvim.set_error();
                 comps.borrow().window().remove_css_class("nvim-background");
-                state.error_area.show_nvim_connect_error(&source, &addr);
+                state.error_area.show_nvim_tcp_connect_error(&source, &addr);
+                state.show_error_area();
+            });
+        }
+        #[cfg(unix)]
+        NvimInitError::UnixConnectError { ref addr, .. } => {
+            let addr = addr.to_string_lossy().to_string();
+            let source = err.source();
+            glib::idle_add_once(move || {
+                let state = state_arc.borrow();
+                state.nvim.set_error();
+                comps.borrow().window().remove_css_class("nvim-background");
+                state
+                    .error_area
+                    .show_nvim_unix_connect_error(&source, &addr);
                 state.show_error_area();
             });
         }
@@ -1483,15 +1497,20 @@ fn init_nvim_async(
     cols: i32,
     rows: i32,
 ) {
-    let nvim_result = if let Some(addr) = options.server {
-        nvim::start_tcp_client(nvim_handler, addr, *options.timeout)
-    } else {
-        nvim::start(
+    let nvim_result = match options.server {
+        None => nvim::start(
             nvim_handler,
             options.nvim_bin_path.clone(),
             *options.timeout,
             options.nvim_args,
-        )
+        ),
+        Some(NvimTransport::SocketAddr(addr)) => {
+            nvim::start_tcp_client(nvim_handler, addr, *options.timeout)
+        }
+        #[cfg(unix)]
+        Some(NvimTransport::UnixSocket(addr)) => {
+            nvim::start_unix_socket_client(nvim_handler, addr, *options.timeout)
+        }
     };
 
     let (session, io_future) = match nvim_result {

@@ -1,0 +1,10 @@
+Invalid paths for Unix sockets should fail immediately
+
+```
+$ nvim-gtk --server /tmp/foo
+? failed
+error: invalid value '/tmp/foo' for '--server <SERVER>': No such file or directory (os error 2)
+
+For more information, try '--help'.
+
+```

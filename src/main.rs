@@ -36,8 +36,8 @@ use log::error;
 
 use gio::prelude::*;
 use gio::ApplicationCommandLine;
-
 use std::net::SocketAddr;
+
 use std::{
     cell::RefCell,
     convert::*,
@@ -100,6 +100,34 @@ impl std::fmt::Display for TimeoutDuration {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum NvimTransport {
+    SocketAddr(SocketAddr),
+    #[cfg(unix)]
+    UnixSocket(std::path::PathBuf),
+}
+
+impl FromStr for NvimTransport {
+    #[cfg(unix)]
+    type Err = std::io::Error;
+    #[cfg(not(unix))]
+    type Err = std::net::AddrParseError;
+
+    fn from_str(addr: &str) -> Result<Self, Self::Err> {
+        #[cfg(unix)]
+        if let Ok(addr) = addr.parse() {
+            Ok(NvimTransport::SocketAddr(addr))
+        } else {
+            // Quick smoke test with UnixStream from std lib before we connect with an async
+            // implementation
+            std::os::unix::net::UnixStream::connect(addr)?;
+            Ok(NvimTransport::UnixSocket(addr.into()))
+        }
+        #[cfg(not(unix))]
+        Ok(NvimTransport::SocketAddr(addr.parse()?))
+    }
+}
+
 #[derive(Parser, Debug, Clone)]
 #[command(
     name = "neovim-gtk",
@@ -153,8 +181,9 @@ pub struct Args {
     pub nvim_bin_path: Option<String>,
 
     #[arg(long)]
-    /// Nvim server to connect to (currently TCP only)
-    pub server: Option<SocketAddr>,
+    #[cfg_attr(unix, doc = "Nvim server to connect to (TCP address or Unix socket)")]
+    #[cfg_attr(not(unix), doc = "Nvim server to connect to (TCP only)")]
+    pub server: Option<NvimTransport>,
 
     #[arg()]
     /// Files to open

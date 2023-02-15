@@ -54,6 +54,11 @@ pub enum NvimInitError {
         source: Box<dyn error::Error>,
         addr: SocketAddr,
     },
+    #[cfg(unix)]
+    UnixConnectError {
+        source: Box<dyn error::Error>,
+        addr: std::path::PathBuf,
+    },
 }
 
 impl NvimInitError {
@@ -81,8 +86,16 @@ impl NvimInitError {
         Self::MissingCapability(cap_msg.into())
     }
 
-    fn new_connection_err(addr: SocketAddr, error: io::Error) -> Self {
+    fn new_tcp_connection_err(addr: SocketAddr, error: io::Error) -> Self {
         NvimInitError::TcpConnectError {
+            addr,
+            source: error.into(),
+        }
+    }
+
+    #[cfg(unix)]
+    fn new_unix_connection_err(addr: std::path::PathBuf, error: io::Error) -> Self {
+        NvimInitError::UnixConnectError {
             addr,
             source: error.into(),
         }
@@ -91,6 +104,10 @@ impl NvimInitError {
     pub fn source(&self) -> String {
         match self {
             Self::ResponseError { source, .. } | Self::TcpConnectError { source, .. } => {
+                format!("{source}")
+            }
+            #[cfg(unix)]
+            Self::UnixConnectError { source, .. } => {
                 format!("{source}")
             }
             Self::MissingCapability(_) => "".to_string(),
@@ -113,6 +130,10 @@ impl fmt::Display for NvimInitError {
             Self::TcpConnectError { source, addr } => {
                 write!(f, "Failed to connect to {addr}: {source:?}")
             }
+            #[cfg(unix)]
+            Self::UnixConnectError { source, addr } => {
+                write!(f, "Failed to connect to {addr:?}: {source:?}")
+            }
             Self::MissingCapability(cap) => {
                 write!(f, "Nvim version is too old, missing support for {cap}")
             }
@@ -130,6 +151,8 @@ impl error::Error for NvimInitError {
             Self::ResponseError { ref source, .. } | Self::TcpConnectError { ref source, .. } => {
                 Some(source.as_ref())
             }
+            #[cfg(unix)]
+            Self::UnixConnectError { ref source, .. } => Some(source.as_ref()),
             Self::MissingCapability(_) => None,
         }
     }
@@ -179,6 +202,8 @@ fn set_windows_creation_flags(cmd: &mut Command) {
 pub enum NvimWriter {
     ChildProcess(ChildStdin),
     TcpStream(tokio::net::tcp::OwnedWriteHalf),
+    #[cfg(unix)]
+    UnixStream(tokio::net::unix::OwnedWriteHalf),
 }
 
 impl From<ChildStdin> for NvimWriter {
@@ -193,6 +218,13 @@ impl From<tokio::net::tcp::OwnedWriteHalf> for NvimWriter {
     }
 }
 
+#[cfg(unix)]
+impl From<tokio::net::unix::OwnedWriteHalf> for NvimWriter {
+    fn from(stream: tokio::net::unix::OwnedWriteHalf) -> Self {
+        Self::UnixStream(stream)
+    }
+}
+
 impl AsyncWrite for NvimWriter {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -202,6 +234,8 @@ impl AsyncWrite for NvimWriter {
         match *self {
             Self::ChildProcess(ref mut stdin) => Pin::new(stdin).poll_write(cx, buf),
             Self::TcpStream(ref mut stream) => Pin::new(stream).poll_write(cx, buf),
+            #[cfg(unix)]
+            Self::UnixStream(ref mut stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
 
@@ -209,6 +243,8 @@ impl AsyncWrite for NvimWriter {
         match *self {
             Self::ChildProcess(ref mut stdin) => Pin::new(stdin).poll_flush(cx),
             Self::TcpStream(ref mut stream) => Pin::new(stream).poll_flush(cx),
+            #[cfg(unix)]
+            Self::UnixStream(ref mut stream) => Pin::new(stream).poll_flush(cx),
         }
     }
 
@@ -216,6 +252,8 @@ impl AsyncWrite for NvimWriter {
         match *self {
             Self::ChildProcess(ref mut stdin) => Pin::new(stdin).poll_shutdown(cx),
             Self::TcpStream(ref mut stream) => Pin::new(stream).poll_shutdown(cx),
+            #[cfg(unix)]
+            Self::UnixStream(ref mut stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
 }
@@ -273,11 +311,43 @@ impl NvimSession {
         timeout: Duration,
     ) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
         let runtime =
-            Arc::new(Runtime::new().map_err(|e| NvimInitError::new_connection_err(addr, e))?);
+            Arc::new(Runtime::new().map_err(|e| NvimInitError::new_tcp_connection_err(addr, e))?);
         let socket = runtime.block_on(async move {
             tokio::net::TcpStream::connect(addr)
                 .await
-                .map_err(|e| NvimInitError::new_connection_err(addr, e))
+                .map_err(|e| NvimInitError::new_tcp_connection_err(addr, e))
+        })?;
+
+        let (reader, writer) = socket.into_split();
+        let (nvim, io_future) = Neovim::new(
+            reader.compat(),
+            NvimWriter::from(writer).compat_write(),
+            handler,
+        );
+
+        Ok((
+            Self {
+                nvim,
+                timeout,
+                runtime,
+            },
+            io_future.boxed(),
+        ))
+    }
+
+    #[cfg(unix)]
+    fn new_unix_socket_client<'a>(
+        addr: std::path::PathBuf,
+        handler: NvimHandler,
+        timeout: Duration,
+    ) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
+        let runtime = Arc::new(
+            Runtime::new().map_err(|e| NvimInitError::new_unix_connection_err(addr.clone(), e))?,
+        );
+        let socket = runtime.block_on(async move {
+            tokio::net::UnixStream::connect(addr.clone())
+                .await
+                .map_err(|e| NvimInitError::new_unix_connection_err(addr, e))
         })?;
 
         let (reader, writer) = socket.into_split();
@@ -476,6 +546,19 @@ pub fn start_tcp_client<'a>(
     timeout: Option<Duration>,
 ) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
     NvimSession::new_tcp_client(addr, handler, timeout.unwrap_or(Duration::from_secs(10)))
+}
+
+#[cfg(unix)]
+pub fn start_unix_socket_client<'a>(
+    nvim_handler: NvimHandler,
+    addr: std::path::PathBuf,
+    timeout: Option<Duration>,
+) -> Result<(NvimSession, IoFuture<'a>), NvimInitError> {
+    NvimSession::new_unix_socket_client(
+        addr,
+        nvim_handler,
+        timeout.unwrap_or(Duration::from_secs(10)),
+    )
 }
 
 pub async fn post_start_init(
