@@ -74,7 +74,7 @@ async fn show_not_saved_dlg(
         flags,
         MessageType::Question,
         ButtonsType::None,
-        &format!("Save changes to '{changed_files}'?"),
+        format!("Save changes to '{changed_files}'?"),
     );
 
     dlg.add_buttons(&[
