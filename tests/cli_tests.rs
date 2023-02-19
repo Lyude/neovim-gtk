@@ -1,5 +1,4 @@
 /// Tests for the command line interface (e.g. `nvim-gtk --no-fork foo.txt`)
-use trycmd;
 
 #[test]
 fn cli_tests() {
