@@ -1591,7 +1591,7 @@ fn set_nvim_initialized(state_arc: Arc<UiMutex<State>>, api_info: NeovimApiInfo)
     glib::idle_add_once(glib::clone!(@strong state_arc => move || {
         let mut state = state_arc.borrow_mut();
         state.nvim.set_initialized(api_info);
-        // in some case resize can happens while initilization in progress
+        // in some case resize can happens while initialization in progress
         // so force resize here
         state.try_nvim_resize();
         state.cursor.as_mut().unwrap().start();

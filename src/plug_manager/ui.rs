@@ -83,7 +83,7 @@ impl<'a> Ui<'a> {
             &pages,
             &format!(
                 "NeovimGtk plugin manager is a GUI for vim-plug.\n\
-            It can load plugins from vim-plug configuration if vim-plug sarted and NeovimGtk manager settings is empty.\n\
+            It can load plugins from vim-plug configuration if vim-plug started and NeovimGtk manager settings is empty.\n\
             When enabled it generate and load vim-plug as simple vim file at startup before init.vim is processed.\n\
             So <b>after</b> enabling this manager <b>you must disable vim-plug</b> configuration in init.vim.\n\
             This manager currently only manage vim-plug configuration and do not any actions on plugin management.\n\

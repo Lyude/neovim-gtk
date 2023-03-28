@@ -25,11 +25,11 @@ impl Manager {
         if let Some(nvim) = self.nvim() {
             let g_plugs = nvim
                 .block_timeout(nvim.eval("g:plugs"))
-                .map_err(|e| format!("Can't retrive g:plugs map: {e}"))?;
+                .map_err(|e| format!("Can't retrieve g:plugs map: {e}"))?;
 
             let plugs_map = g_plugs
                 .as_map()
-                .ok_or_else(|| "Can't retrive g:plugs map".to_owned())?
+                .ok_or_else(|| "Can't retrieve g:plugs map".to_owned())?
                 .to_attrs_map()?;
 
             let g_plugs_order = nvim

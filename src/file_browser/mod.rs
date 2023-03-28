@@ -480,7 +480,7 @@ fn tree_reload(store: &gtk::TreeStore, state: &State) {
     populate_tree_nodes(store, state, dir, None);
 }
 
-/// Updates the dirctory list on top of the file browser.
+/// Updates the directory list on top of the file browser.
 ///
 /// The list represents the path the the current working directory.  If the new cwd is a parent of
 /// the old one, the list is kept and only the active entry is updated. Otherwise, the list is

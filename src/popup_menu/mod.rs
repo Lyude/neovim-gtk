@@ -159,7 +159,7 @@ impl State {
         let max_menu = max_menu.0;
 
         /* TODO: Calculate the minimum acceptable column size by allowing each column a guaranteed
-         * "greedy" percentage of space (probably 1/3 of the availavle width). This is to say: if
+         * "greedy" percentage of space (probably 1/3 of the available width). This is to say: if
          * one column wants additional space to avoid ellipsizing itself, it's allowed to request as
          * much space as it wants up to the greedy percentage. Any width it receives beyond this
          * percentage of space is dependent on whether a lower priority column has used it already
