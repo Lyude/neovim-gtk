@@ -318,7 +318,7 @@ impl PopupMenu {
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let popover = PopupMenuPopover::new();
-        popover.set_autohide(false);
+        popover.set_autohide(true);
         popover.set_can_focus(false);
         popover.set_child(Some(&content));
         popover.add_css_class("background");
