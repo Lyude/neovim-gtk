@@ -115,6 +115,7 @@ impl Ui {
         let file_browser = Arc::new(UiMutex::new(FileBrowserWidget::new(&shell.borrow().state)));
         settings.borrow_mut().set_shell(Rc::downgrade(&shell));
 
+        #[allow(clippy::arc_with_non_send_sync)]
         let projects = Projects::new(shell.clone());
 
         Ui {
