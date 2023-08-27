@@ -2,7 +2,7 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::convert::*;
 use std::path::*;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{env, thread};
 
 use log::{debug, warn};
@@ -133,7 +133,7 @@ impl Ui {
         &mut self,
         app: &gtk::Application,
         args: &crate::Args,
-        app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>,
+        app_cmdline: Rc<RefCell<Option<ApplicationCommandLine>>>,
     ) {
         if self.initialized {
             return;
@@ -231,7 +231,7 @@ impl Ui {
         show_sidebar_action.connect_change_state(
             glib::clone!(@strong file_browser_ref, @weak comps_ref => move |action, value| {
                 if let Some(value) = value {
-                    action.set_state(&value);
+                    action.set_state(value);
                     let is_active = value.get::<bool>().unwrap();
                     file_browser_ref.borrow().set_visible(is_active);
                     comps_ref.borrow_mut().window_state.show_sidebar = is_active;

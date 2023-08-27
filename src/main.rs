@@ -45,8 +45,8 @@ use std::{
     mem,
     num::ParseIntError,
     ops::Deref,
+    rc::Rc,
     str::FromStr,
-    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -289,10 +289,10 @@ fn main() {
         gtk::Application::new(Some("org.daa.NeovimGtk"), app_flags)
     };
 
-    let app_cmdline = Arc::new(Mutex::new(None));
+    let app_cmdline = Rc::new(RefCell::new(None));
     app.connect_command_line(
         glib::clone!(@strong app_cmdline, @strong args => move |app, cmdline| {
-            app_cmdline.lock().unwrap().replace(cmdline.clone());
+            app_cmdline.replace(Some(cmdline.clone()));
             let input_data = input_data
                 .replace(None)
                 .filter(|_input| !args.files.is_empty());
@@ -338,15 +338,14 @@ fn main() {
     gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
 
     app.run();
-    let lock = app_cmdline.lock().unwrap();
-    std::process::exit(lock.as_ref().unwrap().exit_status());
+    std::process::exit(app_cmdline.borrow().as_ref().unwrap().exit_status());
 }
 
 fn open(
     app: &gtk::Application,
     files: Box<[String]>,
     args: &Args,
-    app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>,
+    app_cmdline: Rc<RefCell<Option<ApplicationCommandLine>>>,
 ) {
     let mut ui = Ui::new(args.clone(), files);
 
@@ -356,7 +355,7 @@ fn open(
 fn activate(
     app: &gtk::Application,
     args: &Args,
-    app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>,
+    app_cmdline: Rc<RefCell<Option<ApplicationCommandLine>>>,
 ) {
     let mut ui = Ui::new(args.clone(), Box::new([]));
 

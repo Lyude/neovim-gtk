@@ -220,7 +220,7 @@ pub struct State {
 
     action_widgets: Arc<UiMutex<Option<ActionWidgets>>>,
 
-    app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>,
+    app_cmdline: Rc<RefCell<Option<ApplicationCommandLine>>>,
 }
 
 impl State {
@@ -287,7 +287,7 @@ impl State {
 
             action_widgets: Arc::new(UiMutex::new(None)),
 
-            app_cmdline: Arc::new(Mutex::new(None)),
+            app_cmdline: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -425,7 +425,7 @@ impl State {
     }
 
     pub fn set_exit_status(&self, val: i32) {
-        let lock = self.app_cmdline.lock().unwrap();
+        let lock = self.app_cmdline.borrow();
         let r: &ApplicationCommandLine = lock.as_ref().unwrap();
         r.set_exit_status(val);
     }
@@ -898,7 +898,7 @@ impl Shell {
 
     pub fn init(
         &mut self,
-        app_cmdline: Arc<Mutex<Option<ApplicationCommandLine>>>,
+        app_cmdline: Rc<RefCell<Option<ApplicationCommandLine>>>,
         components: &Arc<UiMutex<Components>>,
     ) {
         self.state.borrow_mut().app_cmdline = app_cmdline;
