@@ -7,7 +7,7 @@ use log::error;
 
 use crate::ui::UiMutex;
 
-use gtk::{prelude::*, Inhibit};
+use gtk::prelude::*;
 
 use super::manager;
 use super::plugin_settings_dlg;
@@ -100,7 +100,7 @@ impl<'a> Ui<'a> {
         let manager_ref = self.manager.clone();
         enable_swc.connect_state_set(move |_, state| {
             manager_ref.borrow_mut().store.set_enabled(state);
-            Inhibit(false)
+            glib::Propagation::Proceed
         });
 
         let manager_ref = self.manager.clone();

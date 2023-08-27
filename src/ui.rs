@@ -10,9 +10,7 @@ use log::{debug, warn};
 use gio::prelude::*;
 use gio::{ApplicationCommandLine, Menu, MenuItem, SimpleAction};
 use glib::variant::FromVariant;
-use gtk::{
-    prelude::*, AboutDialog, ApplicationWindow, Button, HeaderBar, Inhibit, Orientation, Paned,
-};
+use gtk::{prelude::*, AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned};
 
 use serde::{Deserialize, Serialize};
 
@@ -229,11 +227,11 @@ impl Ui {
         };
 
         let show_sidebar_action =
-            SimpleAction::new_stateful("show-sidebar", None, false.to_variant());
+            SimpleAction::new_stateful("show-sidebar", None, &false.to_variant());
         show_sidebar_action.connect_change_state(
             glib::clone!(@strong file_browser_ref, @weak comps_ref => move |action, value| {
                 if let Some(value) = value {
-                    action.set_state(value.clone());
+                    action.set_state(&value);
                     let is_active = value.get::<bool>().unwrap();
                     file_browser_ref.borrow().set_visible(is_active);
                     comps_ref.borrow_mut().window_state.show_sidebar = is_active;
@@ -326,7 +324,7 @@ impl Ui {
         }
 
         window.connect_close_request(glib::clone!(
-            @weak shell_ref, @weak comps_ref => @default-return gtk::Inhibit(false),
+            @weak shell_ref, @weak comps_ref => @default-return glib::Propagation::Proceed,
             move |_| gtk_close_request(&comps_ref, &shell_ref)
         ));
 
@@ -686,21 +684,24 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.show();
 }
 
-fn gtk_close_request(comps: &Arc<UiMutex<Components>>, shell: &Rc<RefCell<Shell>>) -> Inhibit {
+fn gtk_close_request(
+    comps: &Arc<UiMutex<Components>>,
+    shell: &Rc<RefCell<Shell>>,
+) -> glib::Propagation {
     let shell_ref = shell.borrow();
     if !shell_ref.is_nvim_initialized() {
-        return Inhibit(false);
+        return glib::Propagation::Proceed;
     }
 
     let nvim = shell_ref.state.borrow().nvim_clone();
-    Inhibit(if shell_dlg::can_close_window(comps, shell, &nvim) {
+    if shell_dlg::can_close_window(comps, shell, &nvim) {
         let comps = comps.borrow();
         comps.close_window();
         shell_ref.detach_ui();
-        false
+        glib::Propagation::Proceed
     } else {
-        true
-    })
+        glib::Propagation::Stop
+    }
 }
 
 fn gtk_window_resize(

@@ -793,7 +793,7 @@ async fn gtk_drop_receive(drop: &gdk::Drop) -> Result<Vec<String>, Box<dyn std::
         .to_owned();
 
     let value = drop
-        .read_value_future(file_list_type, glib::PRIORITY_DEFAULT)
+        .read_value_future(file_list_type, glib::Priority::DEFAULT)
         .await?;
 
     // We won't have GdkFileList until 4.6, however we know that GdkFileList is just a boxed GSList
@@ -955,7 +955,7 @@ impl Shell {
         key_controller.set_im_context(Some(&state.im_context));
         key_controller.connect_key_pressed(glib::clone!(
             @strong ui_state_ref,
-            @weak state_ref => @default-return gtk::Inhibit(false),
+            @weak state_ref => @default-return glib::Propagation::Proceed,
             move |_, key, _, modifiers| {
                 let mut state = state_ref.borrow_mut();
                 state.cursor.as_mut().unwrap().reset_state();
@@ -963,7 +963,7 @@ impl Shell {
 
                 match state.nvim() {
                     Some(nvim) => input::gtk_key_press(&nvim, key, modifiers),
-                    None => gtk::Inhibit(false),
+                    None => glib::Propagation::Proceed,
                 }
             }
         ));
@@ -1046,7 +1046,7 @@ impl Shell {
         );
         scroll_controller.connect_scroll(glib::clone!(
             @strong ui_state_ref,
-            @weak state_ref => @default-return gtk::Inhibit(false),
+            @weak state_ref => @default-return glib::Propagation::Proceed,
             move |controller, dx, dy| {
                 gtk_scroll_event(
                     &mut state_ref.borrow_mut(),
@@ -1055,7 +1055,7 @@ impl Shell {
                     controller.current_event_state()
                 );
 
-                gtk::Inhibit(false)
+                glib::Propagation::Proceed
             }
         ));
         state.nvim_viewport.add_controller(scroll_controller);

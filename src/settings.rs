@@ -155,9 +155,10 @@ fn save_err<T: SettingsLoader>(sl: &T) -> Result<(), String> {
     toml_path.push(T::SETTINGS_FILE);
     let mut file = File::create(toml_path).map_err(|e| format!("{e}"))?;
 
-    let contents = toml::to_vec::<T>(sl).map_err(|e| format!("{e}"))?;
+    let contents = toml::to_string::<T>(sl).map_err(|e| format!("{e}"))?;
 
-    file.write_all(&contents).map_err(|e| format!("{e}"))?;
+    file.write_all(contents.as_bytes())
+        .map_err(|e| format!("{e}"))?;
 
     Ok(())
 }

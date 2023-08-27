@@ -11,8 +11,8 @@ license = "GPLv3"
 
 [dependencies]
 clap = { version = "4.0", features = ["color", "help", "std", "usage", "error-context", "suggestions", "wrap_help", "derive"] }
-glib = "0.17.0"
-gio = "0.17.0"
+glib = "0.18.0"
+gio = "0.18.0"
 async-trait = "0.1.0"
 futures = { version = "0.3.0", features = ["io-compat", "thread-pool"] }
 tokio = { version = "1.0", features = ["full"] }
@@ -31,7 +31,7 @@ fnv = "1.0"
 once_cell = "1.0"
 
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.5.0"
+toml = "0.7.0"
 serde_json = "1.0"
 
 is-terminal = "0.4.0"
@@ -51,32 +51,32 @@ trycmd = "0.14.0"
 
 [dependencies.pango]
 features = ["v1_46"]
-version = "0.17.0"
+version = "0.18.0"
 
 [dependencies.gtk]
 package = "gtk4"
-version = "0.6.0"
+version = "0.7.0"
 features = ["v4_4"]
 
 [dependencies.gtk-sys]
 package = "gtk4-sys"
-version = "0.6.0"
+version = "0.7.0"
 features = ["v4_4"]
 
 [dependencies.gdk]
 package = "gdk4"
-version = "0.6.0"
+version = "0.7.0"
 features = ["v4_4"]
 
 [dependencies.gdk-sys]
 package = "gdk4-sys"
-version = "0.6.0"
+version = "0.7.0"
 
 [dependencies.gsk]
 package = "gsk4"
-version = "0.6.0"
+version = "0.7.0"
 features = ["v4_4"]
 
 [dependencies.gsk-sys]
 package = "gsk4-sys"
-version = "0.6.0"
+version = "0.7.0"

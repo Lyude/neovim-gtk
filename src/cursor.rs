@@ -317,7 +317,7 @@ pub fn cursor_rect(
     }
 }
 
-fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> glib::Continue {
+fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> glib::ControlFlow {
     let mut mut_state = state.borrow_mut();
 
     let next_event = match mut_state.anim_phase {
@@ -373,9 +373,9 @@ fn anim_step<CB: CursorRedrawCb + 'static>(state: &Arc<UiMutex<State<CB>>>) -> g
             move || anim_step(&moved_state),
         ));
 
-        glib::Continue(false)
+        glib::ControlFlow::Break
     } else {
-        glib::Continue(true)
+        glib::ControlFlow::Continue
     }
 }
 

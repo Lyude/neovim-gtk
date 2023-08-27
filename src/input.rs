@@ -1,7 +1,5 @@
 use std::env;
 
-use gtk::Inhibit;
-
 use log::debug;
 
 use crate::nvim::{ErrorReport, NvimSession};
@@ -94,15 +92,15 @@ pub fn gtk_key_press(
     nvim: &NvimSession,
     keyval: gdk::Key,
     modifiers: gdk::ModifierType,
-) -> Inhibit {
+) -> glib::Propagation {
     if let Some(input) = convert_key(keyval, modifiers) {
         debug!("nvim_input -> {}", input);
         nvim.block_timeout(nvim.input(&input))
             .ok_and_report()
             .expect("Failed to send input command to nvim");
-        Inhibit(true)
+        glib::Propagation::Stop
     } else {
-        Inhibit(false)
+        glib::Propagation::Proceed
     }
 }
 
