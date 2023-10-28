@@ -9,6 +9,10 @@ build = "build.rs"
 edition = "2018"
 license = "GPLv3"
 
+[features]
+default = []
+flatpak = []
+
 [dependencies]
 clap = { version = "4.0", features = ["color", "help", "std", "usage", "error-context", "suggestions", "wrap_help", "derive"] }
 glib = "0.18.0"

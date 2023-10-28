@@ -504,11 +504,13 @@ pub fn start<'a>(
     timeout: Option<Duration>,
     args_for_neovim: Vec<String>,
 ) -> result::Result<(NvimSession, IoFuture<'a>), NvimInitError> {
-    let mut cmd = if let Some(path) = nvim_bin_path {
-        Command::new(path)
-    } else {
-        Command::new("nvim")
-    };
+    let nvim_cmd = nvim_bin_path.unwrap_or_else(|| "nvim".into());
+    #[cfg(not(feature = "flatpak"))]
+    let mut cmd = Command::new(nvim_cmd);
+    #[cfg(feature = "flatpak")]
+    let mut cmd = Command::new("flatpak-spawn");
+    #[cfg(feature = "flatpak")]
+    cmd.arg("--host").arg(nvim_cmd);
 
     cmd.arg("--embed")
         .arg("--cmd")

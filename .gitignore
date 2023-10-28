@@ -8,4 +8,7 @@ container-images-uris.txt
 container-images.txt
 cached-container-images.tar
 
+# Flatpak
+.flatpak-builder
+
 # vim: tw=100 colorcolumn=100
