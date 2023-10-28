@@ -284,9 +284,9 @@ fn main() {
     glib::set_program_name(Some("NeovimGtk"));
 
     let app = if cfg!(debug_assertions) {
-        gtk::Application::new(Some("org.daa.NeovimGtkDebug"), app_flags)
+        gtk::Application::new(Some("com.github.Lyude.neovim-gtkDebug"), app_flags)
     } else {
-        gtk::Application::new(Some("org.daa.NeovimGtk"), app_flags)
+        gtk::Application::new(Some("com.github.Lyude.neovim-gtk"), app_flags)
     };
 
     let app_cmdline = Rc::new(RefCell::new(None));
@@ -335,7 +335,7 @@ fn main() {
     ));
     app.add_action(&new_window_action);
 
-    gtk::Window::set_default_icon_name("org.daa.NeovimGtk");
+    gtk::Window::set_default_icon_name("com.github.Lyude.neovim-gtk");
 
     app.run();
     std::process::exit(app_cmdline.borrow().as_ref().unwrap().exit_status());

@@ -17,15 +17,15 @@ install-resources:
 	cp -r runtime $(DESTDIR)$(PREFIX)/share/nvim-gtk/
 	mkdir -p $(DESTDIR)$(PREFIX)/share/applications/
 	sed -e "s|Exec=nvim-gtk|Exec=$(PREFIX)/bin/nvim-gtk|" \
-		desktop/org.daa.NeovimGtk.desktop \
-		>$(DESTDIR)$(PREFIX)/share/applications/org.daa.NeovimGtk.desktop
+		desktop/com.github.Lyude.neovim-gtk.desktop \
+		>$(DESTDIR)$(PREFIX)/share/applications/com.github.Lyude.neovim-gtk.desktop
 	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/
-	cp desktop/org.daa.NeovimGtk_128.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/org.daa.NeovimGtk.png
+	cp desktop/com.github.Lyude.neovim-gtk_128.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/com.github.Lyude.neovim-gtk.png
 	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/48x48/apps/
-	cp desktop/org.daa.NeovimGtk_48.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/48x48/apps/org.daa.NeovimGtk.png
+	cp desktop/com.github.Lyude.neovim-gtk_48.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/48x48/apps/com.github.Lyude.neovim-gtk.png
 	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/
-	cp desktop/org.daa.NeovimGtk.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/
+	cp desktop/com.github.Lyude.neovim-gtk.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/
 	mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/
-	cp desktop/org.daa.NeovimGtk-symbolic.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/
+	cp desktop/com.github.Lyude.neovim-gtk-symbolic.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/
 
 .PHONY: all clean test
