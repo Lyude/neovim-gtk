@@ -112,6 +112,7 @@ impl Grid {
         self.model.clear(default_hl);
     }
 
+    #[allow(clippy::get_first)] // get(0), get(1), get(2) more consistent than .first(), .get(1)
     pub fn line(
         &mut self,
         row: usize,
