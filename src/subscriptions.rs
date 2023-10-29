@@ -99,7 +99,7 @@ impl Subscriptions {
     where
         F: Fn(Vec<String>) + 'static,
     {
-        let entry = self.0.entry(key.clone()).or_insert_with(Vec::new);
+        let entry = self.0.entry(key.clone()).or_default();
         let index = entry.len();
         entry.push(Subscription {
             cb: Box::new(cb),
