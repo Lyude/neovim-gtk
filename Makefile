@@ -9,6 +9,10 @@ run:
 install: install-resources
 	cargo install $(CARGO_ARGS) --path . --force --root $(DESTDIR)$(PREFIX)
 
+install-flatpak: install
+	mkdir -p /app/share/metainfo/
+	cp desktop/com.github.Lyude.neovim-gtk.metainfo.xml /app/share/metainfo/
+
 install-debug: install-resources
 	cargo install $(CARGO_ARGS) --debug --path . --force --root $(DESTDIR)$(PREFIX)
 

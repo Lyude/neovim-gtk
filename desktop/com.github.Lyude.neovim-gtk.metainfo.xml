@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- Following https://www.freedesktop.org/software/appstream/docs/chap-CatalogData.html, but only component allowed? Not <components>? -->
+<component type="desktop-application">
+  <id>com.github.Lyude.neovim-gtk</id>
+  <name>neovim-gtk</name>
+  <summary>GTK UI for neovim written in rust using gtk-rs bindings</summary>
+  <developer_name>Lyude Paul, @daa84</developer_name>
+  <description>
+   <p>GTK ui for neovim written in rust using gtk-rs bindings. With ligatures support. This project began as a fork of @daa84's neovim-gtk.</p>
+    <p>There are a very large number of improvements from @daa84's version, including:
+      <ul>
+        <li>Lots of bugfixes</li>
+        <li>We're fully ported to GTK4, and have a Snapshot based renderer instead of a cairo based renderer</li>
+        <li>Smooth resizing</li>
+      </ul> 
+    </p>
+  </description>
+  <metadata_license>GPL-3.0</metadata_license>
+  <keywords>
+    <keyword>neovim</keyword>
+    <keyword>vim</keyword>
+    <keyword>editor</keyword>
+  </keywords>
+  <categories>
+    <category>network</category>
+    <category>web</category>
+  </categories>
+  <url type="homepage">https://github.com/Lyude/neovim-gtk</url>
+  <url type="bugtracker">https://github.com/Lyude/neovim-gtk/issues/new</url>
+  <screenshots>
+    <screenshot type="default">
+      <image type="source" width="916" height="668">https://raw.githubusercontent.com/Lyude/neovim-gtk/main/screenshots/neovimgtk-screen.png</image>
+    </screenshot>
+  </screenshots>
+</component>
