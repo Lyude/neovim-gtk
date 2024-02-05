@@ -427,7 +427,7 @@ fn open_context_menu<E>(
     context_menu: &gtk::PopoverMenu,
     cd_action: &gio::SimpleAction,
 ) where
-    E: glib::IsA<gtk::EventController>,
+    E: IsA<gtk::EventController>,
 {
     // Open context menu on right click.
     context_menu.set_pointing_to(Some(&gdk::Rectangle::new(

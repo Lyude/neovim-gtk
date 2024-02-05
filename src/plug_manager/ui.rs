@@ -420,12 +420,7 @@ impl SettingsPages {
         }
     }
 
-    fn add_page<W: glib::IsA<gtk::Widget>>(
-        &self,
-        label: &gtk::Label,
-        widget: &W,
-        name: &'static str,
-    ) {
+    fn add_page<W: IsA<gtk::Widget>>(&self, label: &gtk::Label, widget: &W, name: &'static str) {
         let hbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .margin_top(12)

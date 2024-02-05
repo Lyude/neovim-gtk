@@ -595,7 +595,7 @@ impl Entry {
         }
     }
 
-    fn to_values(&self) -> Box<[&dyn glib::ToValue]> {
+    fn to_values(&self) -> Box<[&dyn ToValue]> {
         Box::new([
             &self.file_name,
             &self.path,

@@ -65,7 +65,7 @@ impl WidgetImpl for PopupMenuPopoverObject {
         self.parent_size_allocate(width, height, baseline);
 
         let obj = self.obj();
-        let gdk_popup: gdk::Popup = obj.surface().downcast().unwrap();
+        let gdk_popup = obj.surface().unwrap().downcast::<gdk::Popup>().unwrap();
 
         let viewport = obj.parent().unwrap();
         let root = obj.root().unwrap();
