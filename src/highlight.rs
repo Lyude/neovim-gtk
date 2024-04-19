@@ -119,11 +119,11 @@ impl HighlightMap {
 
     pub fn get(&self, idx: Option<u64>) -> Rc<Highlight> {
         idx.and_then(|idx| self.highlights.get(&idx))
-            .map(Rc::clone)
+            .cloned()
             .unwrap_or_else(|| {
                 self.highlights
                     .get(&0)
-                    .map(Rc::clone)
+                    .cloned()
                     .unwrap_or_else(|| self.default_hl.clone())
             })
     }
