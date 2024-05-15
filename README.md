@@ -39,6 +39,47 @@ Or to some custom path:
 ```
 make PREFIX=/some/custom/path install
 ```
+## Ubuntu (and probably Debian)
+
+Install nvim, prerequisites, Rust + Cargo.
+
+* Use rustup.rs -- https://rustup.rs
+* This example has to be done as root since the rustup installer installs cargo in one's home dir
+
+Example (Tested on Ubuntu 23.04)
+
+``` shell
+#become root
+sudo su -
+
+#install prereq (see below)
+apt update
+apt install neovim
+apt install libgtk-4-dev -y
+
+#install rust+cargo
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+#at this point, cargo is installed, but not in your $PATH
+#quit this root shell and spawn a new one or source your profile to get cargo in your $PATH
+exit
+sudo su -
+
+#Clone this repo, make, make install
+git clone https://github.com/Lyude/neovim-gtk.git
+cd neovim-gtk/
+make
+make install
+
+# exit root
+exit
+
+#run nvim-gtk as a user
+nvim-gtk
+
+#or, if you installed neovim from source, make sure nvim-gtk knows where nvim is (e.g. /opt/nvim/bin/nvim)
+nvim-gtk --nvim-bin-path=/opt/nvim/bin/nvim
+```
 
 ## Fedora
 TODO
