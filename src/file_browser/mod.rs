@@ -301,7 +301,7 @@ impl FileBrowserWidget {
             clone!(store, state_ref, dir_list_model, dir_list => move |args| {
                 let dir = args.into_iter().next().unwrap();
                 if dir != state_ref.borrow().current_dir {
-                    state_ref.borrow_mut().current_dir = dir.to_owned();
+                    dir.clone_into(&mut state_ref.borrow_mut().current_dir);
                     update_dir_list(&dir, &dir_list_model, &dir_list);
                     tree_reload(&store, &state_ref.borrow());
                 }
@@ -367,7 +367,7 @@ impl FileBrowserWidget {
                         let current_dir = &mut state_ref.current_dir;
 
                         if dir != *current_dir {
-                            *current_dir = dir.to_owned();
+                            dir.clone_into(current_dir);
                             update_dir_list(&dir, &dir_list_model, dir_list);
                             tree_reload(&store, &state_ref);
                         }
