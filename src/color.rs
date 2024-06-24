@@ -32,9 +32,9 @@ impl Color {
 
     pub fn to_u16(self) -> (u16, u16, u16) {
         (
-            (std::u16::MAX as f64 * self.0) as u16,
-            (std::u16::MAX as f64 * self.1) as u16,
-            (std::u16::MAX as f64 * self.2) as u16,
+            (u16::MAX as f64 * self.0) as u16,
+            (u16::MAX as f64 * self.1) as u16,
+            (u16::MAX as f64 * self.2) as u16,
         )
     }
 
