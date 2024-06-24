@@ -159,5 +159,4 @@ pub struct Description {
     pub name: String,
     pub github_url: Option<String>,
     pub author: Option<String>,
-    pub github_stars: Option<i64>,
 }

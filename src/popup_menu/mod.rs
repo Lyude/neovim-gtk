@@ -486,7 +486,6 @@ impl PopupMenu {
 
                 let context = PopupMenuContext {
                     nvim,
-                    hl: &render_state_ref.hl,
                     font_ctx: &render_state_ref.font_ctx,
                     menu_items,
                     selected,
@@ -516,7 +515,6 @@ impl Deref for PopupMenu {
 
 pub struct PopupMenuContext<'a> {
     pub nvim: &'a Rc<NeovimClient>,
-    pub hl: &'a HighlightMap,
     pub font_ctx: &'a render::Context,
     pub menu_items: Vec<nvim::PopupMenuItem>,
     pub selected: Option<u32>,
