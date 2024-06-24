@@ -22,7 +22,7 @@ jobs:
   fedora:
     runs-on: [ubuntu-latest]
     container:
-      image: fedora:38
+      image: fedora:40
 
     strategy:
       fail-fast: false
