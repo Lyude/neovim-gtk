@@ -50,7 +50,7 @@ impl<T> ErrorReport<T> for Result<T, SessionError> {
 
     fn ok_and_report(self) -> Option<T> {
         self.report_err();
-        Some(self.unwrap())
+        self.ok()
     }
 }
 
