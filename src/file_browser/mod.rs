@@ -605,9 +605,19 @@ fn populate_tree_nodes(
             // In case of invalid symlinks, we cannot obtain metadata.
             continue;
         };
+
+        let (mimetype, err) = gio::content_type_guess(Some(&filename), &[]);
+        let mimetype = mimetype.replace("/", "-");
+
         let icon = match file_type {
             FileType::Dir => ICON_FOLDER_CLOSED,
-            FileType::File => ICON_FILE,
+            FileType::File => {
+                if err {
+                    ICON_FILE
+                } else {
+                    &mimetype
+                }
+            }
         };
         // When we get until here, we want to show the entry. Append it to the tree.
         let iter = store.append(parent);
