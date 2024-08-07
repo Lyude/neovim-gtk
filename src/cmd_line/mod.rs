@@ -317,14 +317,18 @@ impl CmdLine {
         scroll.set_child(Some(&tree));
 
         let controller = gtk::GestureClick::builder().button(1).build();
-        controller.connect_pressed(clone!(state => move |controller, _, x, y| {
-            let state = state.borrow_mut();
-            let nvim = state.nvim.as_ref().unwrap().nvim();
-            let tree = controller.widget().unwrap().downcast().unwrap();
-            if let Some(nvim) = nvim {
-                tree_button_press(&tree, x, y, &nvim, "");
+        controller.connect_pressed(glib::clone!(
+            #[strong]
+            state,
+            move |controller, _, x, y| {
+                let state = state.borrow_mut();
+                let nvim = state.nvim.as_ref().unwrap().nvim();
+                let tree = controller.widget().unwrap().downcast().unwrap();
+                if let Some(nvim) = nvim {
+                    tree_button_press(&tree, x, y, &nvim, "");
+                }
             }
-        }));
+        ));
         tree.add_controller(controller);
 
         (scroll, tree, css_provider, renderer, column)

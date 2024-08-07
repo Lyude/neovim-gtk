@@ -9,7 +9,6 @@ use log::{debug, warn};
 
 use gio::prelude::*;
 use gio::{ApplicationCommandLine, Menu, MenuItem, SimpleAction};
-use glib::variant::FromVariant;
 use gtk::{prelude::*, AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned};
 
 use serde::{Deserialize, Serialize};
@@ -25,29 +24,6 @@ use crate::shell::{self, HeaderBarButtons, Shell};
 use crate::shell_dlg;
 use crate::subscriptions::{SubscriptionHandle, SubscriptionKey};
 use crate::Args;
-
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-                move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-                move |$(clone!(@param $p),)+| $body
-        }
-    );
-    ($($n:ident),+ => async move $body:expr) => {
-        {
-            $( let $n = $n.clone(); )+
-                async move { $body }
-        }
-    };
-}
 
 const DEFAULT_WIDTH: i32 = 800;
 const DEFAULT_HEIGHT: i32 = 600;
@@ -229,20 +205,28 @@ impl Ui {
 
         let show_sidebar_action =
             SimpleAction::new_stateful("show-sidebar", None, &false.to_variant());
-        show_sidebar_action.connect_change_state(
-            glib::clone!(@strong file_browser_ref, @weak comps_ref => move |action, value| {
+        show_sidebar_action.connect_change_state(glib::clone!(
+            #[strong]
+            file_browser_ref,
+            #[weak]
+            comps_ref,
+            move |action, value| {
                 if let Some(value) = value {
                     action.set_state(value);
                     let is_active = value.get::<bool>().unwrap();
                     file_browser_ref.borrow().set_visible(is_active);
                     comps_ref.borrow_mut().window_state.show_sidebar = is_active;
                 }
-            }),
-        );
+            }
+        ));
         app.add_action(&show_sidebar_action);
 
         window.connect_default_width_notify(glib::clone!(
-            @strong main, @weak comps_ref => move |window| {
+            #[strong]
+            main,
+            #[weak]
+            comps_ref,
+            move |window| {
                 gtk_window_resize(
                     window,
                     &mut comps_ref.borrow_mut(),
@@ -252,7 +236,11 @@ impl Ui {
             }
         ));
         window.connect_default_height_notify(glib::clone!(
-            @strong main, @weak comps_ref => move |window| {
+            #[strong]
+            main,
+            #[weak]
+            comps_ref,
+            move |window| {
                 gtk_window_resize(
                     window,
                     &mut comps_ref.borrow_mut(),
@@ -262,13 +250,21 @@ impl Ui {
             }
         ));
 
-        window.connect_maximized_notify(glib::clone!(@weak comps_ref => move |window| {
-            comps_ref.borrow_mut().window_state.is_maximized = window.is_maximized();
-        }));
+        window.connect_maximized_notify(glib::clone!(
+            #[weak]
+            comps_ref,
+            move |window| {
+                comps_ref.borrow_mut().window_state.is_maximized = window.is_maximized();
+            }
+        ));
 
-        window.connect_destroy(glib::clone!(@weak comps_ref => move |_| {
-            comps_ref.borrow().window_state.save();
-        }));
+        window.connect_destroy(glib::clone!(
+            #[weak]
+            comps_ref,
+            move |_| {
+                comps_ref.borrow().window_state.save();
+            }
+        ));
 
         let shell = self.shell.borrow();
         let file_browser = self.file_browser.borrow();
@@ -290,7 +286,11 @@ impl Ui {
         state.subscribe(
             SubscriptionKey::from("VimLeave"),
             &["v:exiting ? v:exiting : 0"],
-            glib::clone!(@weak shell_ref => move |args| set_exit_status(&shell_ref, args)),
+            glib::clone!(
+                #[weak]
+                shell_ref,
+                move |args| set_exit_status(&shell_ref, args)
+            ),
         );
 
         // Autocmds we want to run when starting
@@ -307,17 +307,29 @@ impl Ui {
                     "win_gettype()",
                     "&buftype",
                 ],
-                glib::clone!(@weak comps_ref => move |args| update_window_title(&comps_ref, args)),
+                glib::clone!(
+                    #[weak]
+                    comps_ref,
+                    move |args| update_window_title(&comps_ref, args)
+                ),
             ),
             state.subscribe(
                 SubscriptionKey::with_pattern("OptionSet", "completeopt"),
                 &["&completeopt"],
-                glib::clone!(@weak shell_ref => move |args| set_completeopts(&shell_ref, args)),
+                glib::clone!(
+                    #[weak]
+                    shell_ref,
+                    move |args| set_completeopts(&shell_ref, args)
+                ),
             ),
             state.subscribe(
                 SubscriptionKey::with_pattern("OptionSet", "background"),
                 &["&background"],
-                glib::clone!(@weak shell_ref => move |args| set_background(&shell_ref, args)),
+                glib::clone!(
+                    #[weak]
+                    shell_ref,
+                    move |args| set_background(&shell_ref, args)
+                ),
             ),
         ];
         if let Some(autocmd) = update_subtitle {
@@ -325,7 +337,12 @@ impl Ui {
         }
 
         window.connect_close_request(glib::clone!(
-            @weak shell_ref, @weak comps_ref => @default-return glib::Propagation::Proceed,
+            #[weak]
+            shell_ref,
+            #[weak]
+            comps_ref,
+            #[upgrade_or]
+            glib::Propagation::Proceed,
             move |_| gtk_close_request(&comps_ref, &shell_ref)
         ));
 
@@ -341,26 +358,37 @@ impl Ui {
         state.set_action_widgets(header_bar, file_browser_ref.borrow().clone());
 
         drop(state);
-        shell.set_detach_cb(Some(glib::clone!(@strong comps_ref => move || {
-            glib::idle_add_once(glib::clone!(
-                @strong comps_ref => move || comps_ref.borrow().close_window()
-            ));
-        })));
+        shell.set_detach_cb(Some(glib::clone!(
+            #[strong]
+            comps_ref,
+            move || {
+                glib::idle_add_once(glib::clone!(
+                    #[strong]
+                    comps_ref,
+                    move || comps_ref.borrow().close_window()
+                ));
+            }
+        )));
 
         shell.set_nvim_started_cb(Some(glib::clone!(
-            @strong file_browser_ref,
-            @strong self.plug_manager as plug_manager,
-            @strong self.open_paths as files_list => move || {
-            Ui::nvim_started(
-                &state_ref.borrow(),
-                &plug_manager,
-                &file_browser_ref,
-                &files_list,
-                &autocmds,
-                post_config_cmds.as_ref(),
-                diff_mode,
-            );
-        })));
+            #[strong]
+            file_browser_ref,
+            #[strong(rename_to = plug_manager)]
+            self.plug_manager,
+            #[strong(rename_to = files_list)]
+            self.open_paths,
+            move || {
+                Ui::nvim_started(
+                    &state_ref.borrow(),
+                    &plug_manager,
+                    &file_browser_ref,
+                    &files_list,
+                    &autocmds,
+                    post_config_cmds.as_ref(),
+                    diff_mode,
+                );
+            }
+        )));
 
         let sidebar_action = UiMutex::new(show_sidebar_action);
         let comps_ref = comps_ref.clone();
@@ -470,7 +498,11 @@ impl Ui {
     ) {
         match command {
             NvimCommand::ShowProjectView => {
-                glib::idle_add_once(clone!(projects => move || projects.borrow_mut().show()));
+                glib::idle_add_once(glib::clone!(
+                    #[strong]
+                    projects,
+                    move || projects.borrow_mut().show()
+                ));
             }
             NvimCommand::ShowGtkInspector => {
                 comps
@@ -633,12 +665,18 @@ impl Ui {
         menu.freeze();
 
         let plugs_action = SimpleAction::new("Plugins", None);
-        plugs_action.connect_activate(
-            clone!(window => move |_, _| plug_manager::Ui::new(&plug_manager).show(&window)),
-        );
+        plugs_action.connect_activate(glib::clone!(
+            #[strong]
+            window,
+            move |_, _| plug_manager::Ui::new(&plug_manager).show(&window)
+        ));
 
         let about_action = SimpleAction::new("HelpAbout", None);
-        about_action.connect_activate(clone!(window => move |_, _| on_help_about(&window)));
+        about_action.connect_activate(glib::clone!(
+            #[strong]
+            window,
+            move |_, _| on_help_about(&window)
+        ));
         about_action.set_enabled(true);
 
         app.add_action(&about_action);
@@ -647,17 +685,19 @@ impl Ui {
         btn.set_menu_model(Some(&menu));
 
         let shell = &self.shell;
-        btn.connect_realize(clone!(shell => move |btn| {
-            let drawing_area = shell.borrow().state.borrow().nvim_viewport.clone();
+        btn.connect_realize(glib::clone!(
+            #[strong]
+            shell,
+            move |btn| {
+                let drawing_area = shell.borrow().state.borrow().nvim_viewport.clone();
 
-            btn
-                .popover()
-                .unwrap()
-                .downcast_ref::<gtk::Popover>()
-                .unwrap()
-                .connect_closed(move |_| {
-                    drawing_area.grab_focus();
-                });
+                btn.popover()
+                    .unwrap()
+                    .downcast_ref::<gtk::Popover>()
+                    .unwrap()
+                    .connect_closed(move |_| {
+                        drawing_area.grab_focus();
+                    });
             }
         ));
 
@@ -744,9 +784,11 @@ fn set_background(shell: &RefCell<Shell>, args: Vec<String>) {
     state.borrow().set_background(background);
 
     // Neovim won't send us a redraw to update the default colors on the screen, so do it ourselves
-    glib::idle_add_once(
-        clone!(state => move || state.borrow_mut().queue_draw(RedrawMode::ClearCache)),
-    );
+    glib::idle_add_once(glib::clone!(
+        #[strong]
+        state,
+        move || state.borrow_mut().queue_draw(RedrawMode::ClearCache)
+    ));
 }
 
 fn shorten_home_dir(path: impl AsRef<Path>) -> Option<String> {

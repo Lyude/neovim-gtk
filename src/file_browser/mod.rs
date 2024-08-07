@@ -13,6 +13,7 @@ use std::sync::Arc;
 use log::error;
 
 use gio::prelude::*;
+use glib::clone;
 use gtk::prelude::*;
 
 use crate::misc::escape_filename;
@@ -210,8 +211,12 @@ impl FileBrowserWidget {
 
         let store = &self.store;
         let state_ref = &self.state;
-        self.tree
-            .connect_test_expand_row(clone!(store, state_ref => move |_, iter, _| {
+        self.tree.connect_test_expand_row(glib::clone!(
+            #[strong]
+            store,
+            #[strong]
+            state_ref,
+            move |_, iter, _| {
                 store.set(iter, &[(Column::IconName as u32, &ICON_FOLDER_OPEN)]);
                 // We cannot recursively populate all directories. Instead, we have prepared a single
                 // empty child entry for all non-empty directories, so the row will be expandable. Now,
@@ -238,12 +243,16 @@ impl FileBrowserWidget {
                     }
                 }
                 glib::Propagation::Proceed
-            }));
+            }
+        ));
 
-        self.tree
-            .connect_row_collapsed(clone!(store => move |_, iter, _| {
+        self.tree.connect_row_collapsed(glib::clone!(
+            #[strong]
+            store,
+            move |_, iter, _| {
                 store.set(iter, &[(Column::IconName as u32, &ICON_FOLDER_CLOSED)]);
-            }));
+            }
+        ));
 
         // Further initialization.
         self.init_actions();
@@ -259,29 +268,47 @@ impl FileBrowserWidget {
         let nvim_ref = self.shell_state.borrow().nvim_clone();
 
         let reload_action = gio::SimpleAction::new("reload", None);
-        reload_action.connect_activate(clone!(store, state_ref => move |_, _| {
-            tree_reload(&store, &state_ref.borrow());
-        }));
+        reload_action.connect_activate(glib::clone!(
+            #[strong]
+            store,
+            #[strong]
+            state_ref,
+            move |_, _| {
+                tree_reload(&store, &state_ref.borrow());
+            }
+        ));
         actions.add_action(&reload_action);
 
         let cd_action = &self.comps.cd_action;
-        cd_action.connect_activate(clone!(state_ref, nvim_ref => move |_, _| {
-            let nvim = nvim_ref.nvim().unwrap();
-            if let Some(ref path) = &state_ref.borrow().selected_path {
-                let path = path.clone();
-                spawn_timeout!(nvim.set_current_dir(&path));
+        cd_action.connect_activate(glib::clone!(
+            #[strong]
+            state_ref,
+            #[strong]
+            nvim_ref,
+            move |_, _| {
+                let nvim = nvim_ref.nvim().unwrap();
+                if let Some(ref path) = &state_ref.borrow().selected_path {
+                    let path = path.clone();
+                    spawn_timeout!(nvim.set_current_dir(&path));
+                }
             }
-        }));
+        ));
         actions.add_action(cd_action);
 
         // Show / hide hidden files when corresponding menu item is toggled.
         let show_hidden_action = &self.comps.show_hidden_action;
-        show_hidden_action.connect_activate(clone!(state_ref, store => move |action, _| {
-            let mut state = state_ref.borrow_mut();
-            state.show_hidden = !state.show_hidden;
-            action.set_state(&state.show_hidden.to_variant());
-            tree_reload(&store, &state);
-        }));
+        show_hidden_action.connect_activate(glib::clone!(
+            #[strong]
+            state_ref,
+            #[strong]
+            store,
+            move |action, _| {
+                let mut state = state_ref.borrow_mut();
+                state.show_hidden = !state.show_hidden;
+                action.set_state(&state.show_hidden.to_variant());
+                tree_reload(&store, &state);
+            }
+        ));
         actions.add_action(show_hidden_action);
 
         self.comps
@@ -298,14 +325,24 @@ impl FileBrowserWidget {
         shell_state.subscribe(
             SubscriptionKey::from("DirChanged"),
             &["getcwd()"],
-            clone!(store, state_ref, dir_list_model, dir_list => move |args| {
-                let dir = args.into_iter().next().unwrap();
-                if dir != state_ref.borrow().current_dir {
-                    dir.clone_into(&mut state_ref.borrow_mut().current_dir);
-                    update_dir_list(&dir, &dir_list_model, &dir_list);
-                    tree_reload(&store, &state_ref.borrow());
+            clone!(
+                #[strong]
+                store,
+                #[strong]
+                state_ref,
+                #[strong]
+                dir_list_model,
+                #[strong]
+                dir_list,
+                move |args| {
+                    let dir = args.into_iter().next().unwrap();
+                    if dir != state_ref.borrow().current_dir {
+                        dir.clone_into(&mut state_ref.borrow_mut().current_dir);
+                        update_dir_list(&dir, &dir_list_model, &dir_list);
+                        tree_reload(&store, &state_ref.borrow());
+                    }
                 }
-            }),
+            ),
         );
 
         // Reveal the file of an entered buffer in the file browser and select the entry.
@@ -313,20 +350,26 @@ impl FileBrowserWidget {
         let subscription = shell_state.subscribe(
             SubscriptionKey::from("BufEnter"),
             &["getcwd()", "expand('%:p')"],
-            clone!(tree, store => move |args| {
-                let mut args_iter = args.into_iter();
-                let dir = args_iter.next().unwrap();
-                let file_path = args_iter.next().unwrap();
-                let could_reveal =
-                    if let Ok(rel_path) = Path::new(&file_path).strip_prefix(Path::new(&dir)) {
-                        reveal_path_in_tree(&store, &tree, rel_path)
-                    } else {
-                        false
-                    };
-                if !could_reveal {
-                    tree.selection().unselect_all();
+            clone!(
+                #[strong]
+                tree,
+                #[strong]
+                store,
+                move |args| {
+                    let mut args_iter = args.into_iter();
+                    let dir = args_iter.next().unwrap();
+                    let file_path = args_iter.next().unwrap();
+                    let could_reveal =
+                        if let Ok(rel_path) = Path::new(&file_path).strip_prefix(Path::new(&dir)) {
+                            reveal_path_in_tree(&store, &tree, rel_path)
+                        } else {
+                            false
+                        };
+                    if !could_reveal {
+                        tree.selection().unselect_all();
+                    }
                 }
-            }),
+            ),
         );
         shell_state.run_now(&subscription);
     }
@@ -337,8 +380,12 @@ impl FileBrowserWidget {
         let state_ref = &self.state;
         let shell_state_ref = &self.shell_state;
 
-        self.tree
-            .connect_row_activated(clone!(store, shell_state_ref => move |tree, path, _| {
+        self.tree.connect_row_activated(glib::clone!(
+            #[strong]
+            store,
+            #[strong]
+            shell_state_ref,
+            move |tree, path, _| {
                 let iter = store.iter(path).unwrap();
                 let file_type: u8 = store.get(&iter, Column::FileType as i32);
                 let file_path: String = store.get(&iter, Column::Path as i32);
@@ -355,26 +402,32 @@ impl FileBrowserWidget {
 
                     shell_state_ref.borrow().open_file(&file_path);
                 }
-            }));
+            }
+        ));
 
         // Connect directory list.
         let dir_list_model = &self.comps.dir_list_model;
-        self.comps.dir_list.connect_changed(
-            clone!(state_ref, dir_list_model, store => move |dir_list| {
-                    if let Some(iter) = dir_list.active_iter() {
-                        let dir: String = dir_list.model().unwrap().get(&iter, 2);
-                        let mut state_ref = state_ref.borrow_mut();
-                        let current_dir = &mut state_ref.current_dir;
+        self.comps.dir_list.connect_changed(glib::clone!(
+            #[strong]
+            state_ref,
+            #[strong]
+            dir_list_model,
+            #[strong]
+            store,
+            move |dir_list| {
+                if let Some(iter) = dir_list.active_iter() {
+                    let dir: String = dir_list.model().unwrap().get(&iter, 2);
+                    let mut state_ref = state_ref.borrow_mut();
+                    let current_dir = &mut state_ref.current_dir;
 
-                        if dir != *current_dir {
-                            dir.clone_into(current_dir);
-                            update_dir_list(&dir, &dir_list_model, dir_list);
-                            tree_reload(&store, &state_ref);
-                        }
+                    if dir != *current_dir {
+                        dir.clone_into(current_dir);
+                        update_dir_list(&dir, &dir_list_model, dir_list);
+                        tree_reload(&store, &state_ref);
                     }
                 }
-            ),
-        );
+            }
+        ));
 
         let context_menu = &self.comps.context_menu;
         let cd_action = &self.comps.cd_action;
@@ -382,8 +435,16 @@ impl FileBrowserWidget {
         let right_click_controller = gtk::GestureClick::builder()
             .button(3)
             .build();
-        right_click_controller.connect_pressed(
-            clone!(store, state_ref, context_menu, cd_action => move |controller, _, x, y| {
+        right_click_controller.connect_pressed(glib::clone!(
+            #[strong]
+            store,
+            #[strong]
+            state_ref,
+            #[strong]
+            context_menu,
+            #[strong]
+            cd_action,
+            move |controller, _, x, y| {
                 open_context_menu(
                     controller,
                     x,
@@ -391,18 +452,26 @@ impl FileBrowserWidget {
                     &mut state_ref.borrow_mut(),
                     &store,
                     &context_menu,
-                    &cd_action
+                    &cd_action,
                 )
-            }),
-        );
+            }
+        ));
         self.tree.add_controller(right_click_controller);
 
         #[rustfmt::skip]
         let long_tap_controller = gtk::GestureLongPress::builder()
             .touch_only(true)
             .build();
-        long_tap_controller.connect_pressed(
-            clone!(store, state_ref, context_menu, cd_action => move |controller, x, y| {
+        long_tap_controller.connect_pressed(glib::clone!(
+            #[strong]
+            store,
+            #[strong]
+            state_ref,
+            #[strong]
+            context_menu,
+            #[strong]
+            cd_action,
+            move |controller, x, y| {
                 open_context_menu(
                     controller,
                     x,
@@ -410,10 +479,10 @@ impl FileBrowserWidget {
                     &mut state_ref.borrow_mut(),
                     &store,
                     &context_menu,
-                    &cd_action
+                    &cd_action,
                 )
-            }),
-        );
+            }
+        ));
         self.tree.add_controller(long_tap_controller);
     }
 }

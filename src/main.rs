@@ -290,8 +290,12 @@ fn main() {
     };
 
     let app_cmdline = Rc::new(RefCell::new(None));
-    app.connect_command_line(
-        glib::clone!(@strong app_cmdline, @strong args => move |app, cmdline| {
+    app.connect_command_line(glib::clone!(
+        #[strong]
+        app_cmdline,
+        #[strong]
+        args,
+        move |app, cmdline| {
             app_cmdline.replace(Some(cmdline.clone()));
             let input_data = input_data
                 .replace(None)
@@ -301,11 +305,7 @@ fn main() {
                 Some(_) => {
                     let mut args = args.clone();
                     args.input_data = input_data;
-                    activate(
-                        app,
-                        &args,
-                        app_cmdline.clone(),
-                    );
+                    activate(app, &args, app_cmdline.clone());
                 }
                 None => {
                     let files = args.files.iter().cloned().collect::<Box<[String]>>();
@@ -313,8 +313,8 @@ fn main() {
                 }
             }
             0
-        }),
-    );
+        }
+    ));
 
     // Setup our global style provider
     let css_provider = gtk::CssProvider::new();
@@ -329,9 +329,13 @@ fn main() {
 
     let new_window_action = gio::SimpleAction::new("new-window", None);
     new_window_action.connect_activate(glib::clone!(
-        @strong app, @strong args, @strong app_cmdline => move |_, _| {
-            activate(&app, &args, app_cmdline.clone())
-        }
+        #[strong]
+        app,
+        #[strong]
+        args,
+        #[strong]
+        app_cmdline,
+        move |_, _| activate(&app, &args, app_cmdline.clone())
     ));
     app.add_action(&new_window_action);
 

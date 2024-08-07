@@ -131,28 +131,37 @@ impl Projects {
         let projects = Arc::new(UiMutex::new(projects));
         let projects_ref = projects.borrow();
 
-        search_box.connect_changed(clone!(projects => move |search_box| {
-            let projects = projects.borrow();
-            let list_store = projects.get_list_store();
-
-            list_store.clear();
-            if let Some(ref store) = projects.store {
-                store.populate(&list_store, Some(&search_box.text()));
-            }
-        }));
-
-        search_box.connect_activate(clone!(projects => move |_| {
-            let model = projects.borrow().tree.model().unwrap();
-            if let Some(iter) = model.iter_first() {
+        search_box.connect_changed(glib::clone!(
+            #[strong]
+            projects,
+            move |search_box| {
                 let projects = projects.borrow();
-                projects.open_uri(&model, &iter);
-                projects.set_active(false);
-            }
-        }));
+                let list_store = projects.get_list_store();
 
-        projects_ref
-            .tree
-            .connect_row_activated(clone!(projects => move |tree, _, column| {
+                list_store.clear();
+                if let Some(ref store) = projects.store {
+                    store.populate(&list_store, Some(&search_box.text()));
+                }
+            }
+        ));
+
+        search_box.connect_activate(glib::clone!(
+            #[strong]
+            projects,
+            move |_| {
+                let model = projects.borrow().tree.model().unwrap();
+                if let Some(iter) = model.iter_first() {
+                    let projects = projects.borrow();
+                    projects.open_uri(&model, &iter);
+                    projects.set_active(false);
+                }
+            }
+        ));
+
+        projects_ref.tree.connect_row_activated(glib::clone!(
+            #[strong]
+            projects,
+            move |tree, _, column| {
                 // Don't activate if the user clicked the checkbox.
                 let toggle_column = tree.column(2).unwrap();
                 if column == Some(&toggle_column) {
@@ -164,29 +173,40 @@ impl Projects {
                     projects.open_uri(&model, &iter);
                     projects.set_active(false);
                 }
-            }));
+            }
+        ));
 
-        open_btn.connect_clicked(clone!(projects => move |_| {
-            let projects = projects.borrow();
-            projects.show_open_file_dlg();
-            projects.set_active(false);
-        }));
+        open_btn.connect_clicked(glib::clone!(
+            #[strong]
+            projects,
+            move |_| {
+                let projects = projects.borrow();
+                projects.show_open_file_dlg();
+                projects.set_active(false);
+            }
+        ));
 
         let drawing_area = shell.borrow().state.borrow().nvim_viewport.clone();
-        popup.connect_closed(clone!(projects => move |_| {
-            projects.borrow_mut().clear();
-            drawing_area.grab_focus();
-        }));
+        popup.connect_closed(glib::clone!(
+            #[strong]
+            projects,
+            move |_| {
+                projects.borrow_mut().clear();
+                drawing_area.grab_focus();
+            }
+        ));
 
-        projects_ref
-            .toggle_renderer
-            .connect_toggled(clone!(projects => move |_, path| {
-                projects.borrow_mut().toggle_stored(&path)
-            }));
+        projects_ref.toggle_renderer.connect_toggled(glib::clone!(
+            #[strong]
+            projects,
+            move |_, path| projects.borrow_mut().toggle_stored(&path)
+        ));
 
-        projects_ref.tree.connect_map(clone!(projects => move |_| {
-            projects.borrow_mut().before_show()
-        }));
+        projects_ref.tree.connect_map(glib::clone!(
+            #[strong]
+            projects,
+            move |_| projects.borrow_mut().before_show()
+        ));
 
         drop(projects_ref);
         projects
