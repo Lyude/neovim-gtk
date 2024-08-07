@@ -320,7 +320,7 @@ impl CmdLine {
         controller.connect_pressed(clone!(state => move |controller, _, x, y| {
             let state = state.borrow_mut();
             let nvim = state.nvim.as_ref().unwrap().nvim();
-            let tree = controller.widget().downcast().unwrap();
+            let tree = controller.widget().unwrap().downcast().unwrap();
             if let Some(nvim) = nvim {
                 tree_button_press(&tree, x, y, &nvim, "");
             }

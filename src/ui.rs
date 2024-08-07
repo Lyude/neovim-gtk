@@ -411,7 +411,7 @@ impl Ui {
                     files_list
                         .iter()
                         .map(|f| misc::escape_filename(f))
-                        .collect::<Box<_>>()
+                        .collect::<Vec<_>>()
                         .join(" ")
                 ));
             }

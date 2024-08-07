@@ -439,6 +439,7 @@ fn open_context_menu<E>(
     context_menu.popup();
     let iter = controller
         .widget()
+        .unwrap()
         .downcast::<gtk::TreeView>()
         .unwrap()
         .path_at_pos(x as i32, y as i32)
