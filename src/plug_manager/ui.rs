@@ -61,13 +61,15 @@ impl<'a> Ui<'a> {
 
         dlg.set_titlebar(Some(&header_bar));
 
-        let pages = SettingsPages::new(
-            clone!(add_plug_btn => move |row_name| if row_name == "plugins" {
+        let pages = SettingsPages::new(glib::clone!(
+            #[strong]
+            add_plug_btn,
+            move |row_name| if row_name == "plugins" {
                 add_plug_btn.show();
             } else {
                 add_plug_btn.hide();
-            }),
-        );
+            }
+        ));
 
         enable_swc.set_state(self.manager.borrow().store.is_enabled());
 
@@ -104,9 +106,13 @@ impl<'a> Ui<'a> {
         });
 
         let manager_ref = self.manager.clone();
-        add_plug_btn.connect_clicked(clone!(dlg => move |_| {
-            show_add_plug_dlg(&dlg, &manager_ref, &plugs_panel);
-        }));
+        add_plug_btn.connect_clicked(glib::clone!(
+            #[strong]
+            dlg,
+            move |_| {
+                show_add_plug_dlg(&dlg, &manager_ref, &plugs_panel);
+            }
+        ));
 
         content.append(&*pages);
 
@@ -153,32 +159,44 @@ fn create_up_down_btns(
     let up_btn = gtk::Button::from_icon_name("go-up-symbolic");
     let down_btn = gtk::Button::from_icon_name("go-down-symbolic");
 
-    up_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
-        if let Some(row) = plugs_panel.selected_row() {
-            let idx = row.index();
-            if idx > 0 {
-                plugs_panel.unselect_row(&row);
-                plugs_panel.remove(&row);
-                plugs_panel.insert(&row, idx - 1);
-                plugs_panel.select_row(Some(&row));
-                manager.borrow_mut().move_item(idx as usize, -1);
+    up_btn.connect_clicked(glib::clone!(
+        #[strong]
+        plugs_panel,
+        #[strong]
+        manager,
+        move |_| {
+            if let Some(row) = plugs_panel.selected_row() {
+                let idx = row.index();
+                if idx > 0 {
+                    plugs_panel.unselect_row(&row);
+                    plugs_panel.remove(&row);
+                    plugs_panel.insert(&row, idx - 1);
+                    plugs_panel.select_row(Some(&row));
+                    manager.borrow_mut().move_item(idx as usize, -1);
+                }
             }
         }
-    }));
+    ));
 
-    down_btn.connect_clicked(clone!(plugs_panel, manager => move |_| {
-        if let Some(row) = plugs_panel.selected_row() {
-            let idx = row.index();
-            let mut manager = manager.borrow_mut();
-            if idx >= 0 && idx < manager.store.plugs_count() as i32 {
-                plugs_panel.unselect_row(&row);
-                plugs_panel.remove(&row);
-                plugs_panel.insert(&row, idx + 1);
-                plugs_panel.select_row(Some(&row));
-                manager.move_item(idx as usize, 1);
+    down_btn.connect_clicked(glib::clone!(
+        #[strong]
+        plugs_panel,
+        #[strong]
+        manager,
+        move |_| {
+            if let Some(row) = plugs_panel.selected_row() {
+                let idx = row.index();
+                let mut manager = manager.borrow_mut();
+                if idx >= 0 && idx < manager.store.plugs_count() as i32 {
+                    plugs_panel.unselect_row(&row);
+                    plugs_panel.remove(&row);
+                    plugs_panel.insert(&row, idx + 1);
+                    plugs_panel.select_row(Some(&row));
+                    manager.move_item(idx as usize, 1);
+                }
             }
         }
-    }));
+    ));
 
     buttons_panel.append(&up_btn);
     buttons_panel.append(&down_btn);
@@ -203,11 +221,15 @@ fn populate_get_plugins(
         match res {
             Ok(list) => {
                 let result = vimawesome::build_result_panel(&list, move |new_plug| {
-                    glib::MainContext::new().spawn_local(
-                        clone!(manager, plugs_panel => async move {
+                    glib::MainContext::new().spawn_local(glib::clone!(
+                        #[strong]
+                        manager,
+                        #[strong]
+                        plugs_panel,
+                        async move {
                             add_plugin(&manager, &plugs_panel.borrow(), new_plug).await;
-                        }),
-                    );
+                        }
+                    ));
                 });
                 panel.append(&result);
             }
@@ -255,23 +277,43 @@ fn create_plug_row(
         .child(&row_container)
         .build();
 
-    remove_btn.connect_clicked(
-        clone!(manager, label_box, button_box, exists_button_box, undo_btn => move |_| {
+    remove_btn.connect_clicked(glib::clone!(
+        #[strong]
+        manager,
+        #[strong]
+        label_box,
+        #[strong]
+        button_box,
+        #[strong]
+        exists_button_box,
+        #[strong]
+        undo_btn,
+        move |_| {
             label_box.set_sensitive(false);
             button_box.remove(&exists_button_box);
             button_box.append(&undo_btn);
             manager.borrow_mut().store.remove_plug(plug_idx);
-        }),
-    );
+        }
+    ));
 
-    undo_btn.connect_clicked(
-        clone!(manager, label_box, button_box, exists_button_box, undo_btn => move |_| {
+    undo_btn.connect_clicked(glib::clone!(
+        #[strong]
+        manager,
+        #[strong]
+        label_box,
+        #[strong]
+        button_box,
+        #[strong]
+        exists_button_box,
+        #[strong]
+        undo_btn,
+        move |_| {
             label_box.set_sensitive(true);
             button_box.remove(&undo_btn);
             button_box.append(&exists_button_box);
             manager.borrow_mut().store.restore_plug(plug_idx);
-        }),
-    );
+        }
+    ));
 
     row
 }
@@ -281,14 +323,22 @@ fn show_add_plug_dlg<F: IsA<gtk::Window>>(
     manager: &Arc<UiMutex<manager::Manager>>,
     plugs_panel: &gtk::ListBox,
 ) {
-    glib::MainContext::new().spawn_local(clone!(parent, manager, plugs_panel => async move {
-        if let Some(new_plugin) = plugin_settings_dlg::Builder::new("Add plugin")
-            .show(&parent)
-            .await
-        {
-            add_plugin(&manager, &plugs_panel, new_plugin).await;
+    glib::MainContext::new().spawn_local(glib::clone!(
+        #[strong]
+        parent,
+        #[strong]
+        manager,
+        #[strong]
+        plugs_panel,
+        async move {
+            if let Some(new_plugin) = plugin_settings_dlg::Builder::new("Add plugin")
+                .show(&parent)
+                .await
+            {
+                add_plugin(&manager, &plugs_panel, new_plugin).await;
+            }
         }
-    }));
+    ));
 }
 
 async fn add_plugin(
@@ -352,22 +402,36 @@ fn add_vimawesome_tab(
     list_panel.append(&spinner);
     spinner.start();
 
-    search_entry.connect_activate(clone!(list_panel, manager, plugs_panel => move |se| {
-        let spinner = gtk::Spinner::new();
-        list_panel.append(&spinner);
-        spinner.show();
-        spinner.start();
-        populate_get_plugins(
-            Some(se.text().to_string()),
-            &list_panel,
-            manager.clone(),
-            plugs_panel.clone()
-        );
-    }));
+    search_entry.connect_activate(glib::clone!(
+        #[strong]
+        list_panel,
+        #[strong]
+        manager,
+        #[strong]
+        plugs_panel,
+        move |se| {
+            let spinner = gtk::Spinner::new();
+            list_panel.append(&spinner);
+            spinner.show();
+            spinner.start();
+            populate_get_plugins(
+                Some(se.text().to_string()),
+                &list_panel,
+                manager.clone(),
+                plugs_panel.clone(),
+            );
+        }
+    ));
 
-    glib::idle_add_local_once(clone!(manager, plugs_panel => move || {
-        populate_get_plugins(None, &list_panel, manager.clone(), plugs_panel.clone());
-    }));
+    glib::idle_add_local_once(glib::clone!(
+        #[strong]
+        manager,
+        #[strong]
+        plugs_panel,
+        move || {
+            populate_get_plugins(None, &list_panel, manager.clone(), plugs_panel.clone());
+        }
+    ));
 }
 
 fn add_help_tab(pages: &SettingsPages, markup: &str) {
@@ -400,17 +464,20 @@ impl SettingsPages {
         content.append(&categories);
         content.append(&stack);
 
-        categories.connect_row_selected(
-            clone!(stack, rows => move |_, row| if let Some(row) = row {
+        categories.connect_row_selected(glib::clone!(
+            #[strong]
+            stack,
+            #[strong]
+            rows,
+            move |_, row| if let Some(row) = row {
                 if let Some(r) = rows.borrow().iter().find(|r| r.0 == *row) {
                     if let Some(child) = stack.child_by_name(r.1) {
                         stack.set_visible_child(&child);
                         row_selected(r.1);
                     }
-
                 }
-            }),
-        );
+            }
+        ));
 
         SettingsPages {
             categories,

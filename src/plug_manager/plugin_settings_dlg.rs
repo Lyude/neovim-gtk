@@ -71,11 +71,15 @@ impl<'a> Builder<'a> {
         border.append(&list);
         content.append(&border);
 
-        path_e.connect_changed(clone!(name_e => move |p| {
-            if let Some(name) = extract_name(p.text().as_str()) {
-                name_e.set_text(&name);
+        path_e.connect_changed(glib::clone!(
+            #[strong]
+            name_e,
+            move |p| {
+                if let Some(name) = extract_name(p.text().as_str()) {
+                    name_e.set_text(&name);
+                }
             }
-        }));
+        ));
 
         let res = if dlg.run_future().await == gtk::ResponseType::Ok {
             let path = path_e.text().to_string();

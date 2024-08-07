@@ -361,11 +361,13 @@ impl PopupMenu {
         });
 
         state_ref.list_view.set_factory(Some(&item_factory));
-        state_ref
-            .list_view
-            .connect_activate(glib::clone!(@weak state => move |_, idx| {
+        state_ref.list_view.connect_activate(glib::clone!(
+            #[weak]
+            state,
+            move |_, idx| {
                 list_select(&mut state.borrow_mut(), idx, "<C-y>");
-            }));
+            }
+        ));
         let list_model = state_ref.list_model.clone();
         state_ref
             .list_view
@@ -397,15 +399,18 @@ impl PopupMenu {
         let nvim = nvim_client.nvim().unwrap();
         if api_info.ui_pum_set_bounds {
             self.popover.connect_bounds_changed(glib::clone!(
-                @strong self.state as state, @strong render_state => move |_, x, y, w, h| {
+                #[strong(rename_to = state)]
+                self.state,
+                #[strong]
+                render_state,
+                move |_, x, y, w, h| {
                     let mut state = state.borrow_mut();
 
                     /* Figure out the actual cell size of the bounds */
                     let render_state = render_state.borrow();
                     let cell_metrics = render_state.font_ctx.cell_metrics();
-                    let (mut x, mut y, mut w, mut h) = cell_metrics.get_fractional_grid_area(
-                        (x as f64, y as f64, w as f64, h as f64)
-                    );
+                    let (mut x, mut y, mut w, mut h) = cell_metrics
+                        .get_fractional_grid_area((x as f64, y as f64, w as f64, h as f64));
 
                     if x < 0.0 {
                         w += x;
@@ -420,19 +425,24 @@ impl PopupMenu {
                         state.prev_bounds = Some((x, y, w, h));
                         debug!("popup_menu bounds: {w}x{h} @ {x}x{y}");
 
-                        nvim.spawn(glib::clone!(@strong nvim => async move {
-                            // XXX the arg order is weird here, but correct
-                            nvim.ui_pum_set_bounds(w, h, y, x)
-                                .await
-                                .report_err();
-                        }));
+                        nvim.spawn(glib::clone!(
+                            #[strong]
+                            nvim,
+                            async move {
+                                // XXX the arg order is weird here, but correct
+                                nvim.ui_pum_set_bounds(w, h, y, x).await.report_err();
+                            }
+                        ));
                     }
                 }
             ));
-            self.popover
-                .connect_unmap(glib::clone!(@strong self.state as state => move |_| {
+            self.popover.connect_unmap(glib::clone!(
+                #[strong(rename_to = state)]
+                self.state,
+                move |_| {
                     state.borrow_mut().prev_bounds = None;
-                }));
+                }
+            ));
         }
     }
 

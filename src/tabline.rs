@@ -82,13 +82,19 @@ impl Tabline {
             tabs: tabs.clone(),
             state: state.clone(),
             signal_handlers: [
-                tabs.connect_switch_page(glib::clone!(@strong state => move |_, _, idx| {
-                    state.borrow().switch_page(idx)
-                })),
-                tabs.connect_page_reordered(glib::clone!(@strong state => move |_, tab, idx| {
-                    let state = state.borrow();
-                    state.reorder_page(state.widget_map[tab], idx);
-                })),
+                tabs.connect_switch_page(glib::clone!(
+                    #[strong]
+                    state,
+                    move |_, _, idx| state.borrow().switch_page(idx)
+                )),
+                tabs.connect_page_reordered(glib::clone!(
+                    #[strong]
+                    state,
+                    move |_, tab, idx| {
+                        let state = state.borrow();
+                        state.reorder_page(state.widget_map[tab], idx);
+                    }
+                )),
             ],
         }
     }

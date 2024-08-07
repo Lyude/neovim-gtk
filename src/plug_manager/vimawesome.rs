@@ -107,12 +107,16 @@ fn create_plug_row<F: Fn(PlugInfo) + 'static>(
     hbox.append(&label_box);
     hbox.append(&button_box);
 
-    add_btn.connect_clicked(clone!(plug => move |btn| {
-        if let Some(ref github_url) = plug.github_url {
-            btn.set_sensitive(false);
-            add_cb(PlugInfo::new(plug.name.clone(), github_url.clone()));
+    add_btn.connect_clicked(glib::clone!(
+        #[strong]
+        plug,
+        move |btn| {
+            if let Some(ref github_url) = plug.github_url {
+                btn.set_sensitive(false);
+                add_cb(PlugInfo::new(plug.name.clone(), github_url.clone()));
+            }
         }
-    }));
+    ));
 
     row
 }
