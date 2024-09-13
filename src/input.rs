@@ -83,9 +83,7 @@ pub fn im_input(nvim: &NvimSession, input: &str) {
         .chars()
         .map(|ch| keyval_to_input_string(&ch.to_string(), gdk::ModifierType::empty()))
         .collect();
-    nvim.block_timeout(nvim.input(&input))
-        .ok_and_report()
-        .expect("Failed to send input command to nvim");
+    nvim.block_timeout(nvim.input(&input)).ok_and_report();
 }
 
 pub fn gtk_key_press(
@@ -95,9 +93,7 @@ pub fn gtk_key_press(
 ) -> glib::Propagation {
     if let Some(input) = convert_key(keyval, modifiers) {
         debug!("nvim_input -> {}", input);
-        nvim.block_timeout(nvim.input(&input))
-            .ok_and_report()
-            .expect("Failed to send input command to nvim");
+        nvim.block_timeout(nvim.input(&input)).ok_and_report();
         glib::Propagation::Stop
     } else {
         glib::Propagation::Proceed
