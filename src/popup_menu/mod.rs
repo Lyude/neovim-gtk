@@ -412,6 +412,13 @@ impl PopupMenu {
                     let (mut x, mut y, mut w, mut h) = cell_metrics
                         .get_fractional_grid_area((x as f64, y as f64, w as f64, h as f64));
 
+                    // Double check that we're not sending it bogus coordinates, nvim will get very
+                    // upset if we do
+                    if w <= 0.0 || h <= 0.0 {
+                        debug!("popupmenu bounds are bogus ({w}x{h}), ignoring");
+                        return;
+                    }
+
                     if x < 0.0 {
                         w += x;
                         x = 0.0;
