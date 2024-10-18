@@ -35,10 +35,10 @@ install-resources:
 uninstall:
 	rm $(DESTDIR)$(PREFIX)/bin/nvim-gtk
 	rm -r $(DESTDIR)$(PREFIX)/share/nvim-gtk/
-	rm $(DESTDIR)$(PREFIX)/share/applications/org.daa.NeovimGtk.desktop
-	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/org.daa.NeovimGtk.png
-	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/48x48/apps/org.daa.NeovimGtk.png
-	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/desktop/org.daa.NeovimGtk.svg
-	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/desktop/org.daa.NeovimGtk-symbolic.svg
+	rm $(DESTDIR)$(PREFIX)/share/applications/com.github.Lyude.neovim-gtk.desktop
+	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/com.github.Lyude.neovim-gtk.png
+	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/48x48/apps/com.github.Lyude.neovim-gtk.png
+	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/desktop/com.github.Lyude.neovim-gtk.svg
+	rm $(DESTDIR)$(PREFIX)/share/icons/hicolor/symbolic/apps/desktop/com.github.Lyude.neovim-gtk-symbolic.svg
 
 .PHONY: all clean test uninstall
