@@ -712,7 +712,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.set_version(Some(
         crate::GIT_BUILD_VERSION.unwrap_or(env!("CARGO_PKG_VERSION")),
     ));
-    about.set_logo_icon_name(Some("org.daa.NeovimGtk"));
+    about.set_logo_icon_name(Some("com.github.Lyude.neovim-gtk"));
     about.set_authors(
         env!("CARGO_PKG_AUTHORS")
             .split(':')
