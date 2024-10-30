@@ -432,7 +432,7 @@ impl PopupMenu {
                         state.prev_bounds = Some((x, y, w, h));
                         debug!("popup_menu bounds: {w}x{h} @ {x}x{y}");
 
-                        nvim.spawn(glib::clone!(
+                        nvim.block_on(glib::clone!(
                             #[strong]
                             nvim,
                             async move {
