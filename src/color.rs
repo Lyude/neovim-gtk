@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Color(pub f64, pub f64, pub f64);
 
@@ -67,19 +65,19 @@ impl Color {
         Self(1.0 - self.0, 1.0 - self.1, 1.0 - self.2)
     }
 
-    pub fn fade<'a>(&'a self, into: &'a Self, percentage: f64) -> Cow<Self> {
+    pub fn fade(&self, into: &Self, percentage: f64) -> Self {
         debug_assert!((0.0..=1.0).contains(&percentage));
 
         match percentage {
-            _ if percentage <= 0.000001 => Cow::Borrowed(self),
-            _ if percentage >= 0.999999 => Cow::Borrowed(into),
+            _ if percentage <= 0.000001 => *self,
+            _ if percentage >= 0.999999 => *into,
             _ => {
                 let inv = (into.0 - self.0, into.1 - self.1, into.2 - self.2);
-                Cow::Owned(Self(
+                Self(
                     self.0 + (inv.0 * percentage),
                     self.1 + (inv.1 * percentage),
                     self.2 + (inv.2 * percentage),
-                ))
+                )
             }
         }
     }
