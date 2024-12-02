@@ -40,7 +40,7 @@ impl<'a> ItemizeIterator<'a> {
  * guaranteed to be consistent, items will ideally be per-word to speed up rendering. For Unicode,
  * items will be per-grapheme to ensure correct monospaced display.
  */
-impl<'a> Iterator for ItemizeIterator<'a> {
+impl Iterator for ItemizeIterator<'_> {
     type Item = ItemizeResult;
 
     fn next(&mut self) -> Option<Self::Item> {

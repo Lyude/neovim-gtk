@@ -228,7 +228,7 @@ struct PangoItemPosition<'a> {
     end_cell: usize,
 }
 
-impl<'a> PangoItemPosition<'a> {
+impl PangoItemPosition<'_> {
     #[inline]
     fn cells_count(&self) -> i32 {
         (self.end_cell - self.start_cell) as i32 + 1
@@ -442,7 +442,7 @@ impl<'c> StyleAttr<'c> {
     }
 }
 
-impl<'c> PartialEq for StyleAttr<'c> {
+impl PartialEq for StyleAttr<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.italic == other.italic
             && self.bold == other.bold

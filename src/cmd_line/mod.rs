@@ -525,7 +525,7 @@ pub struct CmdLineContext<'a> {
     pub max_width: i32,
 }
 
-impl<'a> CmdLineContext<'a> {
+impl CmdLineContext<'_> {
     fn get_lines(&self, hl: &HighlightMap) -> LineContent {
         let mut content_line = self.content.to_attributed_content(hl);
         let (prompt_offset, prompt_lines) =

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use log::error;
 
@@ -241,15 +241,11 @@ impl HighlightMap {
         }
     }
 
-    pub fn cursor_bg(&self) -> Cow<Color> {
+    pub fn cursor_bg(&self) -> Color {
         if self.cursor.reverse {
-            Cow::Borrowed(self.cursor.foreground.as_ref().unwrap_or_else(|| self.fg()))
+            self.cursor.foreground.unwrap_or_else(|| *self.fg())
         } else {
-            self.cursor
-                .background
-                .as_ref()
-                .map(Cow::Borrowed)
-                .unwrap_or_else(|| Cow::Owned(self.bg().invert()))
+            self.cursor.background.unwrap_or_else(|| self.bg().invert())
         }
     }
 }
