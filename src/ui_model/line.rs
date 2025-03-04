@@ -253,10 +253,7 @@ impl<'a> Iterator for PangoItemPositionIterator<'a> {
     type Item = PangoItemPosition<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let first_item = match self.iter.next() {
-            Some(next) => next,
-            None => return None,
-        };
+        let first_item = self.iter.next()?;
         let mut items = vec![first_item];
         let mut length = first_item.length() as usize;
         let offset = first_item.offset() as usize;

@@ -69,7 +69,7 @@ pub enum NormalError<'a> {
     },
 }
 
-impl<'a> NormalError<'a> {
+impl NormalError<'_> {
     /// Print an error message to neovim's message buffer, if we have one
     pub async fn print(&self, nvim: &NvimSession) {
         if let Self::Message { message, .. } = self {
