@@ -70,7 +70,7 @@ impl Manager {
             loaded_plug
                 .ok_and_report()
                 .and_then(|loaded_plug| loaded_plug.as_i64())
-                .map_or(false, |loaded_plug| loaded_plug > 0)
+                .is_some_and(|loaded_plug| loaded_plug > 0)
         } else {
             false
         }

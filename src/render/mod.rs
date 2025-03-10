@@ -187,7 +187,7 @@ pub fn snapshot_cursor<T: CursorRedrawCb + 'static>(
     };
 
     let next_cell = cursor_line.line.get(cursor_col + 1);
-    let double_width = next_cell.map_or(false, |c| c.double_width);
+    let double_width = next_cell.is_some_and(|c| c.double_width);
     let fade_percentage = cursor.alpha();
     let cell = &cursor_line.line[cursor_col];
 
