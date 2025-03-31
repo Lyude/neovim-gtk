@@ -323,6 +323,9 @@ impl Highlight {
                 "fg_indexed" | "bg_indexed" => (),
                 // TODO: This is used in Neovim 0.10 to indicate the target of a link.
                 "url" => (),
+                // TODO: This is used in Neovim 0.10 to indicate that attributes should be
+                // overridden instead of combined.
+                "nocombine" => (),
                 attr_key => error!("unknown attribute {attr_key}={val:?}"),
             };
         }
