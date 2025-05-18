@@ -51,7 +51,8 @@ TODO
 On Nix/Home-Manager/NixOS, `neovim-gtk` can be installed from `nixpkgs`:
 
 ```ShellSession
-$ nix-env -iA neovim-gtk # without flakes
+$ nix-env -iA nixos.neovim-gtk # On NixOS, without flakes
+$ nix-env -iA nixpkgs.neovim-gtk # Not on NixOS, without flakes
 $ nix profile install nixpkgs#neovim-gtk # with flakes
 ```
 
@@ -73,11 +74,8 @@ $ yay -S neovim-gtk-git
 ```
 
 ## openSUSE
-Support for `neovim-gtk` on openSUSE is experimental, so you need to add the _Factory_ repo first:
 
 ```ShellSession
-$ zypper addrepo https://download.opensuse.org/repositories/openSUSE:Factory/standard/openSUSE:Factory.repo
-$ zypper refresh
 $ zypper install neovim-gtk
 ```
 
