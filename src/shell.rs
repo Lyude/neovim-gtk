@@ -618,7 +618,7 @@ impl State {
             if render_state.mode.is(&mode::NvimMode::Insert)
                 || render_state.mode.is(&mode::NvimMode::Normal)
             {
-                spawn_timeout_user_err!(nvim.command(&format!("normal! \"{clipboard}P")));
+                spawn_timeout_user_err!(nvim.command(&format!("normal! \"{clipboard}Pl")));
             } else {
                 spawn_timeout_user_err!(nvim.input(&format!("<C-r>{clipboard}")));
             };
@@ -982,6 +982,34 @@ impl Shell {
             }
         ));
         state.nvim_viewport.add_controller(key_controller);
+
+        let clipboard_key_controller = gtk::EventControllerKey::new();
+        clipboard_key_controller.connect_key_pressed(glib::clone!(
+            #[weak]
+            state_ref,
+            #[upgrade_or]
+            glib::Propagation::Proceed,
+            move |_, key, _, modifiers| {
+                if modifiers != gdk::ModifierType::SHIFT_MASK | gdk::ModifierType::CONTROL_MASK {
+                    return glib::Propagation::Proceed;
+                }
+
+                match key {
+                    gdk::Key::C => {
+                        let state = state_ref.borrow();
+                        state.edit_copy("+");
+                        glib::Propagation::Stop
+                    }
+                    gdk::Key::V => {
+                        let state = state_ref.borrow();
+                        state.edit_paste("+");
+                        glib::Propagation::Stop
+                    }
+                    _ => glib::Propagation::Proceed,
+                }
+            }
+        ));
+        state.nvim_viewport.add_controller(clipboard_key_controller);
 
         fn get_button(controller: &gtk::GestureClick) -> u32 {
             match controller.current_button() {
