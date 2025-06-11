@@ -618,7 +618,7 @@ impl State {
             if render_state.mode.is(&mode::NvimMode::Insert)
                 || render_state.mode.is(&mode::NvimMode::Normal)
             {
-                spawn_timeout_user_err!(nvim.command(&format!("normal! \"{clipboard}P")));
+                spawn_timeout_user_err!(nvim.command(&format!("normal! \"{clipboard}Pl")));
             } else {
                 spawn_timeout_user_err!(nvim.input(&format!("<C-r>{clipboard}")));
             };
