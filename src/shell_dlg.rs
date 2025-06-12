@@ -85,19 +85,21 @@ async fn show_not_saved_dlg(
 
     let res = match dlg.run_future().await {
         gtk::ResponseType::Yes => {
-            let nvim = shell.borrow().state.borrow().nvim().unwrap();
-
-            // FIXME: Figure out a way to use timeouts with nvim interactions when using glib for
-            // async execution, either that or just don't use timeouts
-            match nvim.command("wa").await {
-                Err(err) => {
-                    match NormalError::try_from(&*err) {
-                        Ok(err) => err.print(&nvim).await,
-                        Err(_) => error!("Error: {}", err),
-                    };
-                    false
+            if let Some(nvim) = shell.borrow().state.borrow().nvim() {
+                // FIXME: Figure out a way to use timeouts with nvim interactions when using glib for
+                // async execution, either that or just don't use timeouts
+                match nvim.command("wa").await {
+                    Err(err) => {
+                        match NormalError::try_from(&*err) {
+                            Ok(err) => err.print(&nvim).await,
+                            Err(_) => error!("Error: {}", err),
+                        };
+                        false
+                    }
+                    _ => true,
                 }
-                _ => true,
+            } else {
+                false
             }
         }
         gtk::ResponseType::No => true,

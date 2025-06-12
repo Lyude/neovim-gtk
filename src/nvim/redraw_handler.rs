@@ -231,7 +231,7 @@ pub fn call_gui_event(
         },
         "Option" => {
             let nvim_client = ui.nvim_clone();
-            let nvim = nvim_client.nvim().unwrap();
+            let nvim = nvim_client.nvim().ok_or("No nvim client")?;
             let api_info = nvim_client.api_info();
 
             let mut args = args.into_iter();

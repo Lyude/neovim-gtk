@@ -643,9 +643,10 @@ impl State {
     }
 
     pub fn set_autocmds(&self) {
-        self.subscriptions
-            .borrow()
-            .set_autocmds(&self.nvim().unwrap());
+        let Some(nvim) = self.nvim() else {
+            return;
+        };
+        self.subscriptions.borrow().set_autocmds(&nvim);
     }
 
     pub fn notify(&self, params: Vec<Value>) -> Result<(), String> {
@@ -653,9 +654,10 @@ impl State {
     }
 
     pub fn run_now(&self, handle: &SubscriptionHandle) {
-        self.subscriptions
-            .borrow()
-            .run_now(handle, &self.nvim().unwrap());
+        let Some(nvim) = self.nvim() else {
+            return;
+        };
+        self.subscriptions.borrow().run_now(handle, &nvim);
     }
 
     pub fn set_font(&mut self, font_desc: String) {
@@ -1766,7 +1768,9 @@ impl State {
     pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RedrawMode {
         debug!("on_resize {}/{}", columns, rows);
 
-        let nvim = self.nvim().unwrap();
+        let Some(nvim) = self.nvim() else {
+            return RedrawMode::Nothing;
+        };
         nvim.block_on(async {
             let mut resize_state = self.resize_status.requests.lock().await;
 
