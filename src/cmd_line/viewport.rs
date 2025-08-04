@@ -18,7 +18,7 @@ use crate::cmd_line::State;
 glib::wrapper! {
     pub struct CmdlineViewport(ObjectSubclass<CmdlineViewportObject>)
         @extends gtk::Widget,
-        @implements gtk::Accessible;
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl CmdlineViewport {

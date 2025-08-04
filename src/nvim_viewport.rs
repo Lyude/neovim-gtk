@@ -17,7 +17,7 @@ use crate::{
 glib::wrapper! {
     pub struct NvimViewport(ObjectSubclass<NvimViewportObject>)
         @extends gtk::Widget,
-        @implements gtk::Accessible;
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl NvimViewport {

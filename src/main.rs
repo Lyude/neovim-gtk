@@ -312,7 +312,7 @@ fn main() {
                     open(app, files, &args, app_cmdline.clone());
                 }
             }
-            0
+            glib::ExitCode::SUCCESS
         }
     ));
 

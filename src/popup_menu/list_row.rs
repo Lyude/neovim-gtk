@@ -11,7 +11,7 @@ pub const PADDING: i32 = 2;
 glib::wrapper! {
     pub struct PopupMenuListRow(ObjectSubclass<PopupMenuListRowObject>)
         @extends gtk::Box, gtk::Widget,
-        @implements gtk::Accessible;
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl PopupMenuListRow {
