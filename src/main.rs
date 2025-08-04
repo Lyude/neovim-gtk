@@ -374,7 +374,7 @@ fn read_piped_input() -> Option<String> {
             Ok(size) if size > 0 => Some(buf),
             Ok(_) => None,
             Err(err) => {
-                error!("Error read stdin {}", err);
+                error!("Error read stdin {err}");
                 None
             }
         }

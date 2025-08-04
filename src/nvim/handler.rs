@@ -54,7 +54,7 @@ impl NvimHandler {
                         error!("Event name does not exists");
                     }
                 } else {
-                    error!("Unsupported event {:?}", params);
+                    error!("Unsupported event {params:?}");
                 }
             }
             "subscription" => {
@@ -68,7 +68,7 @@ impl NvimHandler {
                 self.resize_status.notify_finished();
             }
             _ => {
-                error!("Notification {}({:?})", method, params);
+                error!("Notification {method}({params:?})");
             }
         }
     }
@@ -106,12 +106,12 @@ impl NvimHandler {
                         Err(Value::Nil)
                     }
                 } else {
-                    error!("Unsupported request {:?}", params);
+                    error!("Unsupported request {params:?}");
                     Err(Value::Nil)
                 }
             }
             _ => {
-                error!("Request {}({:?})", method, params);
+                error!("Request {method}({params:?})");
                 Err(Value::Nil)
             }
         }
@@ -137,7 +137,7 @@ fn call_redraw_handler(
         let ev_args = match ev {
             Value::Array(args) => args,
             _ => {
-                error!("Unsupported event type: {:?}", ev);
+                error!("Unsupported event type: {ev:?}");
                 continue;
             }
         };
@@ -193,7 +193,7 @@ where
     let mut cb = Some(cb);
     glib::idle_add_once(move || {
         if let Err(msg) = cb.take().unwrap()(&shell) {
-            error!("Error call function: {}", msg);
+            error!("Error call function: {msg}");
         }
     });
 }

@@ -194,7 +194,7 @@ impl Subscriptions {
         if let Some(args) = args {
             self.on_notify(&handle.key, handle.index, args);
         } else {
-            error!("Error manually running {:?}", handle);
+            error!("Error manually running {handle:?}");
         }
     }
 }

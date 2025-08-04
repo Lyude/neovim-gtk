@@ -48,7 +48,7 @@ pub fn can_close_window(
                 }
             }
             Err(ref err) => {
-                error!("Error getting info from nvim: {}", err);
+                error!("Error getting info from nvim: {err}");
                 true
             }
         }
@@ -92,7 +92,7 @@ async fn show_not_saved_dlg(
                     Err(err) => {
                         match NormalError::try_from(&*err) {
                             Ok(err) => err.print(&nvim).await,
-                            Err(_) => error!("Error: {}", err),
+                            Err(_) => error!("Error: {err}"),
                         };
                         false
                     }
@@ -125,14 +125,14 @@ fn get_changed_buffers(nvim: &NvimSession) -> Result<Vec<String>, SessionError> 
                         false
                     }
                     Err(ref err) => {
-                        error!("Something going wrong while getting buffer option: {}", err);
+                        error!("Something going wrong while getting buffer option: {err}");
                         false
                     }
                 },
                 match nvim.block_timeout(buf.get_name()) {
                     Ok(name) => name,
                     Err(ref err) => {
-                        error!("Something going wrong while getting buffer name: {}", err);
+                        error!("Something going wrong while getting buffer name: {err}");
                         "<Error>".to_owned()
                     }
                 },

@@ -28,7 +28,7 @@ impl Store {
     pub fn load_from_plug(vim_plug: &vim_plug::Manager) -> Self {
         let settings = match vim_plug.get_plugs() {
             Err(msg) => {
-                error!("{}", msg);
+                error!("{msg}");
                 Default::default()
             }
             Ok(plugs) => {

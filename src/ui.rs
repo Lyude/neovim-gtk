@@ -450,7 +450,7 @@ impl Ui {
                 .iter()
                 .map(|cmd| format!(r#"exec "{}""#, misc::viml_escape(cmd))),
         );
-        debug!("{:?}", commands);
+        debug!("{commands:?}");
 
         // open files as last command
         // because it can generate user query
@@ -958,12 +958,12 @@ impl<T> UiMutex<T> {
 }
 
 impl<T: ?Sized> UiMutex<T> {
-    pub fn borrow(&self) -> Ref<T> {
+    pub fn borrow(&self) -> Ref<'_, T> {
         self.assert_ui_thread();
         self.data.borrow()
     }
 
-    pub fn borrow_mut(&self) -> RefMut<T> {
+    pub fn borrow_mut(&self) -> RefMut<'_, T> {
         self.assert_ui_thread();
         self.data.borrow_mut()
     }

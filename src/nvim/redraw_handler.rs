@@ -227,7 +227,7 @@ pub fn call_gui_event(
                 "*" => ui.clipboard_primary_set(try_str!(args[2])),
                 _ => ui.clipboard_clipboard_set(try_str!(args[2])),
             },
-            opt => error!("Unknown option {}", opt),
+            opt => error!("Unknown option {opt}"),
         },
         "Option" => {
             let nvim_client = ui.nvim_clone();
@@ -284,7 +284,7 @@ pub fn call_gui_event(
                     ],
                     opt_value,
                 )?,
-                opt => error!("Unknown option {}", opt),
+                opt => error!("Unknown option {opt}"),
             }
         }
         "Command" => {
@@ -467,7 +467,7 @@ pub fn call(
             ui.pending_redraw
         }
         _ => {
-            warn!("Event {}({:?})", method, args);
+            warn!("Event {method}({args:?})");
             RedrawMode::Nothing
         }
     };
