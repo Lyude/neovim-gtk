@@ -12,7 +12,7 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
     let empty = in_str.is_empty();
 
     if !empty {
-        debug!("keyval -> {}", in_str);
+        debug!("keyval -> {in_str}");
     }
 
     // CTRL-^ and CTRL-@ don't work in the normal way.
@@ -77,7 +77,7 @@ pub fn convert_key(keyval: gdk::Key, modifiers: gdk::ModifierType) -> Option<Str
 }
 
 pub fn im_input(nvim: &NvimSession, input: &str) {
-    debug!("nvim_input -> {}", input);
+    debug!("nvim_input -> {input}");
 
     let input: String = input
         .chars()
@@ -94,7 +94,7 @@ pub fn gtk_key_press(
     modifiers: gdk::ModifierType,
 ) -> glib::Propagation {
     if let Some(input) = convert_key(keyval, modifiers) {
-        debug!("nvim_input -> {}", input);
+        debug!("nvim_input -> {input}");
         nvim.block_timeout(nvim.input(&input))
             .ok_and_report()
             .expect("Failed to send input command to nvim");

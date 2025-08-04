@@ -392,7 +392,7 @@ impl State {
         let line_space: i32 = match line_space.parse() {
             Ok(line_space) => line_space,
             Err(e) => {
-                error!("Can't convert argument to integer: {}", e.to_string());
+                error!("Can't convert argument to integer: {e}");
                 return;
             }
         };
@@ -551,7 +551,7 @@ impl State {
                 return;
             }
 
-            debug!("Requesting resize to {:?}", our_req);
+            debug!("Requesting resize to {our_req:?}");
             status.requested.replace(our_req);
 
             // Finish if the UI isn't ready yet
@@ -584,7 +584,7 @@ impl State {
                     }
                 };
 
-                debug!("Committing new size {}x{}...", cols, rows);
+                debug!("Committing new size {cols}x{rows}...");
 
                 /* We don't use subscriptions for this since we want to ensure that there's
                  * no potential for RPC requests between autocmd registration and our resize
@@ -717,7 +717,7 @@ impl State {
                 };
                 let autocmd = if next { "FocusGained" } else { "FocusLost" };
 
-                debug!("Triggering {} autocmd", autocmd);
+                debug!("Triggering {autocmd} autocmd");
                 nvim.command(&format!("if exists('#{autocmd}')|doau {autocmd}|endif"))
                     .await
                     .report_err();
@@ -1607,7 +1607,7 @@ fn init_nvim_async(
     session.spawn(io_future.map(|r| {
         if let Err(e) = r {
             if !e.is_reader_error() {
-                error!("{}", e);
+                error!("{e}");
             }
         }
 
@@ -1692,7 +1692,7 @@ fn init_nvim(
     if state.start_nvim_initialization() {
         let (cols, rows) = state.calc_nvim_size_from(components.borrow().saved_size());
 
-        debug!("Init nvim {}/{}", cols, rows);
+        debug!("Init nvim {cols}/{rows}");
 
         let nvim_handler = NvimHandler::new(state_ref.clone(), state.resize_status());
         let options = state.options.borrow_mut().input_data();
@@ -1766,7 +1766,7 @@ impl State {
     }
 
     pub fn grid_resize(&mut self, grid: u64, columns: u64, rows: u64) -> RedrawMode {
-        debug!("on_resize {}/{}", columns, rows);
+        debug!("on_resize {columns}/{rows}");
 
         let Some(nvim) = self.nvim() else {
             return RedrawMode::Nothing;
@@ -1956,7 +1956,7 @@ impl State {
                     .set_info(cursor_style_enabled, mode_info_arr);
             }
             Err(err) => {
-                error!("Error load mode info: {}", err);
+                error!("Error load mode info: {err}");
             }
         }
 

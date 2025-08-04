@@ -111,7 +111,7 @@ pub trait SettingsLoader: Sized + serde::Serialize + Default {
         match load_err() {
             Ok(settings) => settings,
             Err(e) => {
-                error!("{}", e);
+                error!("{e}");
                 Default::default()
             }
         }
@@ -127,7 +127,7 @@ pub trait SettingsLoader: Sized + serde::Serialize + Default {
     fn save(&self) {
         match save_err(self) {
             Ok(()) => (),
-            Err(e) => error!("{}", e),
+            Err(e) => error!("{e}"),
         }
     }
 }

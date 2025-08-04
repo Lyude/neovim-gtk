@@ -23,7 +23,7 @@ impl NvimConfig {
         if self.plug_config.is_some() {
             match self.write_file() {
                 Err(err) => {
-                    error!("{}", err);
+                    error!("{err}");
                     None
                 }
                 Ok(file) => Some(file),
@@ -57,7 +57,7 @@ impl NvimConfig {
 
         let content = &self.plug_config.as_ref().unwrap().source;
         if !content.is_empty() {
-            debug!("{}", content);
+            debug!("{content}");
             file.write_all(content.as_bytes())
                 .map_err(|e| format!("{e}"))?;
         }

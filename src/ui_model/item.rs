@@ -32,7 +32,7 @@ impl Item {
         }
     }
 
-    pub fn glyphs(&self) -> Ref<Option<pango::GlyphString>> {
+    pub fn glyphs(&self) -> Ref<'_, Option<pango::GlyphString>> {
         self.glyphs.borrow()
     }
 

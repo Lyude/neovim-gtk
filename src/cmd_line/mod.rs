@@ -379,7 +379,7 @@ impl CmdLine {
             level.insert(c, shift, render_state);
             level.update_cache(render_state);
         } else {
-            error!("Level {} does not exists", level);
+            error!("Level {level} does not exists");
         }
 
         state.request_area_size();

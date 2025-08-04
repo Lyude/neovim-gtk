@@ -235,7 +235,7 @@ fn populate_get_plugins(
             }
             Err(e) => {
                 panel.append(&gtk::Label::new(Some(format!("{e}").as_str())));
-                error!("{}", e)
+                error!("{e}")
             }
         }
     });

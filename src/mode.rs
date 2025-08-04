@@ -70,7 +70,7 @@ impl CursorShape {
             "horizontal" => CursorShape::Horizontal,
             "vertical" => CursorShape::Vertical,
             _ => {
-                error!("Unknown cursor_shape {}", str_code);
+                error!("Unknown cursor_shape {str_code}");
                 CursorShape::Unknown
             }
         })

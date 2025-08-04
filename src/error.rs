@@ -45,7 +45,7 @@ impl ErrorArea {
     }
 
     pub fn show_nvim_init_error(&self, err: &str) {
-        error!("Can't initialize nvim: {}", err);
+        error!("Can't initialize nvim: {err}");
         self.label.set_markup(&format!(
             "<big>Can't initialize nvim:</big>\n\
              <span foreground=\"red\"><i>{}</i></span>\n\n\
@@ -59,7 +59,7 @@ impl ErrorArea {
     }
 
     pub fn show_nvim_start_error(&self, err: &str, cmd: &str) {
-        error!("Can't start nvim: {}\nCommand line: {}", err, cmd);
+        error!("Can't start nvim: {err}\nCommand line: {cmd}");
         self.label.set_markup(&format!(
             "<big>Can't start nvim instance:</big>\n\
              <i>{}</i>\n\
@@ -77,7 +77,7 @@ impl ErrorArea {
     }
 
     pub fn show_nvim_tcp_connect_error(&self, err: &str, addr: &str) {
-        error!("Can't connect to nvim on TCP address {}: {}\n", addr, err);
+        error!("Can't connect to nvim on TCP address {addr}: {err}\n");
         self.label.set_markup(&format!(
             "<big>Can't connect to nvim instance on TCP address {}:</big>\n\
              <i>{}</i>\n\
@@ -94,7 +94,7 @@ impl ErrorArea {
 
     #[cfg(unix)]
     pub fn show_nvim_unix_connect_error(&self, err: &str, addr: &str) {
-        error!("Can't connect to nvim on Unix pipe {}: {}\n", addr, err);
+        error!("Can't connect to nvim on Unix pipe {addr}: {err}\n");
         self.label.set_markup(&format!(
             "<big>Can't connect to nvim instance on Unix pipe {}:</big>\n\
              <i>{}</i>\n\

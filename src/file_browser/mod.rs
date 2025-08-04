@@ -641,7 +641,7 @@ fn populate_tree_nodes(
     let read_dir = match path.read_dir() {
         Ok(read_dir) => read_dir,
         Err(err) => {
-            error!("Couldn't populate tree: {}", err);
+            error!("Couldn't populate tree: {err}");
             return;
         }
     };
@@ -711,7 +711,7 @@ fn get_current_dir(nvim: &NvimSession) -> Option<String> {
     match nvim.block_timeout(nvim.eval("getcwd()")) {
         Ok(cwd) => cwd.as_str().map(|s| s.to_owned()),
         Err(err) => {
-            error!("Couldn't get cwd: {}", err);
+            error!("Couldn't get cwd: {err}");
             None
         }
     }

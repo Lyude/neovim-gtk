@@ -12,7 +12,7 @@ pub trait CallErrorExt {
 }
 impl CallErrorExt for CallError {
     fn print(&self) {
-        error!("Error in last Neovim request: {}", self);
+        error!("Error in last Neovim request: {self}");
         error!("Caused by: {:?}", self.source());
     }
 }
@@ -75,10 +75,7 @@ impl NormalError<'_> {
         if let Self::Message { message, .. } = self {
             // TODO: Figure out timeout situation, in the mean time just disable timeouts here
             if let Err(e) = nvim.err_writeln(message).await {
-                error!(
-                    "Failed to print error message \"{:?}\" in nvim: {}",
-                    self, e
-                );
+                error!("Failed to print error message \"{self:?}\" in nvim: {e}");
             }
         }
     }
