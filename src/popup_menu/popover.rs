@@ -7,7 +7,8 @@ use gtk::{self, graphene::*, prelude::*, subclass::prelude::*};
 
 glib::wrapper! {
     pub struct PopupMenuPopover(ObjectSubclass<PopupMenuPopoverObject>)
-        @extends gtk::Popover, gtk::Native, gtk::Widget;
+        @extends gtk::Popover, gtk::Native, gtk::Widget,
+        @implements gtk::Buildable, gtk::ConstraintTarget, gtk::Accessible, gtk::ShortcutManager;
 }
 
 impl PopupMenuPopover {

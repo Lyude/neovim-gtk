@@ -4,7 +4,8 @@ use gtk::{prelude::*, subclass::prelude::*};
 
 glib::wrapper! {
     pub struct TreeView(ObjectSubclass<TreeViewObject>)
-        @extends gtk::Widget, gtk::TreeView;
+        @extends gtk::Widget, gtk::TreeView,
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Scrollable;
 }
 
 /// A popup-aware TreeView widget for the file browser pane
