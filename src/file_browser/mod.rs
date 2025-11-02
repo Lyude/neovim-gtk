@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fs;
 use std::fs::DirEntry;
-use std::io;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
@@ -527,19 +526,26 @@ fn open_context_menu<E>(
 /// Compare function for dir entries.
 ///
 /// Sorts directories above files.
-fn cmp_dirs_first(lhs: &DirEntry, rhs: &DirEntry) -> io::Result<Ordering> {
-    let lhs_metadata = fs::metadata(lhs.path())?;
-    let rhs_metadata = fs::metadata(rhs.path())?;
+fn cmp_dirs_first(lhs: &DirEntry, rhs: &DirEntry) -> Ordering {
+    let lhs_metadata = fs::metadata(lhs.path());
+    let rhs_metadata = fs::metadata(rhs.path());
+
+    let (lhs_metadata, rhs_metadata) = match (lhs_metadata, rhs_metadata) {
+        (Ok(lhs_metadata), Ok(rhs_metadata)) => (lhs_metadata, rhs_metadata),
+        (Ok(_), Err(_)) => return Ordering::Less,
+        (Err(_), Ok(_)) => return Ordering::Greater,
+        (Err(_), Err(_)) => return Ordering::Equal,
+    };
+
     if lhs_metadata.is_dir() == rhs_metadata.is_dir() {
-        Ok(lhs
-            .path()
+        lhs.path()
             .to_string_lossy()
             .to_lowercase()
-            .cmp(&rhs.path().to_string_lossy().to_lowercase()))
+            .cmp(&rhs.path().to_string_lossy().to_lowercase())
     } else if lhs_metadata.is_dir() {
-        Ok(Ordering::Less)
+        Ordering::Less
     } else {
-        Ok(Ordering::Greater)
+        Ordering::Greater
     }
 }
 
@@ -653,7 +659,7 @@ fn populate_tree_nodes(
             .filter(|entry| !entry.file_name().to_string_lossy().ends_with('~'))
             .collect()
     };
-    entries.sort_unstable_by(|lhs, rhs| cmp_dirs_first(lhs, rhs).unwrap_or(Ordering::Equal));
+    entries.sort_unstable_by(cmp_dirs_first);
     for entry in entries {
         let path = if let Some(path) = entry.path().to_str() {
             path.to_owned()
