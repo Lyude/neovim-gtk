@@ -27,3 +27,10 @@ jobs:
           rmdir $DESTDIR
 
           tar caf dist/release/nvim-gtk-linux-x86_64.tar.zst -C dist/release/ nvim-gtk-linux-x86_64
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: nvim-gtk-linux-x86_64
+          path: |
+            dist/release/nvim-gtk-linux-x86_64.tar.zst
+          retention-days: 1
