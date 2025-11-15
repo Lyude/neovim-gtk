@@ -34,3 +34,32 @@ jobs:
           path: |
             dist/release/nvim-gtk-linux-x86_64.tar.zst
           retention-days: 1
+
+  publish:
+    needs: [linux]
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v6
+
+      - if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+      - if: env.TAG_NAME == 'nightly'
+        run: |
+          (echo 'SUBJECT=Nvim GTK development (prerelease) build';
+           echo 'PRERELEASE=--prerelease') >> $GITHUB_ENV
+          gh release delete nightly --yes || true
+          git push origin :nightly || true
+      - name: Publish release
+        env:
+          NVIM_GTK_VERSION: ${{ needs.linux.outputs.version }}
+          NVIM_GTK_COMMIT: ${{ github.sha }}
+          DEBUG: api
+        run: |
+          gh release create $TAG_NAME $PRERELEASE --title "$SUBJECT" --target $GITHUB_SHA nvim-gtk-linux-x86_64*
