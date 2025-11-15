@@ -1,0 +1,29 @@
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name for release"
+        required: false
+        default: nightly
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt install -y libgtk-4-dev
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: tar.zst
+        run: |
+          # hardcodes relative path for NVIM_GTK_RUNTIME_PATH in binary
+          DESTDIR=dist/release/nvim-gtk-linux-x86_64/_/
+          make DESTDIR=$DESTDIR PREFIX=.. install
+          rmdir $DESTDIR
+
+          tar caf dist/release/nvim-gtk-linux-x86_64.tar.zst -C dist/release/ nvim-gtk-linux-x86_64
