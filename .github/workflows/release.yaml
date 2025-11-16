@@ -30,9 +30,39 @@ jobs:
           path: |
             dist/release/nvim-gtk-linux-x86_64.tar.zst
           retention-days: 1
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ macos-15-intel, macos-14 ]
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 11.0
+    steps:
+      - uses: actions/checkout@v5
+      # Placeholder for future steps
+  windows:
+    strategy:
+      matrix:
+        include:
+          - runner: windows-2022
+            arch: x86_64
+            archive_name: nvim-win64
+          - runner: windows-11-arm
+            arch: arm64
+            archive_name: nvim-win-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      # Placeholder for future steps
 
   publish:
-    needs: [linux]
+    needs: [linux, macos, windows]
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
