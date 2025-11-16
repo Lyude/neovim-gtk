@@ -15,13 +15,16 @@ jobs:
       - run: sudo apt install -y libgtk-4-dev
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: tar.zst
+      - name: build
         run: |
           # hardcodes relative path for NVIM_GTK_RUNTIME_PATH in binary
           DESTDIR=dist/release/nvim-gtk-linux-x86_64/_/
           make DESTDIR=$DESTDIR PREFIX=.. install
           rmdir $DESTDIR
-
+      - name: tar.zst
+        env:
+          ZSTD_CLEVEL: 19
+        run: |
           tar caf dist/release/nvim-gtk-linux-x86_64.tar.zst -C dist/release/ nvim-gtk-linux-x86_64
 
       - uses: actions/upload-artifact@v5
