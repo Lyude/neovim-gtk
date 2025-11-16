@@ -9,7 +9,16 @@ on:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt install -y libgtk-4-dev
@@ -18,26 +27,26 @@ jobs:
       - name: build
         run: |
           # hardcodes relative path for NVIM_GTK_RUNTIME_PATH in binary
-          DESTDIR=dist/release/nvim-gtk-linux-x86_64/_/
+          DESTDIR=dist/release/nvim-gtk-linux-${{ matrix.arch }}/_/
           make DESTDIR=$DESTDIR PREFIX=.. install
           rmdir $DESTDIR
       - name: tar.zst
         env:
           ZSTD_CLEVEL: 19
         run: |
-          tar caf dist/release/nvim-gtk-linux-x86_64.tar.zst -C dist/release/ nvim-gtk-linux-x86_64
+          tar caf dist/release/nvim-gtk-linux-${{ matrix.arch }}.tar.zst -C dist/release/ nvim-gtk-linux-${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v5
         with:
-          name: nvim-gtk-linux-x86_64
+          name: nvim-gtk-linux-${{ matrix.arch }}
           path: |
-            dist/release/nvim-gtk-linux-x86_64.tar.zst
+            dist/release/nvim-gtk-linux-${{ matrix.arch }}.tar.zst
           retention-days: 1
   macos:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ macos-15-intel, macos-14 ]
+        runner: [macos-15-intel, macos-14]
         include:
           - runner: macos-15-intel
             arch: x86_64
@@ -91,4 +100,4 @@ jobs:
           NVIM_GTK_COMMIT: ${{ github.sha }}
           DEBUG: api
         run: |
-          gh release create $TAG_NAME $PRERELEASE --title "$SUBJECT" --target $GITHUB_SHA nvim-gtk-linux-x86_64*
+          gh release create $TAG_NAME $PRERELEASE --title "$SUBJECT" --target $GITHUB_SHA nvim-gtk-linux-x86_64/* nvim-gtk-linux-arm64/*
