@@ -1,5 +1,7 @@
 name: release
 on:
+  schedule:
+    - cron: "5 5 * * *"
   workflow_dispatch:
     inputs:
       tag_name:
@@ -88,6 +90,8 @@ jobs:
 
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+      - if: github.event_name == 'schedule'
+        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
       - if: env.TAG_NAME == 'nightly'
         run: |
           (echo 'SUBJECT=Nvim GTK development (prerelease) build';
