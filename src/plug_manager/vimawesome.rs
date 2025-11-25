@@ -14,10 +14,9 @@ where
     F: FnOnce(io::Result<DescriptionList>) + Send + 'static,
 {
     thread::spawn(move || {
-        let mut result = Some(request(query.as_ref().map(|s| s.as_ref())));
-        let mut cb = Some(cb);
+        let result = request(query.as_ref().map(|s| s.as_ref()));
 
-        glib::idle_add_once(move || cb.take().unwrap()(result.take().unwrap()))
+        glib::idle_add_once(move || cb(result))
     });
 }
 
