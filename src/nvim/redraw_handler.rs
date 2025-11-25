@@ -431,23 +431,26 @@ pub fn call(
             ui.set_pending_popupmenu(PendingPopupMenu::Select(try_option_u32!(&args[0])))
         }
         "tabline_update" => {
-            let nvim = ui.nvim().ok_or_else(|| "Nvim not initialized".to_owned())?;
-            let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| tab
-                .as_map()
-                .ok_or_else(|| "Error get map for tab".to_owned())
-                .and_then(|tab_map| tab_map.to_attrs_map())
-                .map(|tab_attrs| {
-                    let name_attr = tab_attrs
-                        .get("name")
-                        .and_then(|n| n.as_str().map(|s| s.to_owned()));
-                    let tab_attr = tab_attrs
-                        .get("tab")
-                        .map(|&tab_id| Tabpage::new(tab_id.clone(), (*nvim).clone()))
-                        .unwrap();
+            if let Some(nvim) = ui.nvim() {
+                let tabs_out = map_array!(args[1], "Error get tabline list".to_owned(), |tab| tab
+                    .as_map()
+                    .ok_or_else(|| "Error get map for tab".to_owned())
+                    .and_then(|tab_map| tab_map.to_attrs_map())
+                    .map(|tab_attrs| {
+                        let name_attr = tab_attrs
+                            .get("name")
+                            .and_then(|n| n.as_str().map(|s| s.to_owned()));
+                        let tab_attr = tab_attrs
+                            .get("tab")
+                            .map(|&tab_id| Tabpage::new(tab_id.clone(), (*nvim).clone()))
+                            .unwrap();
 
-                    (tab_attr, name_attr)
-                }))?;
-            ui.tabline_update(Tabpage::new(args[0].clone(), (*nvim).clone()), tabs_out)
+                        (tab_attr, name_attr)
+                    }))?;
+                ui.tabline_update(Tabpage::new(args[0].clone(), (*nvim).clone()), tabs_out)
+            } else {
+                RedrawMode::Nothing
+            }
         }
         "mode_info_set" => call!(ui->mode_info_set(args: bool, ext)),
         "option_set" => call!(ui->option_set(args: str, val)),
