@@ -471,7 +471,9 @@ impl Ui {
             let res = nvim.command(&commands).await;
 
             glib::idle_add_once(move || {
-                action_widgets.borrow().as_ref().unwrap().set_enabled(true)
+                if let Some(action_widgets) = action_widgets.borrow().as_ref() {
+                    action_widgets.set_enabled(true);
+                }
             });
 
             if let Err(e) = res {
