@@ -349,8 +349,7 @@ impl Ui {
         shell.grab_focus();
 
         let (post_config_cmds, diff_mode) = {
-            let state_ref = state_ref.borrow();
-            let mut options = state_ref.options.borrow_mut();
+            let mut options = state.options.borrow_mut();
 
             (options.post_config_cmds(), options.diff_mode)
         };
