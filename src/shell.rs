@@ -1647,10 +1647,10 @@ fn init_nvim_async(
 fn set_nvim_to_state(state_arc: Arc<UiMutex<State>>, nvim: &NvimSession) {
     let pair = Arc::new((Mutex::new(None), Condvar::new()));
     let pair2 = pair.clone();
-    let nvim = Some(nvim.clone());
+    let nvim = nvim.clone();
 
     glib::idle_add_once(move || {
-        state_arc.borrow().nvim.set(nvim.clone().unwrap());
+        state_arc.borrow().nvim.set(nvim.clone());
 
         let (lock, cvar) = &*pair2;
         let mut started = lock.lock().unwrap();

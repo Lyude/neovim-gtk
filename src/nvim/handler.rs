@@ -190,9 +190,8 @@ fn safe_call<F>(shell: Arc<UiMutex<shell::State>>, cb: F)
 where
     F: FnOnce(&Arc<UiMutex<shell::State>>) -> result::Result<(), String> + 'static + Send,
 {
-    let mut cb = Some(cb);
     glib::idle_add_once(move || {
-        if let Err(msg) = cb.take().unwrap()(&shell) {
+        if let Err(msg) = cb(&shell) {
             error!("Error call function: {msg}");
         }
     });
