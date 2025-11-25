@@ -227,7 +227,8 @@ fn populate_get_plugins(
                         #[strong]
                         plugs_panel,
                         async move {
-                            add_plugin(&manager, &plugs_panel.borrow(), new_plug).await;
+                            let plugs_panel = plugs_panel.borrow().clone();
+                            add_plugin(&manager, &plugs_panel, new_plug).await;
                         }
                     ));
                 });
@@ -348,10 +349,12 @@ async fn add_plugin(
 ) -> bool {
     let row = create_plug_row(manager.borrow().store.plugs_count(), &new_plugin, manager);
 
-    if manager.borrow_mut().add_plug(new_plugin) {
+    let mut manager_ref = manager.borrow_mut();
+    if manager_ref.add_plug(new_plugin) {
         plugs_panel.append(&row);
         true
     } else {
+        drop(manager_ref);
         let dlg = gtk::MessageDialog::new(
             None::<&gtk::Window>,
             gtk::DialogFlags::empty(),

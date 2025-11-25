@@ -30,13 +30,7 @@ pub fn can_close_window(
                     let comps = comps.clone();
                     let shell = shell.clone();
                     glib::MainContext::default().spawn_local(async move {
-                        let res = {
-                            let mut comps = comps.borrow_mut();
-                            let res = show_not_saved_dlg(&comps, shell, &vec).await;
-
-                            comps.exit_confirmed = res;
-                            res
-                        };
+                        let res = show_not_saved_dlg(&comps, shell, &vec).await;
 
                         if res {
                             comps.borrow().close_window();
@@ -58,7 +52,7 @@ pub fn can_close_window(
 }
 
 async fn show_not_saved_dlg(
-    comps: &Components,
+    comps: &Arc<UiMutex<Components>>,
     shell: Rc<RefCell<Shell>>,
     changed_bufs: &[String],
 ) -> bool {
@@ -70,7 +64,7 @@ async fn show_not_saved_dlg(
 
     let flags = gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT;
     let dlg = MessageDialog::new(
-        Some(comps.window()),
+        Some(comps.borrow().window()),
         flags,
         MessageType::Question,
         ButtonsType::None,
@@ -85,7 +79,8 @@ async fn show_not_saved_dlg(
 
     let res = match dlg.run_future().await {
         gtk::ResponseType::Yes => {
-            if let Some(nvim) = shell.borrow().state.borrow().nvim() {
+            let nvim = shell.borrow().state.borrow().nvim().clone();
+            if let Some(nvim) = nvim {
                 // FIXME: Figure out a way to use timeouts with nvim interactions when using glib for
                 // async execution, either that or just don't use timeouts
                 match nvim.command("wa").await {
@@ -107,6 +102,8 @@ async fn show_not_saved_dlg(
     };
 
     dlg.close();
+
+    comps.borrow_mut().exit_confirmed = res;
 
     res
 }
