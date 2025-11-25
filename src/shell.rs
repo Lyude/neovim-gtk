@@ -441,7 +441,9 @@ impl State {
                 let res = nvim.command(&path).await;
 
                 glib::idle_add_once(move || {
-                    action_widgets.borrow().as_ref().unwrap().set_enabled(true);
+                    if let Some(action_widgets) = action_widgets.borrow().as_ref() {
+                        action_widgets.set_enabled(true);
+                    }
                 });
 
                 if let Err(e) = res {
@@ -829,7 +831,9 @@ fn gtk_handle_drop(state: &State, context: &glib::MainContext, drop: &gdk::Drop)
                     .await
                     .report_err();
                 drop.finish(gdk::DragAction::empty());
-                action_widgets.borrow().as_ref().unwrap().set_enabled(true);
+                if let Some(action_widgets) = action_widgets.borrow().as_ref() {
+                    action_widgets.set_enabled(true);
+                }
                 return;
             }
         };
@@ -860,7 +864,9 @@ fn gtk_handle_drop(state: &State, context: &glib::MainContext, drop: &gdk::Drop)
             Ok(_) => drop.finish(gdk::DragAction::COPY),
         };
 
-        action_widgets.borrow().as_ref().unwrap().set_enabled(true);
+        if let Some(action_widgets) = action_widgets.borrow().as_ref() {
+            action_widgets.set_enabled(true);
+        }
     });
     true
 }
