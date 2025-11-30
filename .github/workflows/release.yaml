@@ -1,0 +1,122 @@
+name: release
+on:
+  schedule:
+    - cron: "5 5 * * *"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name for release"
+        required: false
+        default: nightly
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt install -y libgtk-4-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: build
+        run: |
+          # hardcodes relative path for NVIM_GTK_RUNTIME_PATH in binary
+          DESTDIR=dist/release/nvim-gtk-linux-${{ matrix.arch }}/_/
+          make DESTDIR=$DESTDIR PREFIX=.. install
+          rmdir $DESTDIR
+      - name: tar.zst
+        env:
+          ZSTD_CLEVEL: 19
+        run: |
+          tar caf dist/release/nvim-gtk-linux-${{ matrix.arch }}.tar.zst -C dist/release/ nvim-gtk-linux-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: nvim-gtk-linux-${{ matrix.arch }}
+          path: |
+            dist/release/nvim-gtk-linux-${{ matrix.arch }}.tar.zst
+          retention-days: 1
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15-intel, macos-14]
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 11.0
+    steps:
+      - uses: actions/checkout@v5
+      # Placeholder for future steps
+  windows:
+    strategy:
+      matrix:
+        include:
+          - runner: windows-2022
+            arch: x86_64
+            archive_name: nvim-win64
+          - runner: windows-11-arm
+            arch: arm64
+            archive_name: nvim-win-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      # Placeholder for future steps
+
+  publish:
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v6
+
+      - if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+      - if: github.event_name == 'schedule'
+        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
+      - if: github.event_name == 'push'
+        run: |
+          TAG_NAME=${{ github.ref }}
+          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+      - if: env.TAG_NAME == 'nightly'
+        run: |
+          (echo 'SUBJECT=Nvim GTK development (prerelease) build';
+           echo 'PRERELEASE=--prerelease';
+           echo "RELEASE_TYPE=$TAG_NAME") >> $GITHUB_ENV
+          gh release delete nightly --yes || true
+          git push origin :nightly || true
+      - if: env.TAG_NAME != 'nightly'
+        run: |
+          (echo 'SUBJECT=Nvim GTK release build';
+           echo 'PRERELEASE=';
+           echo 'RELEASE_TYPE=stable') >> $GITHUB_ENV
+          gh release delete stable --yes || true
+          git push origin :stable || true
+      - name: Publish release
+        env:
+          NVIM_GTK_VERSION: ${{ needs.linux.outputs.version }}
+          NVIM_GTK_COMMIT: ${{ github.sha }}
+          DEBUG: api
+        run: |
+          gh release create $RELEASE_TYPE $PRERELEASE --title "$SUBJECT" --target $GITHUB_SHA nvim-gtk-linux-x86_64/* nvim-gtk-linux-arm64/*
