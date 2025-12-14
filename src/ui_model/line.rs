@@ -255,7 +255,7 @@ impl<'a> Iterator for PangoItemPositionIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let first_item = self.iter.next()?;
         let mut items = vec![first_item];
-        let mut length = first_item.length() as usize;
+        let length = first_item.length() as usize;
         let offset = first_item.offset() as usize;
         let start_cell = self.styled_line.cell_to_byte[offset];
         let mut end_cell = self.styled_line.cell_to_byte[offset + length - 1];
@@ -272,7 +272,6 @@ impl<'a> Iterator for PangoItemPositionIterator<'a> {
                 end_cell = next_end_cell;
             }
 
-            length += next_len;
             items.push(next_item);
             self.iter.next();
         }
