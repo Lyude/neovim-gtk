@@ -26,7 +26,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
-      - run: sudo apt install -y libgtk-4-dev
+      - run: sudo apt update && sudo apt install -y libgtk-4-dev
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: build
