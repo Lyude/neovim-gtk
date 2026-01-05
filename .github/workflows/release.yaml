@@ -31,10 +31,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: build
         run: |
-          # hardcodes relative path for NVIM_GTK_RUNTIME_PATH in binary
-          DESTDIR=dist/release/nvim-gtk-linux-${{ matrix.arch }}/_/
-          make DESTDIR=$DESTDIR PREFIX=.. install
-          rmdir $DESTDIR
+          make DESTDIR=dist/release/nvim-gtk-linux-${{ matrix.arch }} PREFIX="" install
       - name: tar.zst
         env:
           ZSTD_CLEVEL: 19

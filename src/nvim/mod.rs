@@ -520,6 +520,18 @@ pub fn start<'a>(
         .arg("--cmd")
         .arg(format!(
             "let &rtp.=',{}'",
+            std::env::current_exe()
+                .unwrap()
+                .parent()
+                .and_then(std::path::Path::parent)
+                .unwrap()
+                .to_path_buf()
+                .join("share/nvim-gtk/runtime")
+                .display()
+        ))
+        .arg("--cmd")
+        .arg(format!(
+            "let &rtp.=',{}'",
             env::var("NVIM_GTK_RUNTIME_PATH").unwrap_or_else(|_| env!("RUNTIME_PATH").into())
         ))
         .stderr(Stdio::inherit())
