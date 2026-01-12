@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ops::Deref;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -1572,6 +1573,16 @@ fn show_nvim_init_error(
     });
 }
 
+fn _get_grandparent_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let current_exe = std::env::current_exe()?;
+    let path = current_exe
+        .parent()
+        .and_then(std::path::Path::parent)
+        .ok_or("Could not find grandparent directory")?;
+
+    Ok(path.to_path_buf())
+}
+
 fn init_nvim_async(
     state_arc: Arc<UiMutex<State>>,
     comps: Arc<UiMutex<Components>>,
@@ -1627,6 +1638,18 @@ fn init_nvim_async(
     // attach ui
     let input_data = options.input_data;
     session.clone().spawn(async move {
+        let gui_runtime_path = _get_grandparent_dir()
+            .unwrap_or_default()
+            .join("share/nvim-gtk/runtime");
+        let set_rtp_command = format!("set runtimepath+={}", gui_runtime_path.display());
+        if let Err(ref e) = session
+            .timeout(session.command(&set_rtp_command))
+            .await
+            .map_err(NvimInitError::new_post_init)
+        {
+            show_nvim_init_error(e, state_arc.clone(), comps.clone());
+        }
+
         let mut initialized = false;
 
         match nvim::post_start_init(session.clone(), resize_status, input_data, rows, cols).await {
