@@ -512,23 +512,21 @@ pub fn start<'a>(
     #[cfg(feature = "flatpak")]
     cmd.arg("--host").arg(nvim_cmd);
 
+    let gui_runtime_path = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .and_then(std::path::Path::parent)
+        .unwrap()
+        .to_path_buf()
+        .join("share/nvim-gtk/runtime");
+    let set_rtp_command = format!("let &rtp.=',{}'", gui_runtime_path.display());
     cmd.arg("--embed")
         .arg("--cmd")
         .arg("set termguicolors")
         .arg("--cmd")
         .arg("let g:GtkGuiLoaded = 1")
         .arg("--cmd")
-        .arg(format!(
-            "let &rtp.=',{}'",
-            std::env::current_exe()
-                .unwrap()
-                .parent()
-                .and_then(std::path::Path::parent)
-                .unwrap()
-                .to_path_buf()
-                .join("share/nvim-gtk/runtime")
-                .display()
-        ))
+        .arg(set_rtp_command)
         .arg("--cmd")
         .arg(format!(
             "let &rtp.=',{}'",
