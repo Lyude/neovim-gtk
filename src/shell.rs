@@ -1443,7 +1443,8 @@ fn mouse_input(
 
         let nvim_clone = nvim.clone();
         nvim.spawn(async move {
-            nvim_clone.input_mouse(button, action, &input_string, 0, row as i64, col as i64)
+            nvim_clone
+                .input_mouse(button, action, &input_string, 0, row as i64, col as i64)
                 .await
                 .ok_and_report()
                 .expect("Can't send mouse input event");
