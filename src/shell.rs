@@ -1432,24 +1432,23 @@ fn gtk_button_press(
 
 fn mouse_input(
     shell: &State,
-    button: &str,
-    action: &str,
+    button: &'static str,
+    action: &'static str,
     state: ModifierType,
     position: (f64, f64),
 ) {
     if let Some(nvim) = shell.nvim() {
         let (col, row) = mouse_coordinates_to_nvim(shell, position);
+        let input_string = keyval_to_input_string("", state);
 
-        nvim.block_timeout(nvim.input_mouse(
-            button,
-            action,
-            &keyval_to_input_string("", state),
-            0,
-            row as i64,
-            col as i64,
-        ))
-        .ok_and_report()
-        .expect("Can't send mouse input event");
+        let nvim_clone = nvim.clone();
+        nvim.spawn(async move {
+            nvim_clone
+                .input_mouse(button, action, &input_string, 0, row as i64, col as i64)
+                .await
+                .ok_and_report()
+                .expect("Can't send mouse input event");
+        });
     }
 }
 
