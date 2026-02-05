@@ -1638,16 +1638,24 @@ fn init_nvim_async(
     // attach ui
     let input_data = options.input_data;
     session.clone().spawn(async move {
-        let gui_runtime_path = _get_grandparent_dir()
-            .unwrap_or_default()
-            .join("share/nvim-gtk/runtime");
-        let set_rtp_command = format!("set runtimepath+={}", gui_runtime_path.display());
-        if let Err(ref e) = session
-            .timeout(session.command(&set_rtp_command))
-            .await
-            .map_err(NvimInitError::new_post_init)
-        {
-            show_nvim_init_error(e, state_arc.clone(), comps.clone());
+        let mut set_runtime_path = true;
+        let gui_runtime_path = match _get_grandparent_dir() {
+            Ok(gp_dir) => gp_dir.join("share/nvim-gtk/runtime"),
+            Err(_) => {
+                set_runtime_path = false;
+                PathBuf::new() // Only to match typing, doesn't really matter
+            }
+        };
+
+        if set_runtime_path {
+            let set_rtp_command = format!("set runtimepath+={}", gui_runtime_path.display());
+            if let Err(ref e) = session
+                .timeout(session.command(&set_rtp_command))
+                .await
+                .map_err(NvimInitError::new_post_init)
+            {
+                show_nvim_init_error(e, state_arc.clone(), comps.clone());
+            }
         }
 
         let mut initialized = false;
