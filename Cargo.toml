@@ -15,8 +15,8 @@ flatpak = []
 
 [dependencies]
 clap = { version = "4.0", features = ["color", "help", "std", "usage", "error-context", "suggestions", "wrap_help", "derive"] }
-glib = "0.21.0"
-gio = "0.21.0"
+glib = "0.22.0"
+gio = "0.22.0"
 async-trait = "0.1.0"
 futures = { version = "0.3.0", features = ["io-compat", "thread-pool"] }
 tokio = { version = "1.0", features = ["full"] }
@@ -54,20 +54,20 @@ build-version = "0.1.0"
 trycmd = "0.15.0"
 
 [dependencies.pango]
+version = "0.22.0"
 features = ["v1_46"]
-version = "0.21.0"
 
 [dependencies.gtk]
 package = "gtk4"
-version = "0.10.0"
+version = "0.11.0"
 features = ["v4_4"]
 
 [dependencies.gdk]
 package = "gdk4"
-version = "0.10.0"
+version = "0.11.0"
 features = ["v4_4"]
 
 [dependencies.gsk]
 package = "gsk4"
-version = "0.10.0"
+version = "0.11.0"
 features = ["v4_4"]

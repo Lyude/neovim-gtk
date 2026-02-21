@@ -342,7 +342,7 @@ fn main() {
     gtk::Window::set_default_icon_name("com.github.Lyude.neovim-gtk");
 
     app.run();
-    std::process::exit(app_cmdline.borrow().as_ref().unwrap().exit_status());
+    std::process::exit(app_cmdline.borrow().as_ref().unwrap().exit_code().into());
 }
 
 fn open(

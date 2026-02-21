@@ -425,10 +425,10 @@ impl State {
         }
     }
 
-    pub fn set_exit_status(&self, val: i32) {
+    pub fn set_exit_code(&self, val: glib::ExitCode) {
         let lock = self.app_cmdline.borrow();
         let r: &ApplicationCommandLine = lock.as_ref().unwrap();
-        r.set_exit_status(val);
+        r.set_exit_code(val);
     }
 
     pub fn open_file(&self, path: &str) {
@@ -1320,8 +1320,8 @@ impl Shell {
             .set_preview(options.contains("preview"));
     }
 
-    pub fn set_exit_status(&self, status: i32) {
-        self.state.borrow().set_exit_status(status);
+    pub fn set_exit_code(&self, status: glib::ExitCode) {
+        self.state.borrow().set_exit_code(status);
     }
 }
 
