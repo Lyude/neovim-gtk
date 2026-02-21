@@ -590,7 +590,7 @@ fn update_dir_list(dir: &str, dir_list_model: &gtk::TreeStore, dir_list: &gtk::C
             ""
         });
         // Use the current entry of dir_list, if any, otherwise append a new one.
-        let current_iter = dir_list_iter.unwrap_or_else(|| dir_list_model.append(None));
+        let mut current_iter = dir_list_iter.unwrap_or_else(|| dir_list_model.append(None));
         // Check if the current entry is still part of the new cwd.
         if is_prefix && dir_list_model.get_value(&current_iter, 0).get::<&str>() != Ok(dir_name) {
             is_prefix = false;
@@ -611,20 +611,20 @@ fn update_dir_list(dir: &str, dir_list_model: &gtk::TreeStore, dir_list: &gtk::C
             dir_list.set_active_iter(Some(&current_iter));
         };
         // Advance dir_list_iter.
-        dir_list_iter = if dir_list_model.iter_next(&current_iter) {
+        dir_list_iter = if dir_list_model.iter_next(&mut current_iter) {
             Some(current_iter)
         } else {
             None
         }
     }
     // We updated the dir list to the point of the current working directory.
-    if let Some(iter) = dir_list_iter {
+    if let Some(mut iter) = dir_list_iter {
         if is_prefix {
             // If we didn't change any entries to this point and the list contains further entries,
             // the remaining ones are subdirectories of the cwd and we keep them.
             loop {
                 dir_list_model.set(&iter, &[(1, &ICON_FOLDER_CLOSED)]);
-                if !dir_list_model.iter_next(&iter) {
+                if !dir_list_model.iter_next(&mut iter) {
                     break;
                 }
             }
