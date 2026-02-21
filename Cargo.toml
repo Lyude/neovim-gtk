@@ -51,7 +51,7 @@ phf_codegen = "0.13.0"
 build-version = "0.1.0"
 
 [dev-dependencies]
-trycmd = "0.15.0"
+trycmd = "1"
 
 [dependencies.pango]
 version = "0.22.0"
