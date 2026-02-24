@@ -7,7 +7,7 @@ use log::warn;
 
 use crate::{
     color,
-    cursor::{cursor_rect, Cursor, CursorRedrawCb},
+    cursor::{Cursor, CursorRedrawCb, cursor_rect},
     highlight::HighlightMap,
     shell::TransparencySettings,
     ui_model,
@@ -235,9 +235,9 @@ pub fn snapshot_cursor<T: CursorRedrawCb + 'static>(
             if item.glyphs().is_some()
                 && let Some(ref render_node) =
                     item.new_render_node(&fg, (cell_start_line_x as f32, (y + ascent) as f32))
-                {
-                    snapshot.append_node(render_node);
-                }
+            {
+                snapshot.append_node(render_node);
+            }
         }
 
         snapshot.pop();
@@ -517,9 +517,10 @@ fn plan_underline_strikethrough<'a>(
 
     if cell.hl.underdouble {
         if let Some(idx) = *pending_underdouble
-            && pending_fmt_ops[idx].extend(RenderStepKind::Underdouble, color) {
-                return;
-            }
+            && pending_fmt_ops[idx].extend(RenderStepKind::Underdouble, color)
+        {
+            return;
+        }
         *pending_underdouble = Some(pending_fmt_ops.len());
         pending_fmt_ops.push(RenderStep::new(RenderStepKind::Underdouble, color, pos));
     }
@@ -560,9 +561,9 @@ fn snapshot_cell(
         if item.glyphs().is_some()
             && let Some(render_node) =
                 item.render_node(fg, (x as f32, (y + cell_metrics.ascent) as f32))
-            {
-                snapshot.append_node(render_node);
-            }
+        {
+            snapshot.append_node(render_node);
+        }
     }
 }
 

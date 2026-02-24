@@ -68,9 +68,11 @@ impl ModelRect {
 
             let dw_char_idx = self.right + 1;
             if let Some(cell) = line.line.get(dw_char_idx)
-                && cell.double_width && right < dw_char_idx {
-                    right = dw_char_idx;
-                }
+                && cell.double_width
+                && right < dw_char_idx
+            {
+                right = dw_char_idx;
+            }
         }
 
         self.left = left;

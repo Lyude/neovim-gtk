@@ -46,14 +46,16 @@ impl ObjectSubclass for PopupMenuPopoverObject {
 impl ObjectImpl for PopupMenuPopoverObject {
     fn signals() -> &'static [glib::subclass::Signal] {
         static SIGNALS: Lazy<Vec<glib::subclass::Signal>> = Lazy::new(|| {
-            vec![glib::subclass::Signal::builder("bounds-change")
-                .param_types([
-                    glib::Type::F32, // x
-                    glib::Type::F32, // y
-                    glib::Type::I32, // w
-                    glib::Type::I32, // h
-                ])
-                .build()]
+            vec![
+                glib::subclass::Signal::builder("bounds-change")
+                    .param_types([
+                        glib::Type::F32, // x
+                        glib::Type::F32, // y
+                        glib::Type::I32, // w
+                        glib::Type::I32, // h
+                    ])
+                    .build(),
+            ]
         });
 
         SIGNALS.as_ref()
