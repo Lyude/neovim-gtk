@@ -794,11 +794,10 @@ fn set_background(shell: &RefCell<Shell>, args: Vec<String>) {
 
 fn shorten_home_dir(path: impl AsRef<Path>) -> Option<String> {
     let path = path.as_ref();
-    if let Ok(path) = path.canonicalize() {
-        if let Ok(path) = path.strip_prefix(glib::home_dir()) {
+    if let Ok(path) = path.canonicalize()
+        && let Ok(path) = path.strip_prefix(glib::home_dir()) {
             return Some(format!("~{MAIN_SEPARATOR}{}", path.to_string_lossy()));
         }
-    }
 
     None
 }

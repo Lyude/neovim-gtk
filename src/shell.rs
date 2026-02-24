@@ -477,11 +477,10 @@ impl State {
     }
 
     fn close_popup_menu(&self) {
-        if self.popup_menu.is_open() {
-            if let Some(nvim) = self.nvim() {
+        if self.popup_menu.is_open()
+            && let Some(nvim) = self.nvim() {
                 nvim.block_timeout(nvim.input("<Esc>")).report_err();
             }
-        }
     }
 
     fn update_dirty_glyphs(&mut self) {
@@ -1621,11 +1620,10 @@ fn init_nvim_async(
     // add callback on session end
     let cb_state_arc = state_arc.clone();
     session.spawn(io_future.map(|r| {
-        if let Err(e) = r {
-            if !e.is_reader_error() {
+        if let Err(e) = r
+            && !e.is_reader_error() {
                 error!("{e}");
             }
-        }
 
         glib::idle_add_once(move || {
             cb_state_arc.borrow().nvim.clear();
@@ -1675,15 +1673,14 @@ fn init_nvim_async(
             Err(ref e) => show_nvim_init_error(e, state_arc.clone(), comps.clone()),
         }
 
-        if initialized {
-            if let Err(ref e) = session
+        if initialized
+            && let Err(ref e) = session
                 .timeout(session.command("runtime! ginit.vim"))
                 .await
                 .map_err(NvimInitError::new_post_init)
             {
                 show_nvim_init_error(e, state_arc, comps);
             }
-        }
     });
 }
 
@@ -1948,9 +1945,9 @@ impl State {
     }
 
     fn set_font_from_value(&mut self, val: Value) -> RedrawMode {
-        if let Value::String(val) = val {
-            if let Some(val) = val.into_str() {
-                if !val.is_empty() {
+        if let Value::String(val) = val
+            && let Some(val) = val.into_str()
+                && !val.is_empty() {
                     let exists_fonts = self.render_state.borrow().font_ctx.font_families();
                     let fonts = split_at_comma(&val);
                     for font in &fonts {
@@ -1969,8 +1966,6 @@ impl State {
                         return RedrawMode::All;
                     }
                 }
-            }
-        }
 
         RedrawMode::Nothing
     }

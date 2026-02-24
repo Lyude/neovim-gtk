@@ -232,13 +232,12 @@ pub fn snapshot_cursor<T: CursorRedrawCb + 'static>(
 
         let cell_start_line_x = cell_start_col as f64 * char_width;
         for item in &*cursor_line.item_line[cell_start_col as usize] {
-            if item.glyphs().is_some() {
-                if let Some(ref render_node) =
+            if item.glyphs().is_some()
+                && let Some(ref render_node) =
                     item.new_render_node(&fg, (cell_start_line_x as f32, (y + ascent) as f32))
                 {
                     snapshot.append_node(render_node);
                 }
-            }
         }
 
         snapshot.pop();
@@ -517,11 +516,10 @@ fn plan_underline_strikethrough<'a>(
     }
 
     if cell.hl.underdouble {
-        if let Some(idx) = *pending_underdouble {
-            if pending_fmt_ops[idx].extend(RenderStepKind::Underdouble, color) {
+        if let Some(idx) = *pending_underdouble
+            && pending_fmt_ops[idx].extend(RenderStepKind::Underdouble, color) {
                 return;
             }
-        }
         *pending_underdouble = Some(pending_fmt_ops.len());
         pending_fmt_ops.push(RenderStep::new(RenderStepKind::Underdouble, color, pos));
     }
@@ -559,13 +557,12 @@ fn snapshot_cell(
     for item in items {
         let fg = hl.actual_cell_fg(cell);
 
-        if item.glyphs().is_some() {
-            if let Some(render_node) =
+        if item.glyphs().is_some()
+            && let Some(render_node) =
                 item.render_node(fg, (x as f32, (y + cell_metrics.ascent) as f32))
             {
                 snapshot.append_node(render_node);
             }
-        }
     }
 }
 

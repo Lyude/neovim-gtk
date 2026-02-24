@@ -64,12 +64,11 @@ impl Manager {
                 }
             }
         }
-        if let PlugManageState::Unknown = self.plug_manage_state {
-            if self.vim_plug.is_loaded() {
+        if let PlugManageState::Unknown = self.plug_manage_state
+            && self.vim_plug.is_loaded() {
                 self.store = Store::load_from_plug(&self.vim_plug);
                 self.plug_manage_state = PlugManageState::VimPlug;
             }
-        }
     }
 
     pub fn save(&self) {

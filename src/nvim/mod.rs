@@ -443,14 +443,12 @@ impl NvimSession {
             .timeout(self.command(&format!("cal chanclose({channel})")))
             .await;
         if let Err(ref e) = res {
-            if let SessionError::CallError(ref e) = *e {
-                if let CallError::DecodeError(ref e, _) = **e {
-                    if let DecodeError::ReaderError(_) = **e {
+            if let SessionError::CallError(ref e) = *e
+                && let CallError::DecodeError(ref e, _) = **e
+                    && let DecodeError::ReaderError(_) = **e {
                         // It's expected that we'll fail to read the response to this
                         return;
                     }
-                }
-            }
             res.report_err();
         }
     }
@@ -524,11 +522,10 @@ pub fn start<'a>(
     #[cfg(target_os = "windows")]
     set_windows_creation_flags(&mut cmd);
 
-    if let Some(nvim_config) = NvimConfig::config_path() {
-        if let Some(path) = nvim_config.to_str() {
+    if let Some(nvim_config) = NvimConfig::config_path()
+        && let Some(path) = nvim_config.to_str() {
             cmd.arg("--cmd").arg(format!("source {path}"));
         }
-    }
 
     for arg in args_for_neovim {
         cmd.arg(arg);
