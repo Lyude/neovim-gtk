@@ -66,11 +66,7 @@ impl Context {
                 let our_font = self.font_description();
                 let extra_fonts = first_res.iter().filter_map(|i| {
                     let font = i.analysis().font().describe();
-                    if font != *our_font {
-                        Some(font)
-                    } else {
-                        None
-                    }
+                    if font != *our_font { Some(font) } else { None }
                 });
 
                 // We do res.len() - 2 so that in the likely event that most of the Cell rendered

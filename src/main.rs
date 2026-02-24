@@ -34,8 +34,8 @@ mod tabline;
 
 use log::error;
 
-use gio::prelude::*;
 use gio::ApplicationCommandLine;
+use gio::prelude::*;
 use std::net::SocketAddr;
 
 use std::{
@@ -51,7 +51,7 @@ use std::{
 };
 
 #[cfg(unix)]
-use fork::{daemon, Fork};
+use fork::{Fork, daemon};
 
 use crate::ui::Ui;
 

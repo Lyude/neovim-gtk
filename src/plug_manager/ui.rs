@@ -474,10 +474,11 @@ impl SettingsPages {
             rows,
             move |_, row| if let Some(row) = row
                 && let Some(r) = rows.borrow().iter().find(|r| r.0 == *row)
-                    && let Some(child) = stack.child_by_name(r.1) {
-                        stack.set_visible_child(&child);
-                        row_selected(r.1);
-                    }
+                && let Some(child) = stack.child_by_name(r.1)
+            {
+                stack.set_visible_child(&child);
+                row_selected(r.1);
+            }
         ));
 
         SettingsPages {

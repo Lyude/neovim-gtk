@@ -573,13 +573,14 @@ impl ToAttributedModelContent for Vec<Vec<(u64, String)>> {
 
 impl ToAttributedModelContent for Vec<(u64, String)> {
     fn to_attributed_content(&self, hl: &HighlightMap) -> Vec<HighlightedLine> {
-        vec![self
-            .iter()
-            .map(|c| HighlightedRange {
-                highlight: hl.get(c.0.into()),
-                graphemes: c.1.graphemes(true).map(|g| g.to_owned()).collect(),
-            })
-            .collect()]
+        vec![
+            self.iter()
+                .map(|c| HighlightedRange {
+                    highlight: hl.get(c.0.into()),
+                    graphemes: c.1.graphemes(true).map(|g| g.to_owned()).collect(),
+                })
+                .collect(),
+        ]
     }
 }
 
@@ -606,11 +607,7 @@ pub fn tree_button_press(
     let (paths, ..) = tree.selection().selected_rows();
     let selected_idx = if !paths.is_empty() {
         let ids = paths[0].indices();
-        if !ids.is_empty() {
-            ids[0]
-        } else {
-            -1
-        }
+        if !ids.is_empty() { ids[0] } else { -1 }
     } else {
         -1
     };

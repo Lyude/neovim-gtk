@@ -9,10 +9,11 @@ use log::{debug, warn};
 
 use gio::prelude::*;
 use gio::{ApplicationCommandLine, Menu, MenuItem, SimpleAction};
-use gtk::{prelude::*, AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned};
+use gtk::{AboutDialog, ApplicationWindow, Button, HeaderBar, Orientation, Paned, prelude::*};
 
 use serde::{Deserialize, Serialize};
 
+use crate::Args;
 use crate::file_browser::FileBrowserWidget;
 use crate::highlight::BackgroundState;
 use crate::misc::{self, BoolExt};
@@ -23,7 +24,6 @@ use crate::settings::{Settings, SettingsLoader};
 use crate::shell::{self, HeaderBarButtons, Shell};
 use crate::shell_dlg;
 use crate::subscriptions::{SubscriptionHandle, SubscriptionKey};
-use crate::Args;
 
 const DEFAULT_WIDTH: i32 = 800;
 const DEFAULT_HEIGHT: i32 = 600;
@@ -795,9 +795,10 @@ fn set_background(shell: &RefCell<Shell>, args: Vec<String>) {
 fn shorten_home_dir(path: impl AsRef<Path>) -> Option<String> {
     let path = path.as_ref();
     if let Ok(path) = path.canonicalize()
-        && let Ok(path) = path.strip_prefix(glib::home_dir()) {
-            return Some(format!("~{MAIN_SEPARATOR}{}", path.to_string_lossy()));
-        }
+        && let Ok(path) = path.strip_prefix(glib::home_dir())
+    {
+        return Some(format!("~{MAIN_SEPARATOR}{}", path.to_string_lossy()));
+    }
 
     None
 }

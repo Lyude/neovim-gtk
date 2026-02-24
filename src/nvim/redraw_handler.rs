@@ -417,9 +417,9 @@ pub fn call(
 
             ui.set_pending_popupmenu(PendingPopupMenu::Show {
                 items: menu_items,
-                selected: try_option_u32!(iter
-                    .next()
-                    .ok_or("Failed to get selected popupmenu row")?),
+                selected: try_option_u32!(
+                    iter.next().ok_or("Failed to get selected popupmenu row")?
+                ),
                 pos: (
                     try_uint!(iter.next().ok_or("Failed to get popupmenu row")?),
                     try_uint!(iter.next().ok_or("Failed to get popupmenu col")?),
@@ -504,13 +504,12 @@ impl PendingPopupMenu {
             return;
         }
 
-        if let Self::Show {
-            selected, ..
-        } = self
-            && let Self::Select(new_selected) = other {
-                *selected = new_selected;
-                return;
-            }
+        if let Self::Show { selected, .. } = self
+            && let Self::Select(new_selected) = other
+        {
+            *selected = new_selected;
+            return;
+        }
 
         *self = other;
     }

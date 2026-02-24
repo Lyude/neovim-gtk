@@ -4,16 +4,16 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::{mpsc, Arc};
+use std::sync::{Arc, mpsc};
 use std::{env, thread};
 
 use log::{debug, error};
 
-use futures::{executor::block_on, FutureExt};
+use futures::{FutureExt, executor::block_on};
 
 use tokio::sync::{Mutex as AsyncMutex, Notify};
 
-use gdk::{prelude::*, Display, ModifierType};
+use gdk::{Display, ModifierType, prelude::*};
 use gio::ApplicationCommandLine;
 use gtk::prelude::*;
 use gtk::{Button, MenuButton, Notebook};
@@ -21,7 +21,7 @@ use pango::FontDescription;
 
 use nvim_rs::Value;
 
-use crate::color::{Color, COLOR_BLACK, COLOR_WHITE};
+use crate::color::{COLOR_BLACK, COLOR_WHITE, Color};
 use crate::grid::GridMap;
 use crate::highlight::{BackgroundState, HighlightMap};
 use crate::misc::{decode_uri, escape_filename, split_at_comma};
@@ -31,8 +31,9 @@ use crate::nvim::{
 };
 use crate::settings::{FontSource, Settings};
 use crate::ui_model::ModelRect;
-use crate::{spawn_timeout, spawn_timeout_user_err, NvimTransport};
+use crate::{NvimTransport, spawn_timeout, spawn_timeout_user_err};
 
+use crate::Args;
 use crate::cmd_line::{CmdLine, CmdLineContext};
 use crate::cursor::{Cursor, CursorRedrawCb};
 use crate::input;
@@ -45,7 +46,6 @@ use crate::render::CellMetrics;
 use crate::subscriptions::{SubscriptionHandle, SubscriptionKey, Subscriptions};
 use crate::tabline::Tabline;
 use crate::ui::{Components, UiMutex};
-use crate::Args;
 
 const DEFAULT_FONT_NAME: &str = "DejaVu Sans Mono 12";
 pub const MINIMUM_SUPPORTED_NVIM_VERSION: &str = "0.3.2";
@@ -478,9 +478,10 @@ impl State {
 
     fn close_popup_menu(&self) {
         if self.popup_menu.is_open()
-            && let Some(nvim) = self.nvim() {
-                nvim.block_timeout(nvim.input("<Esc>")).report_err();
-            }
+            && let Some(nvim) = self.nvim()
+        {
+            nvim.block_timeout(nvim.input("<Esc>")).report_err();
+        }
     }
 
     fn update_dirty_glyphs(&mut self) {
@@ -596,7 +597,7 @@ impl State {
                     Value::Array(vec![
                         "nvim_command".into(),
                         Value::Array(vec![
-                            "au VimResized * ++once cal rpcnotify(1, 'resized')".into()
+                            "au VimResized * ++once cal rpcnotify(1, 'resized')".into(),
                         ]),
                     ]),
                     Value::Array(vec![
@@ -1621,9 +1622,10 @@ fn init_nvim_async(
     let cb_state_arc = state_arc.clone();
     session.spawn(io_future.map(|r| {
         if let Err(e) = r
-            && !e.is_reader_error() {
-                error!("{e}");
-            }
+            && !e.is_reader_error()
+        {
+            error!("{e}");
+        }
 
         glib::idle_add_once(move || {
             cb_state_arc.borrow().nvim.clear();
@@ -1678,9 +1680,9 @@ fn init_nvim_async(
                 .timeout(session.command("runtime! ginit.vim"))
                 .await
                 .map_err(NvimInitError::new_post_init)
-            {
-                show_nvim_init_error(e, state_arc, comps);
-            }
+        {
+            show_nvim_init_error(e, state_arc, comps);
+        }
     });
 }
 
@@ -1947,25 +1949,26 @@ impl State {
     fn set_font_from_value(&mut self, val: Value) -> RedrawMode {
         if let Value::String(val) = val
             && let Some(val) = val.into_str()
-                && !val.is_empty() {
-                    let exists_fonts = self.render_state.borrow().font_ctx.font_families();
-                    let fonts = split_at_comma(&val);
-                    for font in &fonts {
-                        let desc = FontDescription::from_string(font);
-                        if desc.size() > 0
-                            && exists_fonts.contains(&desc.family().unwrap_or_else(|| "".into()))
-                        {
-                            self.set_font_rpc(font);
-                            return RedrawMode::All;
-                        }
-                    }
-
-                    // font does not exists? set first one
-                    if !fonts.is_empty() {
-                        self.set_font_rpc(&fonts[0]);
-                        return RedrawMode::All;
-                    }
+            && !val.is_empty()
+        {
+            let exists_fonts = self.render_state.borrow().font_ctx.font_families();
+            let fonts = split_at_comma(&val);
+            for font in &fonts {
+                let desc = FontDescription::from_string(font);
+                if desc.size() > 0
+                    && exists_fonts.contains(&desc.family().unwrap_or_else(|| "".into()))
+                {
+                    self.set_font_rpc(font);
+                    return RedrawMode::All;
                 }
+            }
+
+            // font does not exists? set first one
+            if !fonts.is_empty() {
+                self.set_font_rpc(&fonts[0]);
+                return RedrawMode::All;
+            }
+        }
 
         RedrawMode::Nothing
     }

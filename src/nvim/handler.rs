@@ -1,11 +1,11 @@
 use std::{
     result,
-    sync::{mpsc, Arc},
+    sync::{Arc, mpsc},
 };
 
 use log::{debug, error};
 
-use nvim_rs::{compat::tokio::Compat, Handler, Value};
+use nvim_rs::{Handler, Value, compat::tokio::Compat};
 
 use async_trait::async_trait;
 

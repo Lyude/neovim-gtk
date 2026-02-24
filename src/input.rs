@@ -66,9 +66,10 @@ pub fn keyval_to_input_string(in_str: &str, in_state: gdk::ModifierType) -> Stri
 
 pub fn convert_key(keyval: gdk::Key, modifiers: gdk::ModifierType) -> Option<String> {
     if let Some(ref keyval_name) = keyval.name()
-        && let Some(cnvt) = KEYVAL_MAP.get(keyval_name.as_str()).cloned() {
-            return Some(keyval_to_input_string(cnvt, modifiers));
-        }
+        && let Some(cnvt) = KEYVAL_MAP.get(keyval_name.as_str()).cloned()
+    {
+        return Some(keyval_to_input_string(cnvt, modifiers));
+    }
 
     keyval
         .to_unicode()

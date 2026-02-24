@@ -22,7 +22,7 @@ use crate::{
     spawn_timeout,
     ui_model::ModelRect,
 };
-use list_row::{PopupMenuListRow, PopupMenuListRowState, PADDING};
+use list_row::{PADDING, PopupMenuListRow, PopupMenuListRowState};
 pub use popover::PopupMenuPopover;
 use popupmenu_model::{PopupMenuItemRef, PopupMenuModel};
 

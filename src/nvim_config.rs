@@ -1,4 +1,4 @@
-use std::fs::{remove_file, OpenOptions};
+use std::fs::{OpenOptions, remove_file};
 use std::io::Write;
 use std::path::PathBuf;
 

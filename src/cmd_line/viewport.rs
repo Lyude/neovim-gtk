@@ -152,16 +152,17 @@ impl WidgetImpl for CmdlineViewportObject {
         }
 
         if let Some(level) = state.levels.last()
-            && let Some(ref cursor) = state.cursor {
-                snapshot_cursor(
-                    snapshot,
-                    cursor,
-                    font_ctx,
-                    &level.model_layout.model,
-                    hl,
-                    TransparencySettings::new(), // FIXME
-                );
-            }
+            && let Some(ref cursor) = state.cursor
+        {
+            snapshot_cursor(
+                snapshot,
+                cursor,
+                font_ctx,
+                &level.model_layout.model,
+                hl,
+                TransparencySettings::new(), // FIXME
+            );
+        }
 
         snapshot.restore();
     }

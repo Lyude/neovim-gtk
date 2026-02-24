@@ -36,9 +36,9 @@ use tokio_util::compat::*;
 use futures::future::{BoxFuture, FutureExt};
 
 use nvim_rs::{
+    UiAttachOptions, Value,
     compat::tokio::Compat,
     error::{CallError, DecodeError, LoopError},
-    UiAttachOptions, Value,
 };
 
 use crate::nvim_config::NvimConfig;
@@ -445,10 +445,11 @@ impl NvimSession {
         if let Err(ref e) = res {
             if let SessionError::CallError(ref e) = *e
                 && let CallError::DecodeError(ref e, _) = **e
-                    && let DecodeError::ReaderError(_) = **e {
-                        // It's expected that we'll fail to read the response to this
-                        return;
-                    }
+                && let DecodeError::ReaderError(_) = **e
+            {
+                // It's expected that we'll fail to read the response to this
+                return;
+            }
             res.report_err();
         }
     }
@@ -523,9 +524,10 @@ pub fn start<'a>(
     set_windows_creation_flags(&mut cmd);
 
     if let Some(nvim_config) = NvimConfig::config_path()
-        && let Some(path) = nvim_config.to_str() {
-            cmd.arg("--cmd").arg(format!("source {path}"));
-        }
+        && let Some(path) = nvim_config.to_str()
+    {
+        cmd.arg("--cmd").arg(format!("source {path}"));
+    }
 
     for arg in args_for_neovim {
         cmd.arg(arg);
