@@ -286,7 +286,7 @@ impl FileBrowserWidget {
             nvim_ref,
             move |_, _| {
                 let nvim = nvim_ref.nvim().unwrap();
-                if let Some(ref path) = &state_ref.borrow().selected_path {
+                if let Some(path) = &state_ref.borrow().selected_path {
                     let path = path.clone();
                     spawn_timeout!(nvim.set_current_dir(&path));
                 }

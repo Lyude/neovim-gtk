@@ -38,7 +38,7 @@ impl<T> ErrorReport<T> for Result<T, Box<CallError>> {
 
 impl<T> ErrorReport<T> for Result<T, SessionError> {
     fn report_err(&self) {
-        if let Err(ref err) = self {
+        if let Err(err) = self {
             match *err {
                 SessionError::CallError(ref e) => e.print(),
                 SessionError::TimeoutError(ref e) => {
