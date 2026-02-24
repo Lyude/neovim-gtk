@@ -21,6 +21,7 @@ env:
 jobs:
   linux:
     runs-on: [ubuntu-latest]
+    container: fedora:latest
 
     strategy:
       fail-fast: false
@@ -39,7 +40,10 @@ jobs:
           components: clippy, rustfmt
 
       - name: Install dependencies
-        run: sudo apt update && sudo apt install -y libgtk-4-dev
+        run: |
+          dnf update -y
+          dnf install -y gtk4-devel glib2-devel pango-devel
+          dnf install -y gcc
 
       - uses: Swatinem/rust-cache@v2
 
