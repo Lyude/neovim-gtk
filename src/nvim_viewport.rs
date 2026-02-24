@@ -223,11 +223,10 @@ impl WidgetImpl for NvimViewportObject {
                 }
             }
 
-            if let Some(cursor) = state.cursor() {
-                if let Some(model) = state.grids.current_model() {
+            if let Some(cursor) = state.cursor()
+                && let Some(model) = state.grids.current_model() {
                     snapshot_cursor(snapshot_in, cursor, font_ctx, model, hl, transparency);
                 }
-            }
         } else {
             self.snapshot_initializing(snapshot_in, &render_state);
         }

@@ -274,15 +274,14 @@ impl Projects {
 
         let shell = self.shell.clone();
         dlg.run_async(move |dlg, response| {
-            if response == gtk::ResponseType::Ok {
-                if let Some(filename) = dlg
+            if response == gtk::ResponseType::Ok
+                && let Some(filename) = dlg
                     .file()
                     .and_then(|f| f.path())
                     .and_then(|f| f.to_str().map(|s| s.to_owned()))
                 {
                     shell.borrow().open_file(&filename);
                 }
-            }
             dlg.close();
         });
     }

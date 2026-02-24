@@ -507,12 +507,10 @@ impl PendingPopupMenu {
         if let Self::Show {
             selected, ..
         } = self
-        {
-            if let Self::Select(new_selected) = other {
+            && let Self::Select(new_selected) = other {
                 *selected = new_selected;
                 return;
             }
-        }
 
         *self = other;
     }

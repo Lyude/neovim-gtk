@@ -151,8 +151,8 @@ impl WidgetImpl for CmdlineViewportObject {
             }
         }
 
-        if let Some(level) = state.levels.last() {
-            if let Some(ref cursor) = state.cursor {
+        if let Some(level) = state.levels.last()
+            && let Some(ref cursor) = state.cursor {
                 snapshot_cursor(
                     snapshot,
                     cursor,
@@ -162,7 +162,6 @@ impl WidgetImpl for CmdlineViewportObject {
                     TransparencySettings::new(), // FIXME
                 );
             }
-        }
 
         snapshot.restore();
     }
