@@ -19,10 +19,8 @@ env:
   RUSTFLAGS: -C opt-level=0 -D warnings
 
 jobs:
-  fedora:
+  linux:
     runs-on: [ubuntu-latest]
-    container:
-      image: fedora:40
 
     strategy:
       fail-fast: false
@@ -34,18 +32,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Lyude/setup-dnf@main
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          update: true
-          install: >-
-            rust
-            cargo
-            rustfmt
-            clippy
-            atk-devel
-            glib2-devel
-            pango-devel
-            gtk4-devel
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y libgtk-4-dev
 
       - uses: Swatinem/rust-cache@v2
 
@@ -56,7 +50,9 @@ jobs:
         run: cargo fmt --check -v
 
       - name: Check for clippy lints
-        run: cargo clippy -- -Dwarnings
+        run: cargo clippy
+        env:
+          RUSTFLAGS: "-Dwarnings"
 
   osx:
     runs-on: [macos-latest]
