@@ -72,6 +72,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
       - name: Update brew
         run: brew update
 
@@ -98,6 +103,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - uses: msys2/setup-msys2@v2
         with:
