@@ -505,7 +505,7 @@ impl PendingPopupMenu {
         }
 
         if let Self::Show {
-            ref mut selected, ..
+            selected, ..
         } = self
         {
             if let Self::Select(new_selected) = other {

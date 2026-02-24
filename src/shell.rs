@@ -1529,7 +1529,7 @@ fn show_nvim_start_error(
             });
         }
         NvimInitError::MissingCapability(_) => unreachable!(),
-        NvimInitError::TcpConnectError { ref addr, .. } => {
+        NvimInitError::TcpConnectError { addr, .. } => {
             let addr = addr.to_string();
             let source = err.source();
             glib::idle_add_once(move || {
@@ -1541,7 +1541,7 @@ fn show_nvim_start_error(
             });
         }
         #[cfg(unix)]
-        NvimInitError::UnixConnectError { ref addr, .. } => {
+        NvimInitError::UnixConnectError { addr, .. } => {
             let addr = addr.to_string_lossy().to_string();
             let source = err.source();
             glib::idle_add_once(move || {
