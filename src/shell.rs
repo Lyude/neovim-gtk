@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc};
-use std::thread;
+use std::{env, thread};
 
 use log::{debug, error};
 
@@ -1639,13 +1639,20 @@ fn init_nvim_async(
     let input_data = options.input_data;
     session.clone().spawn(async move {
         let mut set_runtime_path = true;
-        let gui_runtime_path = match _get_grandparent_dir() {
-            Ok(gp_dir) => gp_dir.join("share/nvim-gtk/runtime"),
-            Err(_) => {
-                set_runtime_path = false;
-                PathBuf::new() // Only to match typing, doesn't really matter
+        let mut gui_runtime_path = if let Ok(env_rtp) = env::var("NVIM_GTK_RUNTIME_PATH") {
+            PathBuf::from(env_rtp)
+        } else {
+            match _get_grandparent_dir() {
+                Ok(gp_dir) => gp_dir.join("share/nvim-gtk/runtime"),
+                Err(_) => {
+                    set_runtime_path = false;
+                    PathBuf::new() // Only to match typing, doesn't really matter
+                }
             }
         };
+        if !gui_runtime_path.exists() {
+            gui_runtime_path = PathBuf::from(env!("RUNTIME_PATH"));
+        }
 
         if set_runtime_path {
             let set_rtp_command = format!("set runtimepath+={}", gui_runtime_path.display());
