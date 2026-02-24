@@ -56,12 +56,8 @@ fn main() {
 
     println!(
         "cargo:rustc-env=RUNTIME_PATH={}",
-        if let Some(prefix) = option_env!("PREFIX") {
-            if !prefix.is_empty() {
-                PathBuf::from(prefix).join("share/nvim-gtk/runtime")
-            } else {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime")
-            }
+        if let Some(prefix) = option_env!("PREFIX") && !prefix.is_empty() {
+            PathBuf::from(prefix).join("share/nvim-gtk/runtime")
         } else {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime")
         }
