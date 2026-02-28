@@ -59,7 +59,10 @@ command! -nargs=1 -bang GuiFont call s:GuiFontCommand("<args>", "<bang>")
 
 command! -nargs=? GuiFontFeatures call rpcnotify(1, 'Gui', 'FontFeatures', <q-args>)
 command! -nargs=1 GuiLinespace call rpcnotify(1, 'Gui', 'Linespace', <q-args>)
+
 command! -nargs=1 GuiPopupmenu call rpcnotify(1, 'Gui', 'Option', 'Popupmenu', <args>)
+command! -nargs=1 GuiTabline call rpcnotify(1, 'Gui', 'Option', 'Tabline', <args>)
+command! -nargs=1 GuiCmdline call rpcnotify(1, 'Gui', 'Option', 'Cmdline', <args>)
 
 command! NGToggleSidebar call rpcnotify(1, 'Gui', 'Command', 'ToggleSidebar')
 command! NGShowProjectView call rpcnotify(1, 'Gui', 'Command', 'ShowProjectView')
