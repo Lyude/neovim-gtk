@@ -149,7 +149,8 @@ impl Ui {
 
             let prefer_dark_theme = env::var("NVIM_GTK_PREFER_DARK_THEME")
                 .map(|opt| opt.trim() == "1")
-                .unwrap_or(false);
+                .unwrap_or(false)
+                || args.prefer_dark_theme;
             if prefer_dark_theme {
                 window
                     .settings()
@@ -178,11 +179,13 @@ impl Ui {
         // Client side decorations including the toolbar are disabled via NVIM_GTK_NO_HEADERBAR=1
         let use_header_bar = env::var("NVIM_GTK_NO_HEADERBAR")
             .map(|opt| opt.trim() != "1")
-            .unwrap_or(true);
+            .unwrap_or(true)
+            && !args.no_header_bar;
 
         let disable_window_decoration = env::var("NVIM_GTK_NO_WINDOW_DECORATION")
             .map(|opt| opt.trim() == "1")
-            .unwrap_or(false);
+            .unwrap_or(false)
+            && !args.no_window_decoration;
 
         if disable_window_decoration {
             window.set_decorated(false);
