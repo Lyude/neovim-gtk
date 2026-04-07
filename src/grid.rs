@@ -48,12 +48,7 @@ impl GridMap {
     }
 
     pub fn get_or_create(&mut self, idx: u64) -> &mut Grid {
-        if self.grids.contains_key(&idx) {
-            return self.grids.get_mut(&idx).unwrap();
-        }
-
-        self.grids.insert(idx, Grid::new());
-        self.grids.get_mut(&idx).unwrap()
+        self.grids.entry(idx).or_insert_with(Grid::new)
     }
 
     pub fn destroy(&mut self, idx: u64) {
@@ -160,5 +155,19 @@ impl Grid {
             rows,
             default_hl,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_or_create_reuses_existing_grid() {
+        let mut grids = GridMap::new();
+
+        grids.get_or_create(7).cursor_goto(3, 4);
+
+        assert_eq!((3, 4), grids.get_or_create(7).get_cursor());
     }
 }

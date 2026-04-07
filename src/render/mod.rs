@@ -555,9 +555,8 @@ fn snapshot_cell(
     cell_metrics: &CellMetrics,
 ) {
     let (x, y) = cell_metrics.get_pixel_coords(pos);
+    let fg = hl.actual_cell_fg(cell);
     for item in items {
-        let fg = hl.actual_cell_fg(cell);
-
         if item.glyphs().is_some()
             && let Some(render_node) =
                 item.render_node(fg, (x as f32, (y + cell_metrics.ascent) as f32))
