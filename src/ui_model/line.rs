@@ -192,14 +192,7 @@ impl Line {
                 .iter()
                 .any(|c| c.dirty)
             {
-                self.item_line[new_item.start_cell] = new_item
-                    .items
-                    .iter()
-                    .map(|i| Item::new((*i).clone(), cell_count as usize))
-                    .collect();
-                self.line[new_item.start_cell].dirty = true;
-                self.mark_dirty(new_item.start_cell, new_item.start_cell);
-                true
+                self.update_cell_item(new_item)
             } else {
                 false
             }
@@ -256,14 +249,36 @@ impl Line {
             self.line[i].dirty = true;
             self.cell_to_item[i] = new_item.start_cell as i32;
         }
-        self.item_line[new_item.start_cell + 1..=new_item.end_cell].fill(Box::default());
+        if new_item.start_cell < new_item.end_cell {
+            self.item_line[new_item.start_cell + 1..=new_item.end_cell].fill(Box::default());
+        }
         let cells_count = new_item.end_cell - new_item.start_cell + 1;
-        self.item_line[new_item.start_cell] = new_item
+        self.item_line[new_item.start_cell] = Self::collect_items(new_item, cells_count);
+        self.mark_dirty(new_item.start_cell, new_item.end_cell);
+    }
+
+    fn update_cell_item(&mut self, new_item: &PangoItemPosition) -> bool {
+        let cells_count = new_item.end_cell - new_item.start_cell + 1;
+        let items = &mut self.item_line[new_item.start_cell];
+        if items.len() == new_item.items.len() {
+            for (item, pango_item) in items.iter_mut().zip(&new_item.items) {
+                item.update((*pango_item).clone(), cells_count);
+            }
+        } else {
+            *items = Self::collect_items(new_item, cells_count);
+        }
+
+        self.line[new_item.start_cell].dirty = true;
+        self.mark_dirty(new_item.start_cell, new_item.start_cell);
+        true
+    }
+
+    fn collect_items(new_item: &PangoItemPosition, cells_count: usize) -> Box<[Item]> {
+        new_item
             .items
             .iter()
-            .map(|i| Item::new((*i).clone(), cells_count))
-            .collect();
-        self.mark_dirty(new_item.start_cell, new_item.end_cell);
+            .map(|item| Item::new((*item).clone(), cells_count))
+            .collect()
     }
 
     fn include_double_width_cells(&self, mut range: DirtyRange) -> DirtyRange {
@@ -825,5 +840,26 @@ mod tests {
         line.mark_dirty(1, 1);
 
         assert_eq!(Some(0..2), line.expanded_dirty_range(),);
+    }
+
+    #[test]
+    fn test_update_cell_item_marks_dirty_range() {
+        let mut line = Line::new(4);
+        for cell in &mut line.line {
+            cell.dirty = false;
+        }
+        line.clear_dirty();
+
+        let item = PangoItemPosition {
+            items: Vec::new(),
+            start_cell: 1,
+            end_cell: 3,
+        };
+
+        assert!(line.update_cell_item(&item));
+        assert!(line.line[1].dirty);
+        assert!(!line.line[2].dirty);
+        assert!(!line.line[3].dirty);
+        assert_eq!(Some(1..2), line.dirty_range());
     }
 }
