@@ -17,6 +17,17 @@ impl PopupMenuModel {
             .property("items", glib::BoxedAnyObject::new(items.clone()))
             .build()
     }
+
+    pub fn update_items(&self, items: &Rc<Vec<PopupMenuItem>>) {
+        let imp = self.imp();
+        let removed = imp.0.borrow().len().try_into().unwrap();
+        let added = items.len().try_into().unwrap();
+        *imp.0.borrow_mut() = items.clone();
+
+        // Treat updates as a full reset. Completion lists are small, so a granular diff would add
+        // more bookkeeping than the UI churn it would avoid.
+        self.items_changed(0, removed, added);
+    }
 }
 
 #[derive(Default)]
@@ -93,5 +104,40 @@ impl Deref for PopupMenuItemRef {
     fn deref(&self) -> &Self::Target {
         // SAFETY: pos is checked at creation time
         unsafe { self.array.get_unchecked(self.pos) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn popup_item(word: &str) -> PopupMenuItem {
+        PopupMenuItem {
+            word: word.to_owned(),
+            kind: String::new(),
+            menu: String::new(),
+            info: String::new(),
+        }
+    }
+
+    #[test]
+    fn update_items_reuses_model_and_emits_items_changed() {
+        // This exercises gio::ListModel/glib signal delivery only, so it does not need gtk::init()
+        // or a display-backed test environment.
+        let model = PopupMenuModel::new(&Rc::new(vec![popup_item("one")]));
+        let changes = Rc::new(RefCell::new(Vec::new()));
+
+        model.connect_items_changed({
+            let changes = changes.clone();
+            move |_, position, removed, added| {
+                changes.borrow_mut().push((position, removed, added));
+            }
+        });
+
+        let updated_items = Rc::new(vec![popup_item("one"), popup_item("two")]);
+        model.update_items(&updated_items);
+
+        assert_eq!(model.n_items(), 2);
+        assert_eq!(&*changes.borrow(), &[(0, 1, 2)]);
     }
 }
