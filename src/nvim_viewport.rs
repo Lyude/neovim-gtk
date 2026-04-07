@@ -12,6 +12,7 @@ use crate::{
     render::*,
     shell::{RenderState, State},
     ui::UiMutex,
+    ui_model,
 };
 
 glib::wrapper! {
@@ -44,6 +45,34 @@ impl NvimViewport {
     pub fn clear_snapshot_cache(&self) {
         self.set_property("snapshot-cached", false);
     }
+
+    pub fn invalidate_snapshot_lines(&self, ui_model: &ui_model::UiModel) {
+        self.imp()
+            .inner
+            .borrow_mut()
+            .invalidate_snapshot_lines(ui_model);
+    }
+}
+
+struct CachedLineSnapshot {
+    snapshot: Option<gsk::RenderNode>,
+    dirty: bool,
+}
+
+impl CachedLineSnapshot {
+    fn invalidate(&mut self) {
+        self.snapshot = None;
+        self.dirty = true;
+    }
+}
+
+impl Default for CachedLineSnapshot {
+    fn default() -> Self {
+        Self {
+            snapshot: None,
+            dirty: true,
+        }
+    }
 }
 
 /** The inner state structure for the viewport widget, for holding non-glib types (e.g. ones that
@@ -51,7 +80,45 @@ impl NvimViewport {
 #[derive(Default)]
 struct NvimViewportInner {
     state: Weak<UiMutex<State>>,
-    snapshot_cache: Option<gsk::RenderNode>,
+    snapshot_cache: Vec<CachedLineSnapshot>,
+    snapshot_dimensions: Option<(usize, usize)>,
+}
+
+impl NvimViewportInner {
+    fn clear_snapshot_cache(&mut self) {
+        self.snapshot_cache.clear();
+        self.snapshot_dimensions = None;
+    }
+
+    fn has_cached_snapshot(&self) -> bool {
+        self.snapshot_cache.iter().any(|line| !line.dirty)
+    }
+
+    fn ensure_snapshot_cache(&mut self, rows: usize, columns: usize) {
+        if self.snapshot_dimensions == Some((rows, columns)) {
+            return;
+        }
+
+        self.snapshot_cache = std::iter::repeat_with(CachedLineSnapshot::default)
+            .take(rows)
+            .collect();
+        self.snapshot_dimensions = Some((rows, columns));
+    }
+
+    fn invalidate_snapshot_lines(&mut self, ui_model: &ui_model::UiModel) {
+        if self.snapshot_dimensions != Some((ui_model.rows, ui_model.columns)) {
+            self.clear_snapshot_cache();
+            return;
+        }
+
+        for (row, line) in ui_model.model().iter().enumerate() {
+            if line.dirty_line
+                && let Some(cached_line) = self.snapshot_cache.get_mut(row)
+            {
+                cached_line.invalidate();
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -115,7 +182,7 @@ impl ObjectImpl for NvimViewportObject {
             }
             "snapshot-cached" => {
                 if !value.get::<bool>().unwrap() {
-                    self.inner.borrow_mut().snapshot_cache = None;
+                    self.inner.borrow_mut().clear_snapshot_cache();
                 }
             }
             "context-menu" => {
@@ -153,7 +220,7 @@ impl ObjectImpl for NvimViewportObject {
 
     fn property(&self, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
-            "snapshot-cached" => self.inner.borrow().snapshot_cache.is_some().to_value(),
+            "snapshot-cached" => self.inner.borrow().has_cached_snapshot().to_value(),
             "context-menu" => self.context_menu.upgrade().to_value(),
             "completion-popover" => self.completion_popover.upgrade().to_value(),
             "ext-cmdline" => self.ext_cmdline.upgrade().to_value(),
@@ -200,27 +267,43 @@ impl WidgetImpl for NvimViewportObject {
         );
 
         if state.nvim_clone().is_initialized() {
-            // Render scenes get pretty huge here, so we cache them as often as possible
+            // Render scenes get pretty huge here, so we cache them per line and only rebuild the
+            // lines touched by the last redraw.
             let font_ctx = &render_state.font_ctx;
-            if inner.snapshot_cache.is_none() {
-                let ui_model = match state.grids.current_model() {
-                    Some(ui_model) => ui_model,
-                    None => return,
+            let ui_model = match state.grids.current_model() {
+                Some(ui_model) => ui_model,
+                None => return,
+            };
+
+            // Recreate the full cache only when the grid dimensions change. Otherwise we keep the
+            // previous render nodes and rebuild only dirty lines below.
+            inner.ensure_snapshot_cache(ui_model.rows, ui_model.columns);
+            debug_assert_eq!(ui_model.model().len(), inner.snapshot_cache.len());
+            let push_opacity = transparency.filled_alpha < 0.99999;
+            if push_opacity {
+                snapshot_in.push_opacity(transparency.filled_alpha)
+            }
+
+            for (row, (line, cached_line)) in ui_model
+                .model()
+                .iter()
+                .zip(inner.snapshot_cache.iter_mut())
+                .enumerate()
+            {
+                if cached_line.dirty {
+                    cached_line.snapshot = snapshot_nvim_line(font_ctx, line, row, hl);
+                    cached_line.dirty = false;
+                }
+
+                let Some(cached_snapshot) = cached_line.snapshot.as_ref() else {
+                    continue;
                 };
 
-                inner.snapshot_cache = snapshot_nvim(font_ctx, ui_model, hl);
-            }
-            if let Some(ref cached_snapshot) = inner.snapshot_cache {
-                let push_opacity = transparency.filled_alpha < 0.99999;
-                if push_opacity {
-                    snapshot_in.push_opacity(transparency.filled_alpha)
-                }
-
                 snapshot_in.append_node(cached_snapshot);
+            }
 
-                if push_opacity {
-                    snapshot_in.pop();
-                }
+            if push_opacity {
+                snapshot_in.pop();
             }
 
             if let Some(cursor) = state.cursor()
@@ -250,5 +333,49 @@ impl NvimViewportObject {
             obj.allocated_height() as f64 / 2.0 - height as f64 / 2.0,
             &layout,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn clean_snapshot_cache(inner: &mut NvimViewportInner) {
+        for line in &mut inner.snapshot_cache {
+            line.dirty = false;
+        }
+    }
+
+    #[test]
+    fn invalidate_snapshot_lines_only_marks_dirty_rows() {
+        let mut inner = NvimViewportInner::default();
+        inner.ensure_snapshot_cache(3, 4);
+        clean_snapshot_cache(&mut inner);
+
+        let mut model = ui_model::UiModel::new(3, 4);
+        for line in model.model_mut().iter_mut() {
+            line.dirty_line = false;
+        }
+        model.model_mut()[1].dirty_line = true;
+
+        inner.invalidate_snapshot_lines(&model);
+
+        assert!(!inner.snapshot_cache[0].dirty);
+        assert!(inner.snapshot_cache[1].dirty);
+        assert!(!inner.snapshot_cache[2].dirty);
+        assert_eq!(inner.snapshot_dimensions, Some((3, 4)));
+    }
+
+    #[test]
+    fn invalidate_snapshot_lines_clears_cache_on_dimension_change() {
+        let mut inner = NvimViewportInner::default();
+        inner.ensure_snapshot_cache(3, 4);
+        clean_snapshot_cache(&mut inner);
+
+        let model = ui_model::UiModel::new(4, 4);
+        inner.invalidate_snapshot_lines(&model);
+
+        assert!(inner.snapshot_cache.is_empty());
+        assert_eq!(inner.snapshot_dimensions, None);
     }
 }

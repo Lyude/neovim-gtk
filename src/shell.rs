@@ -1758,10 +1758,14 @@ impl State {
             return;
         }
 
-        if mode >= RedrawMode::ClearCache {
-            if mode == RedrawMode::All {
-                self.update_dirty_glyphs();
+        if mode == RedrawMode::All {
+            if let Some(model) = self.grids.current_model() {
+                self.nvim_viewport.invalidate_snapshot_lines(model);
+            } else {
+                self.nvim_viewport.clear_snapshot_cache();
             }
+            self.update_dirty_glyphs();
+        } else if mode >= RedrawMode::ClearCache {
             self.nvim_viewport.clear_snapshot_cache();
         }
 

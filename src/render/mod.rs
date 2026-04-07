@@ -80,83 +80,83 @@ enum RenderStepKind {
     Strikethrough,
 }
 
+pub fn snapshot_nvim_line(
+    font_ctx: &Context,
+    line: &ui_model::Line,
+    row: usize,
+    hl: &HighlightMap,
+) -> Option<gsk::RenderNode> {
+    let snapshot = gtk::Snapshot::new();
+    let cell_metrics = font_ctx.cell_metrics();
+    let columns = line.line.len();
+
+    // Various operations for text formatting come at the end, so store them in a list until then.
+    // We set the capacity to three times the size of the row, since at most each cell can have
+    // strikethrough + a type of underline + the second line in an underdouble.
+    let mut text_fmt_steps = Vec::with_capacity(columns * 3);
+
+    let mut pending_bg = None;
+    let mut pending_strikethrough = None;
+    let mut pending_underline = None;
+    let mut pending_underdouble = None;
+
+    for (col, cell) in line.line.iter().enumerate() {
+        // Plan each step of the process of creating this snapshot as much as possible. We use
+        // the term "plan" to describe the process of generating as few snapshot nodes as possible
+        // in order to accomplish each step in creating a snapshot for the final image.
+        plan_and_snapshot_cell_bg(
+            &snapshot,
+            &mut pending_bg,
+            hl,
+            cell,
+            cell_metrics,
+            (row, col),
+        );
+        plan_underline_strikethrough(
+            &mut pending_strikethrough,
+            &mut pending_underline,
+            &mut pending_underdouble,
+            &mut text_fmt_steps,
+            hl,
+            cell,
+            (row, col),
+        );
+    }
+
+    if let Some(pending_bg) = pending_bg {
+        pending_bg.to_snapshot(&snapshot, cell_metrics);
+    }
+
+    for (col, cell) in line.line.iter().enumerate() {
+        snapshot_cell(
+            &snapshot,
+            &line.item_line[col],
+            hl,
+            cell,
+            (row, col),
+            cell_metrics,
+        );
+    }
+
+    for step in text_fmt_steps.into_iter() {
+        step.to_snapshot(&snapshot, cell_metrics);
+    }
+
+    snapshot.to_node()
+}
+
 pub fn snapshot_nvim(
     font_ctx: &Context,
     ui_model: &ui_model::UiModel,
     hl: &HighlightMap,
 ) -> Option<gsk::RenderNode> {
+    // Some code paths, such as the cmdline viewport, still consume a full-grid snapshot.
     let snapshot = gtk::Snapshot::new();
-    let cell_metrics = font_ctx.cell_metrics();
-    let (rows, columns) = (ui_model.rows, ui_model.columns);
 
-    // Various operations for text formatting come at the end, so store them in a list until then.
-    // We set the capacity to three times the size of the grid, since at most each cell can have
-    // strikethrough + a type of underline + the second line in an underdouble. Most of the time
-    // though, we optimistically expect this list to be much smaller than iterating through the UI
-    // model.
-    let mut text_fmt_steps = Vec::with_capacity(columns * rows * 3);
-
-    // Note that we group each batch of nodes based on their type, since GTK+ does a better job of
-    // optimizing contiguous series of similar drawing operations (source: Company)
-    let model = ui_model.model();
-    for (row, line) in model.iter().enumerate() {
-        let mut pending_bg = None;
-        let mut pending_strikethrough = None;
-        let mut pending_underline = None;
-        let mut pending_underdouble = None;
-
-        for (col, cell) in line.line.iter().enumerate() {
-            // Plan each step of the process of creating this snapshot as much as possible. We use
-            // the term "plan" to describe the process of generating as few snapshot nodes as
-            // possible in order to accomplish each step in creating a snapshot for the final image.
-            // For example, if multiple adjacent background nodes have identical background colors -
-            // our planning phase will generate a single snapshot node for any contiguous group of
-            // cells. Where possible, we immediately generate nodes and add them to the snapshot.
-            //
-            // Currently, the only step of the rendering process we don't do this for is with
-            // text nodes - where we rely on the itemization process to have already done this for
-            // us. Additionally, all optimizations are limited to each row. We do not for instance,
-            // combine the background nodes of multiple identical adjacent rows.
-            plan_and_snapshot_cell_bg(
-                &snapshot,
-                &mut pending_bg,
-                hl,
-                cell,
-                cell_metrics,
-                (row, col),
-            );
-            plan_underline_strikethrough(
-                &mut pending_strikethrough,
-                &mut pending_underline,
-                &mut pending_underdouble,
-                &mut text_fmt_steps,
-                hl,
-                cell,
-                (row, col),
-            );
+    for (row, line) in ui_model.model().iter().enumerate() {
+        if let Some(line_snapshot) = snapshot_nvim_line(font_ctx, line, row, hl) {
+            snapshot.append_node(&line_snapshot);
         }
-
-        // Since background nodes come first, we can add them to the snapshot immediately
-        if let Some(pending_bg) = pending_bg {
-            pending_bg.to_snapshot(&snapshot, cell_metrics);
-        }
-    }
-
-    for (row, line) in model.iter().enumerate() {
-        for (col, cell) in line.line.iter().enumerate() {
-            snapshot_cell(
-                &snapshot,
-                &line.item_line[col],
-                hl,
-                cell,
-                (row, col),
-                cell_metrics,
-            );
-        }
-    }
-
-    for step in text_fmt_steps.into_iter() {
-        step.to_snapshot(&snapshot, cell_metrics);
     }
 
     snapshot.to_node()
