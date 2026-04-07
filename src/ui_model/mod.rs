@@ -102,7 +102,7 @@ impl UiModel {
         hl: Rc<Highlight>,
     ) {
         let line = &mut self.model[row];
-        line.dirty_line = true;
+        line.mark_dirty(col, col + repeat - 1);
 
         for offset in 0..repeat {
             let cell = &mut line[col + offset];
