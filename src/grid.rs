@@ -99,9 +99,7 @@ impl Grid {
     }
 
     pub fn resize(&mut self, columns: u64, rows: u64) {
-        if self.model.columns != columns as usize || self.model.rows != rows as usize {
-            self.model = UiModel::new(rows, columns);
-        }
+        self.model.resize(rows, columns);
     }
 
     pub fn cursor_goto(&mut self, row: usize, col: usize) {

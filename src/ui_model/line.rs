@@ -34,6 +34,34 @@ impl Line {
         }
     }
 
+    pub fn resize(&mut self, columns: usize) {
+        let old_len = self.line.len();
+        if old_len == columns {
+            return;
+        }
+
+        let mut line = std::mem::take(&mut self.line).into_vec();
+        let mut item_line = std::mem::take(&mut self.item_line).into_vec();
+        let mut cell_to_item = std::mem::take(&mut self.cell_to_item).into_vec();
+
+        // Preserve overlapping cell and shaping state; the next merge pass fixes any item clipped
+        // by a shrink because `dirty_line` is forced below.
+        if columns > old_len {
+            line.resize_with(columns, Cell::new_empty);
+            item_line.resize_with(columns, Box::default);
+            cell_to_item.resize(columns, -1);
+        } else {
+            line.truncate(columns);
+            item_line.truncate(columns);
+            cell_to_item.truncate(columns);
+        }
+
+        self.line = line.into_boxed_slice();
+        self.item_line = item_line.into_boxed_slice();
+        self.cell_to_item = cell_to_item.into_boxed_slice();
+        self.dirty_line = true;
+    }
+
     pub fn swap_with(&mut self, target: &mut Self, left: usize, right: usize) {
         // swap is faster then clone
         target.line[left..=right].swap_with_slice(&mut self.line[left..=right]);
@@ -246,6 +274,63 @@ impl<'a> PangoItemPositionIterator<'a> {
             iter: items.iter().peekable(),
             styled_line,
         }
+    }
+}
+
+#[cfg(test)]
+mod resize_tests {
+    use super::*;
+
+    #[test]
+    fn test_resize_preserves_prefix_state_and_only_initializes_new_cells() {
+        let mut line = Line::new(2);
+        line.line[0].ch.push('a');
+        line.line[0].dirty = false;
+        line.line[1].dirty = false;
+        line.cell_to_item[0] = 0;
+        line.dirty_line = false;
+
+        line.resize(4);
+
+        assert_eq!(4, line.line.len());
+        assert_eq!(4, line.item_line.len());
+        assert_eq!(4, line.cell_to_item.len());
+        assert_eq!("a", line.line[0].ch);
+        assert!(!line.line[0].dirty);
+        assert!(!line.line[1].dirty);
+        assert!(line.line[2].dirty);
+        assert!(line.line[3].dirty);
+        assert_eq!(0, line.cell_to_item[0]);
+        assert_eq!(-1, line.cell_to_item[2]);
+        assert_eq!(-1, line.cell_to_item[3]);
+        assert!(line.dirty_line);
+    }
+
+    #[test]
+    fn test_resize_shrinks_without_dirtying_remaining_prefix() {
+        let mut line = Line::new(4);
+        line.line[0].dirty = false;
+        line.line[1].dirty = true;
+        line.line[2].dirty = false;
+        line.line[3].dirty = false;
+        line.cell_to_item[0] = 0;
+        line.cell_to_item[1] = 0;
+        line.cell_to_item[2] = 2;
+        line.cell_to_item[3] = 3;
+        line.dirty_line = false;
+
+        line.resize(3);
+
+        assert_eq!(3, line.line.len());
+        assert_eq!(3, line.item_line.len());
+        assert_eq!(3, line.cell_to_item.len());
+        assert!(!line.line[0].dirty);
+        assert!(line.line[1].dirty);
+        assert!(!line.line[2].dirty);
+        assert_eq!(0, line.cell_to_item[0]);
+        assert_eq!(0, line.cell_to_item[1]);
+        assert_eq!(2, line.cell_to_item[2]);
+        assert!(line.dirty_line);
     }
 }
 
