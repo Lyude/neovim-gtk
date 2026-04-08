@@ -34,11 +34,16 @@ impl State {
     }
 
     fn switch_page(&self, idx: u32) {
-        let target = &self.tabpages[idx as usize];
-        if Some(target) != self.selected.as_ref() {
+        let target = self.tabpages[idx as usize].clone();
+        if Some(&target) != self.selected.as_ref() {
             let nvim = self.nvim();
-            nvim.block_timeout(nvim.set_current_tabpage(target))
-                .report_err();
+            let session = nvim.clone();
+            nvim.spawn_ui_serialized(async move {
+                session
+                    .timeout(session.set_current_tabpage(&target))
+                    .await
+                    .report_err();
+            });
         }
     }
 

@@ -37,7 +37,6 @@ use crate::Args;
 use crate::cmd_line::{CmdLine, CmdLineContext};
 use crate::cursor::{Cursor, CursorRedrawCb};
 use crate::input;
-use crate::input::keyval_to_input_string;
 use crate::mode;
 use crate::nvim_viewport::NvimViewport;
 use crate::popup_menu::PopupMenu;
@@ -480,7 +479,7 @@ impl State {
         if self.popup_menu.is_open()
             && let Some(nvim) = self.nvim()
         {
-            nvim.block_timeout(nvim.input("<Esc>")).report_err();
+            input::queue_input(&nvim, "<Esc>");
         }
     }
 
@@ -1440,16 +1439,7 @@ fn mouse_input(
 ) {
     if let Some(nvim) = shell.nvim() {
         let (col, row) = mouse_coordinates_to_nvim(shell, position);
-        let input_string = keyval_to_input_string("", state);
-
-        let nvim_clone = nvim.clone();
-        nvim.spawn(async move {
-            nvim_clone
-                .input_mouse(button, action, &input_string, 0, row as i64, col as i64)
-                .await
-                .ok_and_report()
-                .expect("Can't send mouse input event");
-        });
+        input::queue_mouse_input(&nvim, button, action, state, row as i64, col as i64);
     }
 }
 

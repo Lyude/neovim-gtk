@@ -28,6 +28,7 @@ use tokio::{
     io::{self, AsyncWrite},
     process::{ChildStdin, Command},
     runtime::{Builder as RuntimeBuilder, Runtime},
+    sync::Mutex,
     task::JoinHandle,
     time::{error::Elapsed, timeout},
 };
@@ -268,6 +269,9 @@ pub struct NvimSession {
     nvim: Neovim,
     timeout: Duration,
     runtime: Arc<Runtime>,
+    // This mutex is a FIFO permit for UI-originated RPCs. Holding the guard is intentional so
+    // requests keep their submission order after leaving the GTK thread; it does not protect data.
+    ui_serial: Arc<Mutex<()>>,
 }
 
 type IoFuture<'a> = BoxFuture<'a, Result<(), Box<LoopError>>>;
@@ -300,6 +304,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: Arc::new(Mutex::new(())),
             },
             io_future.boxed(),
         ))
@@ -330,6 +335,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: Arc::new(Mutex::new(())),
             },
             io_future.boxed(),
         ))
@@ -362,6 +368,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: Arc::new(Mutex::new(())),
             },
             io_future.boxed(),
         ))
@@ -391,6 +398,21 @@ impl NvimSession {
     #[inline]
     pub fn spawn(&self, f: impl Future<Output = ()> + Send + 'static) -> JoinHandle<()> {
         self.runtime.spawn(f)
+    }
+
+    /// Spawn a task on this session's tokio runtime after waiting for earlier UI-originated
+    /// requests to finish.
+    #[doc(hidden)]
+    pub fn spawn_ui_serialized(
+        &self,
+        f: impl Future<Output = ()> + Send + 'static,
+    ) -> JoinHandle<()> {
+        let ui_serial = self.ui_serial.clone();
+
+        self.spawn(async move {
+            let _guard = ui_serial.lock().await;
+            f.await;
+        })
     }
 
     /// Wrap a future from an RPC call to neovim inside a timeout, and execute it on the current

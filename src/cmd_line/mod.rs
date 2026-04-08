@@ -14,6 +14,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::cursor;
 use crate::highlight::HighlightMap;
+use crate::input;
 use crate::mode;
 use crate::nvim::{self, *};
 use crate::nvim_viewport::NvimViewport;
@@ -629,7 +630,7 @@ pub fn tree_button_press(
                 .collect()
         };
 
-        nvim.block_timeout(nvim.input(&apply_command)).report_err();
+        input::queue_input(nvim, apply_command);
     }
 }
 
