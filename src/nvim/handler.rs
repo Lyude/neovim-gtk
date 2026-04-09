@@ -149,8 +149,8 @@ impl PendingRedraws {
     }
 
     fn take_pending(&mut self) -> Option<Vec<Vec<Value>>> {
+        self.scheduled = false;
         if self.batches.is_empty() {
-            self.scheduled = false;
             None
         } else {
             Some(mem::take(&mut self.batches))
@@ -172,22 +172,21 @@ fn queue_redraw(
         return;
     }
 
-    // Neovim may emit many small redraw notifications in a burst. Drain as many pending batches as
-    // possible in one GTK idle cycle so we avoid scheduling redundant redraw callbacks.
+    // Process one coalesced batch per GTK idle callback. If more redraws arrive while this batch
+    // is being handled, enqueue() will schedule the next idle callback after take_pending()
+    // clears the current scheduled flag.
     glib::idle_add_once(move || {
-        loop {
-            let pending_batches = {
-                let mut pending_redraws = pending_redraws.lock().unwrap();
-                pending_redraws.take_pending()
-            };
+        let pending_batches = {
+            let mut pending_redraws = pending_redraws.lock().unwrap();
+            pending_redraws.take_pending()
+        };
 
-            let Some(pending_batches) = pending_batches else {
-                break;
-            };
+        let Some(pending_batches) = pending_batches else {
+            return;
+        };
 
-            if let Err(msg) = call_redraw_handlers(pending_batches, &shell) {
-                error!("Error call function: {msg}");
-            }
+        if let Err(msg) = call_redraw_handlers(pending_batches, &shell) {
+            error!("Error call function: {msg}");
         }
     });
 }
@@ -312,17 +311,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pending_redraws_only_schedule_one_idle_until_fully_drained() {
+    fn pending_redraws_reschedule_after_current_batch_is_taken() {
         let mut pending = PendingRedraws::default();
 
         assert!(pending.enqueue(vec![Value::Nil]));
         assert!(!pending.enqueue(vec![Value::Nil]));
         assert_eq!(2, pending.take_pending().unwrap().len());
 
-        // The existing idle callback remains responsible for newly queued redraws until it observes
-        // the queue empty again.
+        // Once the current idle callback has taken ownership of the pending redraws, newly queued
+        // redraws must schedule the next idle callback.
+        assert!(pending.enqueue(vec![Value::Nil]));
         assert!(!pending.enqueue(vec![Value::Nil]));
-        assert_eq!(1, pending.take_pending().unwrap().len());
+        assert_eq!(2, pending.take_pending().unwrap().len());
 
         assert!(pending.take_pending().is_none());
         assert!(pending.enqueue(vec![Value::Nil]));
