@@ -28,10 +28,10 @@ use popupmenu_model::{PopupMenuItemRef, PopupMenuModel};
 
 pub const MAX_VISIBLE_ROWS: i32 = 10;
 
-#[derive(Default)]
 pub struct State {
     nvim: Option<Rc<nvim::NeovimClient>>,
     items: Rc<Vec<PopupMenuItem>>,
+    popup_model: PopupMenuModel,
     list_view: gtk::ListView,
     list_model: gtk::SingleSelection,
     list_row_state: Rc<RefCell<PopupMenuListRowState>>,
@@ -41,16 +41,29 @@ pub struct State {
     css_provider: gtk::CssProvider,
     open: bool,
     row_height: i32,
+    width_limit: i32,
+    width_font: Option<pango::FontDescription>,
+    visible_rows: usize,
     prev_selected: Option<u32>,
     prev_bounds: Option<(f64, f64, f64, f64)>,
     preview: bool,
 }
 
+// State now needs explicit GTK wiring, so Default forwards to the constructor instead of deriving.
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl State {
     pub fn new() -> Self {
+        let items = Rc::default();
+        let popup_model = PopupMenuModel::new(&items);
         let list_model = gtk::SingleSelection::builder()
             .can_unselect(true)
             .autoselect(false)
+            .model(&popup_model)
             .build();
         let list_view = gtk::ListView::builder()
             .show_separators(false)
@@ -95,7 +108,8 @@ impl State {
 
         State {
             nvim: None,
-            items: Rc::default(),
+            items,
+            popup_model,
             list_view,
             list_model,
             item_scroll,
@@ -103,6 +117,9 @@ impl State {
             css_provider,
             info_label,
             row_height: 0,
+            width_limit: 0,
+            width_font: None,
+            visible_rows: 0,
             list_row_state: Rc::new(RefCell::new(PopupMenuListRowState::default())),
             open: false,
             prev_selected: None,
@@ -133,13 +150,18 @@ impl State {
         self.select(selected);
     }
 
-    fn limit_column_widths(&mut self, ctx: &PopupMenuContext) {
+    fn limit_column_widths(
+        &mut self,
+        font_ctx: &render::Context,
+        max_width: i32,
+        menu_items: &[PopupMenuItem],
+    ) {
         const DEFAULT_PADDING: i32 = 10;
 
         let mut max_word = ("", 0);
         let mut max_kind = ("", 0);
         let mut max_menu = ("", 0);
-        for item in ctx.menu_items.iter() {
+        for item in menu_items {
             let kind_width = item.kind.width_cjk();
             let word_width = item.word.width_cjk();
             let menu_width = item.menu.width_cjk();
@@ -166,7 +188,7 @@ impl State {
          * or not.
          */
 
-        let layout = ctx.font_ctx.create_layout();
+        let layout = font_ctx.create_layout();
         layout.set_text(max_word);
         let (word_max_width, _) = layout.pixel_size();
         let word_column_width = word_max_width + DEFAULT_PADDING;
@@ -178,15 +200,15 @@ impl State {
 
             kind_width += DEFAULT_PADDING;
             row_state.kind_col_width = Some(kind_width);
-            row_state.word_col_width = (ctx.max_width - kind_width).min(word_column_width);
+            row_state.word_col_width = (max_width - kind_width).min(word_column_width);
         } else {
-            row_state.word_col_width = ctx.max_width.min(word_column_width);
+            row_state.word_col_width = max_width.min(word_column_width);
             row_state.kind_col_width = None;
         }
 
         if !max_menu.is_empty() {
             let space_left =
-                ctx.max_width - row_state.word_col_width - row_state.kind_col_width.unwrap_or(0);
+                max_width - row_state.word_col_width - row_state.kind_col_width.unwrap_or(0);
 
             layout.set_text(max_menu);
             row_state.menu_col_width =
@@ -201,20 +223,34 @@ impl State {
             return;
         }
 
-        let nvim_client = self.nvim.as_ref().unwrap();
-        let nvim = nvim_client.nvim().unwrap();
-        let api_info = self.nvim.as_ref().unwrap().api_info().unwrap();
+        let PopupMenuContext {
+            nvim: _,
+            font_ctx,
+            menu_items,
+            selected: _,
+            x: _,
+            y: _,
+            width: _,
+            height: _,
+            max_width,
+        } = ctx;
 
-        if api_info.ui_pum_set_height {
-            let len = ctx.menu_items.len().min(MAX_VISIBLE_ROWS as usize);
-            spawn_timeout!(nvim.ui_pum_set_height(len as i64));
+        let nvim_client = self.nvim.as_ref().unwrap().clone();
+        let nvim = nvim_client.nvim().unwrap();
+        let api_info = nvim_client.api_info().unwrap();
+        let visible_rows = menu_items.len().min(MAX_VISIBLE_ROWS as usize);
+
+        if api_info.ui_pum_set_height && self.visible_rows != visible_rows {
+            spawn_timeout!(nvim.ui_pum_set_height(visible_rows as i64));
+            self.visible_rows = visible_rows;
         }
 
         let CellMetrics {
             pango_ascent,
             pango_descent,
             ..
-        } = ctx.font_ctx.cell_metrics();
+        } = font_ctx.cell_metrics();
+        let font_desc = font_ctx.font_description();
 
         // FIXME: We're still doing something with with what we do for calculating
         // CellMetrics.char_height, since using it here doesn't seem to get the right value for
@@ -222,11 +258,20 @@ impl State {
         let char_height = (pango_ascent + pango_descent) as f64 / pango::SCALE as f64;
         self.row_height = (char_height + (PADDING * 2) as f64).ceil() as i32;
 
-        self.limit_column_widths(&ctx);
+        let items_changed = popup_items_changed(&self.items, &menu_items);
+        let layout_changed =
+            self.width_limit != max_width || self.width_font.as_ref() != Some(font_desc);
 
-        self.items = Rc::new(ctx.menu_items);
-        self.list_model
-            .set_model(Some(&PopupMenuModel::new(&self.items)));
+        if items_changed || layout_changed {
+            self.limit_column_widths(font_ctx, max_width, &menu_items);
+            self.width_limit = max_width;
+            self.width_font = Some(font_desc.clone());
+        }
+
+        if items_changed {
+            self.items = Rc::new(menu_items);
+            self.popup_model.update_items(&self.items);
+        }
     }
 
     fn update_css(&self, hl: &HighlightMap, font_ctx: &render::Context) {
@@ -289,15 +334,19 @@ impl State {
         let info = self.items[selected as usize].info.trim();
 
         if self.preview && !info.is_empty() {
-            self.info_label.set_text(info);
-            self.info_scroll.vadjustment().set_value(0.0);
-            self.info_scroll.hadjustment().set_value(0.0);
+            if !self.info_scroll.is_visible() || self.info_label.text().as_str() != info {
+                self.info_label.set_text(info);
+                self.info_scroll.vadjustment().set_value(0.0);
+                self.info_scroll.hadjustment().set_value(0.0);
+            }
             self.info_scroll.show();
             return;
         }
 
         self.info_scroll.hide();
-        self.info_label.set_text("");
+        if !self.info_label.text().is_empty() {
+            self.info_label.set_text("");
+        }
     }
 
     fn set_preview(&mut self, preview: bool) {
@@ -368,11 +417,6 @@ impl PopupMenu {
                 list_select(&mut state.borrow_mut(), idx, "<C-y>");
             }
         ));
-        let list_model = state_ref.list_model.clone();
-        state_ref
-            .list_view
-            .connect_unmap(move |_| list_model.set_model(None::<&PopupMenuModel>));
-
         drop(state_ref);
         PopupMenu { popover, state }
     }
@@ -535,6 +579,10 @@ pub struct PopupMenuContext<'a> {
     pub max_width: i32,
 }
 
+fn popup_items_changed(current: &Rc<Vec<PopupMenuItem>>, next: &[PopupMenuItem]) -> bool {
+    current.as_ref().as_slice() != next
+}
+
 pub fn list_select(state: &mut State, idx: u32, last_command: &str) {
     if let Some(nvim) = state.nvim.as_ref().unwrap().nvim() {
         let prev = state.prev_selected.map(|p| p as i32).unwrap_or(-1); // TODO: verify this is right
@@ -568,5 +616,34 @@ pub fn find_scroll_count(selected_idx: i32, target_idx: i32) -> i32 {
         target_idx - selected_idx
     } else {
         selected_idx - target_idx
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn popup_item(word: &str, kind: &str, menu: &str, info: &str) -> PopupMenuItem {
+        PopupMenuItem {
+            word: word.to_owned(),
+            kind: kind.to_owned(),
+            menu: menu.to_owned(),
+            info: info.to_owned(),
+        }
+    }
+
+    #[test]
+    fn popup_items_changed_detects_identical_lists() {
+        let items = Rc::new(vec![popup_item("word", "kind", "menu", "info")]);
+
+        assert!(!popup_items_changed(&items, items.as_slice()));
+    }
+
+    #[test]
+    fn popup_items_changed_detects_actual_content_changes() {
+        let items = Rc::new(vec![popup_item("word", "kind", "menu", "info")]);
+        let changed = vec![popup_item("word", "kind", "menu", "updated")];
+
+        assert!(popup_items_changed(&items, &changed));
     }
 }
