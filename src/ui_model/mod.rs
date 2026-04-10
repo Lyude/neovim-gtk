@@ -40,6 +40,27 @@ impl UiModel {
         }
     }
 
+    pub fn resize(&mut self, rows: u64, columns: u64) {
+        let rows = rows as usize;
+        let columns = columns as usize;
+        if self.rows == rows && self.columns == columns {
+            return;
+        }
+
+        let mut model = std::mem::take(&mut self.model).into_vec();
+        model.truncate(rows);
+        for line in &mut model {
+            line.resize(columns);
+        }
+        model.resize_with(rows, || Line::new(columns));
+
+        self.rows = rows;
+        self.columns = columns;
+        self.cur_pos = Self::clamp_pos(self.cur_pos, rows, columns);
+        self.flushed_pos = Self::clamp_pos(self.flushed_pos, rows, columns);
+        self.model = model.into_boxed_slice();
+    }
+
     #[inline]
     pub fn model(&self) -> &[Line] {
         &self.model
@@ -205,6 +226,14 @@ impl UiModel {
             row.clear_glyphs();
         }
     }
+
+    #[inline]
+    fn clamp_pos((row, col): (usize, usize), rows: usize, columns: usize) -> (usize, usize) {
+        (
+            row.min(rows.saturating_sub(1)),
+            col.min(columns.saturating_sub(1)),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -216,5 +245,72 @@ mod tests {
         let mut model = UiModel::new(10, 20);
 
         model.scroll(1, 5, 1, 5, 3, &Rc::new(Highlight::new()));
+    }
+
+    #[test]
+    fn test_resize_preserves_existing_cells() {
+        let hl = Rc::new(Highlight::new());
+        let mut model = UiModel::new(2, 2);
+
+        model.put_one(0, 0, "a", false, hl.clone());
+        model.put_one(1, 1, "b", false, hl);
+        model.set_cursor(1, 1);
+        model.flush_cursor();
+
+        model.resize(3, 4);
+
+        assert_eq!(3, model.rows);
+        assert_eq!(4, model.columns);
+        assert_eq!("a", model.model[0].line[0].ch);
+        assert_eq!("b", model.model[1].line[1].ch);
+        assert_eq!("", model.model[2].line[0].ch);
+        assert_eq!((1, 1), model.get_real_cursor());
+        assert_eq!((1, 1), model.get_flushed_cursor());
+    }
+
+    #[test]
+    fn test_resize_clamps_cursor_and_truncates_cells() {
+        let hl = Rc::new(Highlight::new());
+        let mut model = UiModel::new(3, 3);
+
+        model.put_one(0, 0, "a", false, hl.clone());
+        model.put_one(2, 2, "z", false, hl);
+        model.set_cursor(2, 2);
+        model.flush_cursor();
+
+        model.resize(1, 1);
+
+        assert_eq!(1, model.rows);
+        assert_eq!(1, model.columns);
+        assert_eq!("a", model.model[0].line[0].ch);
+        assert_eq!((0, 0), model.get_real_cursor());
+        assert_eq!((0, 0), model.get_flushed_cursor());
+    }
+
+    #[test]
+    fn test_resize_noop_preserves_model_state() {
+        let hl = Rc::new(Highlight::new());
+        let mut model = UiModel::new(2, 2);
+
+        model.put_one(1, 1, "x", false, hl);
+        model.set_cursor(1, 1);
+        model.flush_cursor();
+        model.model[0].line[0].dirty = false;
+        model.model[0].dirty_line = false;
+
+        let model_ptr = model.model.as_ptr();
+        let line_ptr = model.model[0].line.as_ptr();
+
+        model.resize(2, 2);
+
+        assert_eq!(model_ptr, model.model.as_ptr());
+        assert_eq!(line_ptr, model.model[0].line.as_ptr());
+        assert_eq!(2, model.rows);
+        assert_eq!(2, model.columns);
+        assert_eq!("x", model.model[1].line[1].ch);
+        assert!(!model.model[0].line[0].dirty);
+        assert!(!model.model[0].dirty_line);
+        assert_eq!((1, 1), model.get_real_cursor());
+        assert_eq!((1, 1), model.get_flushed_cursor());
     }
 }
