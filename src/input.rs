@@ -76,16 +76,46 @@ pub fn convert_key(keyval: gdk::Key, modifiers: gdk::ModifierType) -> Option<Str
         .map(|ch| keyval_to_input_string(&ch.to_string(), modifiers))
 }
 
-pub fn im_input(nvim: &NvimSession, input: &str) {
+pub fn queue_input(nvim: &NvimSession, input: impl Into<String>) {
+    let input = input.into();
     debug!("nvim_input -> {input}");
 
+    let session = nvim.clone();
+    nvim.spawn_ui_serialized(async move {
+        session
+            .timeout(session.input(&input))
+            .await
+            .ok_and_report()
+            .expect("Failed to send input command to nvim");
+    });
+}
+
+pub fn queue_mouse_input(
+    nvim: &NvimSession,
+    button: &'static str,
+    action: &'static str,
+    modifiers: gdk::ModifierType,
+    row: i64,
+    col: i64,
+) {
+    let modifiers = keyval_to_input_string("", modifiers);
+    let session = nvim.clone();
+
+    nvim.spawn_ui_serialized(async move {
+        session
+            .timeout(session.input_mouse(button, action, &modifiers, 0, row, col))
+            .await
+            .ok_and_report()
+            .expect("Can't send mouse input event");
+    });
+}
+
+pub fn im_input(nvim: &NvimSession, input: &str) {
     let input: String = input
         .chars()
         .map(|ch| keyval_to_input_string(&ch.to_string(), gdk::ModifierType::empty()))
         .collect();
-    nvim.block_timeout(nvim.input(&input))
-        .ok_and_report()
-        .expect("Failed to send input command to nvim");
+    queue_input(nvim, input);
 }
 
 pub fn gtk_key_press(
@@ -94,10 +124,7 @@ pub fn gtk_key_press(
     modifiers: gdk::ModifierType,
 ) -> glib::Propagation {
     if let Some(input) = convert_key(keyval, modifiers) {
-        debug!("nvim_input -> {input}");
-        nvim.block_timeout(nvim.input(&input))
-            .ok_and_report()
-            .expect("Failed to send input command to nvim");
+        queue_input(nvim, input);
         glib::Propagation::Stop
     } else {
         glib::Propagation::Proceed

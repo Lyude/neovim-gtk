@@ -19,7 +19,7 @@ use std::{
     pin::Pin,
     process::Stdio,
     result,
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
     task::{Context, Poll},
     time::Duration,
 };
@@ -28,6 +28,7 @@ use tokio::{
     io::{self, AsyncWrite},
     process::{ChildStdin, Command},
     runtime::{Builder as RuntimeBuilder, Runtime},
+    sync::oneshot,
     task::JoinHandle,
     time::{error::Elapsed, timeout},
 };
@@ -261,6 +262,37 @@ impl AsyncWrite for NvimWriter {
 pub type Neovim = nvim_rs::Neovim<Compat<NvimWriter>>;
 pub type Tabpage = nvim_rs::Tabpage<Compat<NvimWriter>>;
 
+#[derive(Clone, Default)]
+struct UiRequestSerial {
+    tail: Arc<StdMutex<Option<oneshot::Receiver<()>>>>,
+}
+
+impl UiRequestSerial {
+    fn spawn(
+        &self,
+        runtime: &Runtime,
+        f: impl Future<Output = ()> + Send + 'static,
+    ) -> JoinHandle<()> {
+        let (done_tx, done_rx) = oneshot::channel();
+        let previous = {
+            let mut tail = self
+                .tail
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            tail.replace(done_rx)
+        };
+
+        runtime.spawn(async move {
+            if let Some(previous) = previous {
+                let _ = previous.await;
+            }
+
+            f.await;
+            let _ = done_tx.send(());
+        })
+    }
+}
+
 /// Our main wrapper for `Neovim`, which also provides access to the timeout duration for this
 /// session
 #[derive(Clone)]
@@ -268,6 +300,9 @@ pub struct NvimSession {
     nvim: Neovim,
     timeout: Duration,
     runtime: Arc<Runtime>,
+    // UI-originated RPCs must keep their GTK submission order. We chain each task to the previous
+    // one before Tokio can schedule it, so runtime interleaving cannot reorder them.
+    ui_serial: UiRequestSerial,
 }
 
 type IoFuture<'a> = BoxFuture<'a, Result<(), Box<LoopError>>>;
@@ -300,6 +335,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: UiRequestSerial::default(),
             },
             io_future.boxed(),
         ))
@@ -330,6 +366,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: UiRequestSerial::default(),
             },
             io_future.boxed(),
         ))
@@ -362,6 +399,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: UiRequestSerial::default(),
             },
             io_future.boxed(),
         ))
@@ -391,6 +429,16 @@ impl NvimSession {
     #[inline]
     pub fn spawn(&self, f: impl Future<Output = ()> + Send + 'static) -> JoinHandle<()> {
         self.runtime.spawn(f)
+    }
+
+    /// Spawn a task on this session's tokio runtime after waiting for earlier UI-originated
+    /// requests to finish.
+    #[doc(hidden)]
+    pub fn spawn_ui_serialized(
+        &self,
+        f: impl Future<Output = ()> + Send + 'static,
+    ) -> JoinHandle<()> {
+        self.ui_serial.spawn(&self.runtime, f)
     }
 
     /// Wrap a future from an RPC call to neovim inside a timeout, and execute it on the current
@@ -473,6 +521,51 @@ impl Deref for NvimSession {
 impl DerefMut for NvimSession {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.nvim
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ui_serialized_tasks_keep_submission_order() {
+        let runtime = RuntimeBuilder::new_multi_thread()
+            .worker_threads(2)
+            .enable_time()
+            .build()
+            .unwrap();
+        let serial = UiRequestSerial::default();
+        let order = Arc::new(StdMutex::new(Vec::new()));
+
+        let first_order = order.clone();
+        let first = serial.spawn(&runtime, async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            first_order
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(1);
+        });
+
+        let second_order = order.clone();
+        let second = serial.spawn(&runtime, async move {
+            second_order
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(2);
+        });
+
+        runtime.block_on(async {
+            first.await.unwrap();
+            second.await.unwrap();
+        });
+
+        assert_eq!(
+            *order
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1, 2]
+        );
     }
 }
 
