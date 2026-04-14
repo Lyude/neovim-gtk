@@ -12,6 +12,7 @@ use super::shell::ResizeState;
 
 use std::net::SocketAddr;
 use std::{
+    collections::VecDeque,
     convert::TryFrom,
     env, error, fmt,
     future::Future,
@@ -19,7 +20,7 @@ use std::{
     pin::Pin,
     process::Stdio,
     result,
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
     task::{Context, Poll},
     time::Duration,
 };
@@ -28,7 +29,8 @@ use tokio::{
     io::{self, AsyncWrite},
     process::{ChildStdin, Command},
     runtime::{Builder as RuntimeBuilder, Runtime},
-    task::JoinHandle,
+    sync::oneshot,
+    task::{JoinError, JoinHandle},
     time::{error::Elapsed, timeout},
 };
 use tokio_util::compat::*;
@@ -261,6 +263,101 @@ impl AsyncWrite for NvimWriter {
 pub type Neovim = nvim_rs::Neovim<Compat<NvimWriter>>;
 pub type Tabpage = nvim_rs::Tabpage<Compat<NvimWriter>>;
 
+type UiRequestFuture = BoxFuture<'static, ()>;
+
+struct QueuedUiRequest {
+    future: UiRequestFuture,
+    done_tx: oneshot::Sender<Result<(), JoinError>>,
+}
+
+#[derive(Default)]
+struct PendingUiRequests {
+    running: bool,
+    queue: VecDeque<QueuedUiRequest>,
+}
+
+impl PendingUiRequests {
+    fn enqueue(&mut self, request: QueuedUiRequest) -> bool {
+        self.queue.push_back(request);
+        if self.running {
+            false
+        } else {
+            self.running = true;
+            true
+        }
+    }
+
+    fn take_next(&mut self) -> Option<QueuedUiRequest> {
+        if let Some(request) = self.queue.pop_front() {
+            Some(request)
+        } else {
+            self.running = false;
+            None
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct UiRequestSerial {
+    pending: Arc<StdMutex<PendingUiRequests>>,
+}
+
+impl UiRequestSerial {
+    fn spawn(
+        &self,
+        runtime: &Arc<Runtime>,
+        f: impl Future<Output = ()> + Send + 'static,
+    ) -> JoinHandle<()> {
+        let (done_tx, done_rx) = oneshot::channel();
+        let should_schedule = {
+            let mut pending = self
+                .pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            pending.enqueue(QueuedUiRequest {
+                future: f.boxed(),
+                done_tx,
+            })
+        };
+
+        if should_schedule {
+            let pending = self.pending.clone();
+            let drain_runtime = runtime.clone();
+
+            runtime.spawn(async move {
+                drain_ui_requests(pending, drain_runtime).await;
+            });
+        }
+
+        runtime.spawn(async move {
+            match done_rx.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+                Ok(Err(err)) => panic!("UI serialized task failed: {err}"),
+                Err(_) => panic!("UI serialized task queue dropped before completing request"),
+            }
+        })
+    }
+}
+
+async fn drain_ui_requests(pending: Arc<StdMutex<PendingUiRequests>>, runtime: Arc<Runtime>) {
+    loop {
+        let request = {
+            let mut pending = pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            pending.take_next()
+        };
+
+        let Some(request) = request else {
+            return;
+        };
+
+        let result = runtime.spawn(request.future).await;
+        let _ = request.done_tx.send(result);
+    }
+}
+
 /// Our main wrapper for `Neovim`, which also provides access to the timeout duration for this
 /// session
 #[derive(Clone)]
@@ -268,6 +365,9 @@ pub struct NvimSession {
     nvim: Neovim,
     timeout: Duration,
     runtime: Arc<Runtime>,
+    // UI-originated RPCs must keep their GTK submission order, so we queue them and drain that
+    // FIFO one request at a time independent of Tokio's worker scheduling.
+    ui_serial: UiRequestSerial,
 }
 
 type IoFuture<'a> = BoxFuture<'a, Result<(), Box<LoopError>>>;
@@ -300,6 +400,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: UiRequestSerial::default(),
             },
             io_future.boxed(),
         ))
@@ -330,6 +431,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: UiRequestSerial::default(),
             },
             io_future.boxed(),
         ))
@@ -362,6 +464,7 @@ impl NvimSession {
                 nvim,
                 timeout,
                 runtime,
+                ui_serial: UiRequestSerial::default(),
             },
             io_future.boxed(),
         ))
@@ -391,6 +494,16 @@ impl NvimSession {
     #[inline]
     pub fn spawn(&self, f: impl Future<Output = ()> + Send + 'static) -> JoinHandle<()> {
         self.runtime.spawn(f)
+    }
+
+    /// Spawn a task on this session's tokio runtime after waiting for earlier UI-originated
+    /// requests to finish.
+    #[doc(hidden)]
+    pub fn spawn_ui_serialized(
+        &self,
+        f: impl Future<Output = ()> + Send + 'static,
+    ) -> JoinHandle<()> {
+        self.ui_serial.spawn(&self.runtime, f)
     }
 
     /// Wrap a future from an RPC call to neovim inside a timeout, and execute it on the current
@@ -473,6 +586,53 @@ impl Deref for NvimSession {
 impl DerefMut for NvimSession {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.nvim
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ui_serialized_tasks_keep_submission_order() {
+        let runtime = Arc::new(
+            RuntimeBuilder::new_multi_thread()
+                .worker_threads(2)
+                .enable_time()
+                .build()
+                .unwrap(),
+        );
+        let serial = UiRequestSerial::default();
+        let order = Arc::new(StdMutex::new(Vec::new()));
+
+        let first_order = order.clone();
+        let first = serial.spawn(&runtime, async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            first_order
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(1);
+        });
+
+        let second_order = order.clone();
+        let second = serial.spawn(&runtime, async move {
+            second_order
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(2);
+        });
+
+        runtime.block_on(async {
+            first.await.unwrap();
+            second.await.unwrap();
+        });
+
+        assert_eq!(
+            *order
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1, 2]
+        );
     }
 }
 
