@@ -12,6 +12,7 @@ use super::shell::ResizeState;
 
 use std::net::SocketAddr;
 use std::{
+    collections::VecDeque,
     convert::TryFrom,
     env, error, fmt,
     future::Future,
@@ -29,7 +30,7 @@ use tokio::{
     process::{ChildStdin, Command},
     runtime::{Builder as RuntimeBuilder, Runtime},
     sync::oneshot,
-    task::JoinHandle,
+    task::{JoinError, JoinHandle},
     time::{error::Elapsed, timeout},
 };
 use tokio_util::compat::*;
@@ -262,34 +263,98 @@ impl AsyncWrite for NvimWriter {
 pub type Neovim = nvim_rs::Neovim<Compat<NvimWriter>>;
 pub type Tabpage = nvim_rs::Tabpage<Compat<NvimWriter>>;
 
+type UiRequestFuture = BoxFuture<'static, ()>;
+
+struct QueuedUiRequest {
+    future: UiRequestFuture,
+    done_tx: oneshot::Sender<Result<(), JoinError>>,
+}
+
+#[derive(Default)]
+struct PendingUiRequests {
+    running: bool,
+    queue: VecDeque<QueuedUiRequest>,
+}
+
+impl PendingUiRequests {
+    fn enqueue(&mut self, request: QueuedUiRequest) -> bool {
+        self.queue.push_back(request);
+        if self.running {
+            false
+        } else {
+            self.running = true;
+            true
+        }
+    }
+
+    fn take_next(&mut self) -> Option<QueuedUiRequest> {
+        if let Some(request) = self.queue.pop_front() {
+            Some(request)
+        } else {
+            self.running = false;
+            None
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 struct UiRequestSerial {
-    tail: Arc<StdMutex<Option<oneshot::Receiver<()>>>>,
+    pending: Arc<StdMutex<PendingUiRequests>>,
 }
 
 impl UiRequestSerial {
     fn spawn(
         &self,
-        runtime: &Runtime,
+        runtime: &Arc<Runtime>,
         f: impl Future<Output = ()> + Send + 'static,
     ) -> JoinHandle<()> {
         let (done_tx, done_rx) = oneshot::channel();
-        let previous = {
-            let mut tail = self
-                .tail
+        let should_schedule = {
+            let mut pending = self
+                .pending
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            tail.replace(done_rx)
+            pending.enqueue(QueuedUiRequest {
+                future: f.boxed(),
+                done_tx,
+            })
         };
 
-        runtime.spawn(async move {
-            if let Some(previous) = previous {
-                let _ = previous.await;
-            }
+        if should_schedule {
+            let pending = self.pending.clone();
+            let drain_runtime = runtime.clone();
 
-            f.await;
-            let _ = done_tx.send(());
+            runtime.spawn(async move {
+                drain_ui_requests(pending, drain_runtime).await;
+            });
+        }
+
+        runtime.spawn(async move {
+            match done_rx.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+                Ok(Err(err)) => panic!("UI serialized task failed: {err}"),
+                Err(_) => panic!("UI serialized task queue dropped before completing request"),
+            }
         })
+    }
+}
+
+async fn drain_ui_requests(pending: Arc<StdMutex<PendingUiRequests>>, runtime: Arc<Runtime>) {
+    loop {
+        let request = {
+            let mut pending = pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            pending.take_next()
+        };
+
+        let Some(request) = request else {
+            return;
+        };
+
+        let result = runtime.spawn(request.future).await;
+        let _ = request.done_tx.send(result);
     }
 }
 
@@ -300,8 +365,8 @@ pub struct NvimSession {
     nvim: Neovim,
     timeout: Duration,
     runtime: Arc<Runtime>,
-    // UI-originated RPCs must keep their GTK submission order. We chain each task to the previous
-    // one before Tokio can schedule it, so runtime interleaving cannot reorder them.
+    // UI-originated RPCs must keep their GTK submission order, so we queue them and drain that
+    // FIFO one request at a time independent of Tokio's worker scheduling.
     ui_serial: UiRequestSerial,
 }
 
@@ -530,11 +595,13 @@ mod tests {
 
     #[test]
     fn ui_serialized_tasks_keep_submission_order() {
-        let runtime = RuntimeBuilder::new_multi_thread()
-            .worker_threads(2)
-            .enable_time()
-            .build()
-            .unwrap();
+        let runtime = Arc::new(
+            RuntimeBuilder::new_multi_thread()
+                .worker_threads(2)
+                .enable_time()
+                .build()
+                .unwrap(),
+        );
         let serial = UiRequestSerial::default();
         let order = Arc::new(StdMutex::new(Vec::new()));
 
