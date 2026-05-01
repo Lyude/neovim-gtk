@@ -79,7 +79,7 @@ impl Context {
                         continue;
                     }
 
-                    pango_context.set_font_description(Some(&font_desc));
+                    pango_context.set_font_description(&font_desc);
                     let res = pango::itemize(
                         pango_context,
                         &line.line_str,
@@ -99,7 +99,7 @@ impl Context {
                     seen.insert(font_desc);
                 }
 
-                pango_context.set_font_description(Some(our_font));
+                pango_context.set_font_description(our_font);
                 new_res.unwrap_or(first_res)
             })
             .collect()
