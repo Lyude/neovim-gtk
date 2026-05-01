@@ -296,7 +296,7 @@ mod tests {
         model.set_cursor(1, 1);
         model.flush_cursor();
         model.model[0].line[0].dirty = false;
-        model.model[0].dirty_line = false;
+        model.model[0].clear_dirty();
 
         let model_ptr = model.model.as_ptr();
         let line_ptr = model.model[0].line.as_ptr();
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(2, model.columns);
         assert_eq!("x", model.model[1].line[1].ch);
         assert!(!model.model[0].line[0].dirty);
-        assert!(!model.model[0].dirty_line);
+        assert!(!model.model[0].is_dirty());
         assert_eq!((1, 1), model.get_real_cursor());
         assert_eq!((1, 1), model.get_flushed_cursor());
     }

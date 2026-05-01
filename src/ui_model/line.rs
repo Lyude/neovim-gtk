@@ -1,9 +1,5 @@
-use std::{
-    iter::Peekable,
-    ops::{Index, IndexMut},
-    rc::Rc,
-    slice::Iter,
-};
+use core::ops::{Index, IndexMut, Range};
+use std::{iter::Peekable, rc::Rc, slice::Iter};
 
 use super::cell::Cell;
 use super::item::Item;
@@ -11,22 +7,16 @@ use crate::color;
 use crate::highlight::{Highlight, HighlightMap};
 use crate::render;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DirtyRange {
-    pub start: usize,
-    pub end: usize,
+pub type DirtyRange = Range<usize>;
+
+fn dirty_range_inclusive(start: usize, end: usize) -> DirtyRange {
+    debug_assert!(start <= end, "dirty range start={} end={}", start, end);
+    start..end + 1
 }
 
-impl DirtyRange {
-    pub fn new(start: usize, end: usize) -> Self {
-        debug_assert!(start <= end, "dirty range start={} end={}", start, end);
-        Self { start, end }
-    }
-
-    fn extend(&mut self, other: Self) {
-        self.start = self.start.min(other.start);
-        self.end = self.end.max(other.end);
-    }
+fn extend_dirty_range(range: &mut DirtyRange, other: DirtyRange) {
+    range.start = range.start.min(other.start);
+    range.end = range.end.max(other.end);
 }
 
 pub struct Line {
@@ -48,7 +38,7 @@ impl Line {
             line: vec![Cell::new_empty(); columns].into_boxed_slice(),
             item_line: vec![Box::default(); columns].into_boxed_slice(),
             cell_to_item: vec![-1; columns].into_boxed_slice(),
-            dirty_range: (columns > 0).then_some(DirtyRange::new(0, columns - 1)),
+            dirty_range: (columns > 0).then_some(0..columns),
         }
     }
 
@@ -63,7 +53,7 @@ impl Line {
         let mut cell_to_item = std::mem::take(&mut self.cell_to_item).into_vec();
 
         // Preserve overlapping cell and shaping state; the next merge pass fixes any item clipped
-        // by a shrink because `dirty_line` is forced below.
+        // by a shrink because the whole resized line is marked dirty below.
         if columns > old_len {
             line.resize_with(columns, Cell::new_empty);
             item_line.resize_with(columns, Box::default);
@@ -77,7 +67,7 @@ impl Line {
         self.line = line.into_boxed_slice();
         self.item_line = item_line.into_boxed_slice();
         self.cell_to_item = cell_to_item.into_boxed_slice();
-        self.dirty_line = true;
+        self.dirty_range = (columns > 0).then_some(0..columns);
     }
 
     pub fn swap_with(&mut self, target: &mut Self, left: usize, right: usize) {
@@ -104,7 +94,7 @@ impl Line {
             self.cell_to_item[i] = -1;
         }
         if !self.line.is_empty() {
-            self.dirty_range = Some(DirtyRange::new(0, self.line.len() - 1));
+            self.dirty_range = Some(0..self.line.len());
         }
     }
 
@@ -115,15 +105,15 @@ impl Line {
 
     #[inline]
     pub fn dirty_range(&self) -> Option<DirtyRange> {
-        self.dirty_range
+        self.dirty_range.clone()
     }
 
     pub fn expanded_dirty_range(&self) -> Option<DirtyRange> {
-        let mut range = self.dirty_range?;
+        let mut range = self.dirty_range.clone()?;
         range = self.include_double_width_cells(range);
 
         loop {
-            let prev = range;
+            let prev = range.clone();
             range = self.expand_to_item_bounds(range);
             range = self.expand_to_ascii_runs(range);
             range = self.include_double_width_cells(range);
@@ -151,9 +141,9 @@ impl Line {
         let end = end.min(self.line.len() - 1);
         debug_assert!(start <= end, "dirty range start={} end={}", start, end);
 
-        let range = DirtyRange::new(start, end);
+        let range = dirty_range_inclusive(start, end);
         match &mut self.dirty_range {
-            Some(existing) => existing.extend(range),
+            Some(existing) => extend_dirty_range(existing, range),
             None => self.dirty_range = Some(range),
         }
     }
@@ -221,11 +211,7 @@ impl Line {
             return;
         }
 
-        self.merge_range(
-            old_items,
-            pango_items,
-            DirtyRange::new(0, self.line.len() - 1),
-        );
+        self.merge_range(old_items, pango_items, 0..self.line.len());
     }
 
     pub fn merge_range(
@@ -239,7 +225,7 @@ impl Line {
         let mut move_to_next_item = false;
         let mut cell_idx = range.start;
 
-        while cell_idx <= range.end {
+        while cell_idx < range.end {
             match next_item {
                 None => self.set_cell_to_empty(cell_idx),
                 Some(ref new_item) => {
@@ -285,7 +271,7 @@ impl Line {
             range.start -= 1;
         }
 
-        while range.end + 1 < self.line.len() && self.line[range.end + 1].double_width {
+        while range.end < self.line.len() && self.line[range.end].double_width {
             range.end += 1;
         }
 
@@ -293,14 +279,14 @@ impl Line {
     }
 
     fn expand_to_item_bounds(&self, range: DirtyRange) -> DirtyRange {
-        let mut expanded = range;
         let mut cell_idx = range.start;
+        let mut expanded = range;
 
-        while cell_idx <= expanded.end {
+        while cell_idx < expanded.end {
             if let Some(item_range) = self.item_bounds(cell_idx) {
                 expanded.start = expanded.start.min(item_range.start);
                 expanded.end = expanded.end.max(item_range.end);
-                cell_idx = item_range.end + 1;
+                cell_idx = item_range.end;
             } else {
                 cell_idx += 1;
             }
@@ -310,9 +296,9 @@ impl Line {
     }
 
     fn expand_to_ascii_runs(&self, range: DirtyRange) -> DirtyRange {
-        let mut expanded = range;
+        let mut expanded = range.clone();
 
-        for cell_idx in range.start..=range.end {
+        for cell_idx in range {
             if self.line[cell_idx].double_width {
                 continue;
             }
@@ -338,7 +324,7 @@ impl Line {
             }
 
             expanded.start = expanded.start.min(left);
-            expanded.end = expanded.end.max(right);
+            expanded.end = expanded.end.max(right + 1);
         }
 
         expanded
@@ -378,7 +364,7 @@ impl Line {
             .max()
             .unwrap_or(1);
 
-        Some(DirtyRange::new(item_idx, item_idx + cells_count - 1))
+        Some(item_idx..item_idx + cells_count)
     }
 
     pub fn get_items(&self, cell_idx: usize) -> &[Item] {
@@ -512,7 +498,7 @@ mod resize_tests {
         line.line[0].dirty = false;
         line.line[1].dirty = false;
         line.cell_to_item[0] = 0;
-        line.dirty_line = false;
+        line.clear_dirty();
 
         line.resize(4);
 
@@ -527,7 +513,7 @@ mod resize_tests {
         assert_eq!(0, line.cell_to_item[0]);
         assert_eq!(-1, line.cell_to_item[2]);
         assert_eq!(-1, line.cell_to_item[3]);
-        assert!(line.dirty_line);
+        assert_eq!(Some(0..4), line.dirty_range());
     }
 
     #[test]
@@ -541,7 +527,7 @@ mod resize_tests {
         line.cell_to_item[1] = 0;
         line.cell_to_item[2] = 2;
         line.cell_to_item[3] = 3;
-        line.dirty_line = false;
+        line.clear_dirty();
 
         line.resize(3);
 
@@ -554,7 +540,7 @@ mod resize_tests {
         assert_eq!(0, line.cell_to_item[0]);
         assert_eq!(0, line.cell_to_item[1]);
         assert_eq!(2, line.cell_to_item[2]);
-        assert!(line.dirty_line);
+        assert_eq!(Some(0..3), line.dirty_range());
     }
 }
 
@@ -609,12 +595,7 @@ impl StyledLine {
             };
         }
 
-        Self::from_range(
-            line,
-            DirtyRange::new(0, line.line.len() - 1),
-            hl,
-            font_features,
-        )
+        Self::from_range(line, 0..line.line.len(), hl, font_features)
     }
 
     pub fn from_range(
@@ -623,7 +604,7 @@ impl StyledLine {
         hl: &HighlightMap,
         font_features: &render::FontFeatures,
     ) -> Self {
-        let average_capacity = (range.end - range.start + 1) * 4 * 2; // code bytes * grapheme cluster
+        let average_capacity = (range.end - range.start) * 4 * 2; // code bytes * grapheme cluster
 
         let mut line_str = String::with_capacity(average_capacity);
         let mut cell_to_byte = Vec::with_capacity(average_capacity);
@@ -631,7 +612,7 @@ impl StyledLine {
         let mut byte_offset = 0;
         let mut style_attr = StyleAttr::new();
 
-        for (offset, cell) in line.line[range.start..=range.end].iter().enumerate() {
+        for (offset, cell) in line.line[range.clone()].iter().enumerate() {
             if cell.double_width {
                 continue;
             }
@@ -811,7 +792,7 @@ mod tests {
 
         let styled_line = StyledLine::from_range(
             &line,
-            DirtyRange::new(1, 3),
+            1..4,
             &HighlightMap::new(),
             &render::FontFeatures::new(),
         );
@@ -831,7 +812,7 @@ mod tests {
         line.clear_dirty();
         line.mark_dirty(1, 1);
 
-        assert_eq!(Some(DirtyRange::new(0, 4)), line.expanded_dirty_range(),);
+        assert_eq!(Some(0..5), line.expanded_dirty_range(),);
     }
 
     #[test]
@@ -843,6 +824,6 @@ mod tests {
         line.clear_dirty();
         line.mark_dirty(1, 1);
 
-        assert_eq!(Some(DirtyRange::new(0, 1)), line.expanded_dirty_range(),);
+        assert_eq!(Some(0..2), line.expanded_dirty_range(),);
     }
 }
