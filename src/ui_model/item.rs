@@ -41,6 +41,30 @@ impl Item {
         *self.render_node.borrow_mut() = None;
     }
 
+    pub fn update(&mut self, item: pango::Item, cells_count: usize) {
+        debug_assert!(cells_count > 0);
+
+        self.font = item.analysis().font();
+        self.item = item;
+        self.cells_count = cells_count;
+        *self.render_node.get_mut() = None;
+    }
+
+    pub fn clear_glyphs(&mut self) {
+        *self.glyphs.get_mut() = None;
+        *self.render_node.get_mut() = None;
+    }
+
+    pub fn shape(&mut self, text: &str) {
+        let analysis = self.item.analysis();
+        let glyphs = self
+            .glyphs
+            .get_mut()
+            .get_or_insert_with(pango::GlyphString::new);
+        pango::shape(text, analysis, glyphs);
+        *self.render_node.get_mut() = None;
+    }
+
     pub fn render_node(&self, color: &color::Color, (x, y): (f32, f32)) -> Option<gsk::TextNode> {
         let mut render_node = self.render_node.borrow_mut();
         if let Some(ref render_node) = *render_node {

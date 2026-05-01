@@ -127,15 +127,18 @@ pub fn snapshot_nvim_line(
         pending_bg.to_snapshot(&snapshot, cell_metrics);
     }
 
-    for (col, cell) in line.line.iter().enumerate() {
+    let mut col = 0;
+    while col < line.line.len() {
+        let cell = &line.line[col];
         snapshot_cell(
             &snapshot,
-            &line.item_line[col],
+            line.get_items(col),
             hl,
             cell,
             (row, col),
             cell_metrics,
         );
+        col += line.item_len_from_idx(col);
     }
 
     for step in text_fmt_steps.into_iter() {
@@ -554,6 +557,10 @@ fn snapshot_cell(
     pos: (usize, usize),
     cell_metrics: &CellMetrics,
 ) {
+    if items.is_empty() {
+        return;
+    }
+
     let (x, y) = cell_metrics.get_pixel_coords(pos);
     let fg = hl.actual_cell_fg(cell);
     for item in items {
@@ -579,19 +586,14 @@ pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel, hl:
         for (col, cell) in line.line.iter_mut().enumerate() {
             if cell.dirty {
                 for item in &mut *line.item_line[col] {
-                    let mut glyphs = pango::GlyphString::new();
-                    {
-                        let analysis = item.analysis();
-                        let offset = item.item.offset() as usize;
-                        let length = item.item.length() as usize;
-                        if let Some(line_str) = styled_line.line_str.get(offset..offset + length) {
-                            pango::shape(line_str, analysis, &mut glyphs);
-                        } else {
-                            warn!("Wrong itemize split");
-                        }
+                    let offset = item.item.offset() as usize;
+                    let length = item.item.length() as usize;
+                    if let Some(line_str) = styled_line.line_str.get(offset..offset + length) {
+                        item.shape(line_str);
+                    } else {
+                        item.clear_glyphs();
+                        warn!("Wrong itemize split");
                     }
-
-                    item.set_glyphs(glyphs);
                 }
             }
 
