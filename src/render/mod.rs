@@ -568,15 +568,21 @@ fn snapshot_cell(
 
 pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel, hl: &HighlightMap) {
     for line in ui_model.model_mut() {
-        if !line.dirty_line {
+        let Some(itemize_range) = line.expanded_dirty_range() else {
             continue;
-        }
+        };
 
-        let styled_line = ui_model::StyledLine::from(line, hl, ctx.font_features());
+        let styled_line =
+            ui_model::StyledLine::from_range(line, itemize_range.clone(), hl, ctx.font_features());
         let items = ctx.itemize(&styled_line);
-        line.merge(&styled_line, &items);
+        line.merge_range(&styled_line, &items, itemize_range);
 
-        for (col, cell) in line.line.iter_mut().enumerate() {
+        let Some(shape_range) = line.take_dirty_range() else {
+            continue;
+        };
+
+        for col in shape_range {
+            let cell = &mut line.line[col];
             if cell.dirty {
                 for item in &mut *line.item_line[col] {
                     let mut glyphs = pango::GlyphString::new();
@@ -597,7 +603,5 @@ pub fn shape_dirty(ctx: &context::Context, ui_model: &mut ui_model::UiModel, hl:
 
             cell.dirty = false;
         }
-
-        line.dirty_line = false;
     }
 }
