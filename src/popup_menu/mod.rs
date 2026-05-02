@@ -16,6 +16,7 @@ use gtk::prelude::*;
 
 use crate::{
     highlight::HighlightMap,
+    input,
     nvim::{self, ErrorReport, NeovimClient, PendingPopupMenu, PopupMenuItem},
     render::{self, CellMetrics},
     shell::RenderState,
@@ -604,7 +605,7 @@ pub fn list_select(state: &mut State, idx: u32, last_command: &str) {
                 .collect()
         };
 
-        nvim.block_timeout(nvim.input(&apply_command)).report_err();
+        input::queue_input(&nvim, apply_command);
     }
     state.prev_selected = Some(idx);
 }
