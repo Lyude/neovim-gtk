@@ -30,7 +30,7 @@ use tokio::{
     process::{ChildStdin, Command},
     runtime::{Builder as RuntimeBuilder, Runtime},
     sync::oneshot,
-    task::{JoinError, JoinHandle},
+    task::JoinHandle,
     time::{error::Elapsed, timeout},
 };
 use tokio_util::compat::*;
@@ -267,7 +267,7 @@ type UiRequestFuture = BoxFuture<'static, ()>;
 
 struct QueuedUiRequest {
     future: UiRequestFuture,
-    done_tx: oneshot::Sender<Result<(), JoinError>>,
+    done_tx: oneshot::Sender<()>,
 }
 
 #[derive(Default)]
@@ -322,25 +322,21 @@ impl UiRequestSerial {
 
         if should_schedule {
             let pending = self.pending.clone();
-            let drain_runtime = runtime.clone();
-
             runtime.spawn(async move {
-                drain_ui_requests(pending, drain_runtime).await;
+                drain_ui_requests(pending).await;
             });
         }
 
         runtime.spawn(async move {
             match done_rx.await {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
-                Ok(Err(err)) => panic!("UI serialized task failed: {err}"),
+                Ok(()) => {}
                 Err(_) => panic!("UI serialized task queue dropped before completing request"),
             }
         })
     }
 }
 
-async fn drain_ui_requests(pending: Arc<StdMutex<PendingUiRequests>>, runtime: Arc<Runtime>) {
+async fn drain_ui_requests(pending: Arc<StdMutex<PendingUiRequests>>) {
     loop {
         let request = {
             let mut pending = pending
@@ -353,7 +349,7 @@ async fn drain_ui_requests(pending: Arc<StdMutex<PendingUiRequests>>, runtime: A
             return;
         };
 
-        let result = runtime.spawn(request.future).await;
+        let result = request.future.await;
         let _ = request.done_tx.send(result);
     }
 }
