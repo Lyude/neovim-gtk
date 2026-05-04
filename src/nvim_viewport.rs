@@ -112,7 +112,7 @@ impl NvimViewportInner {
         }
 
         for (row, line) in ui_model.model().iter().enumerate() {
-            if line.dirty_line
+            if line.is_dirty()
                 && let Some(cached_line) = self.snapshot_cache.get_mut(row)
             {
                 cached_line.invalidate();
@@ -354,9 +354,9 @@ mod tests {
 
         let mut model = ui_model::UiModel::new(3, 4);
         for line in model.model_mut().iter_mut() {
-            line.dirty_line = false;
+            line.clear_dirty();
         }
-        model.model_mut()[1].dirty_line = true;
+        model.model_mut()[1].mark_dirty(0, 0);
 
         inner.invalidate_snapshot_lines(&model);
 
