@@ -9,7 +9,20 @@ yet" to contribute. But that's OK, the only way to know the answer to that is to
 shot. It's nearly always more valuable from a maintainer's perspective to teach someone how to
 contribute to your project then it is to turn them down.
 
-Now onto the style guidelines:
+Now onto the actual contribution guide:
+
+**No AI generated code contributions**
+
+**I just mean code/doc contributions. If you use Claude or what have you for research, answering
+questions about this codebase, informational things - that's fine.** I wouldn't recommend it, but
+it's not actively harmful so *shrug*.
+
+However, I'm not interested in AI generated code contributions. Code needs to be maintainable and
+understood by people, and Claude tends to be pretty bad at writing code anyway. If you need help understanding
+something, writing something, etc. - please feel free to ask. You will learn something along the
+way, and you'll feel much more accomplished with what you've made.
+
+**Style guidelines**
 
 * Listen to rustfmt mostly, with the following exceptions:
   * Sometimes, particularly when dealing with lots of rendering coordinates, it may be beneficial to
