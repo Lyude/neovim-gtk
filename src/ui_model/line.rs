@@ -132,6 +132,11 @@ impl Line {
         self.dirty_range = None;
     }
 
+    fn clamp_dirty_range(&self, range: DirtyRange) -> DirtyRange {
+        let end = range.end.min(self.line.len());
+        range.start.min(end)..end
+    }
+
     pub fn mark_dirty(&mut self, start: usize, end: usize) {
         if self.line.is_empty() {
             return;
@@ -281,7 +286,12 @@ impl Line {
             .collect()
     }
 
-    fn include_double_width_cells(&self, mut range: DirtyRange) -> DirtyRange {
+    fn include_double_width_cells(&self, range: DirtyRange) -> DirtyRange {
+        let mut range = self.clamp_dirty_range(range);
+        if range.is_empty() {
+            return range;
+        }
+
         while range.start > 0 && self.line[range.start].double_width {
             range.start -= 1;
         }
@@ -294,6 +304,7 @@ impl Line {
     }
 
     fn expand_to_item_bounds(&self, range: DirtyRange) -> DirtyRange {
+        let range = self.clamp_dirty_range(range);
         let mut cell_idx = range.start;
         let mut expanded = range;
 
@@ -311,6 +322,7 @@ impl Line {
     }
 
     fn expand_to_ascii_runs(&self, range: DirtyRange) -> DirtyRange {
+        let range = self.clamp_dirty_range(range);
         let mut expanded = range.clone();
 
         for cell_idx in range {
@@ -373,13 +385,20 @@ impl Line {
         }
 
         let item_idx = item_idx as usize;
+        if item_idx >= self.item_line.len() || item_idx > cell_idx {
+            return None;
+        }
+
         let cells_count = self.item_line[item_idx]
             .iter()
             .map(|item| item.cells_count)
             .max()
             .unwrap_or(1);
+        let end = item_idx.saturating_add(cells_count).min(self.line.len());
+        let item_range = item_idx..end;
 
-        Some(item_idx..item_idx + cells_count)
+        // Cached item metadata can outlive a resize; ignore it if it no longer covers this cell.
+        item_range.contains(&cell_idx).then_some(item_range)
     }
 
     pub fn get_items(&self, cell_idx: usize) -> &[Item] {
@@ -840,6 +859,25 @@ mod tests {
         line.mark_dirty(1, 1);
 
         assert_eq!(Some(0..2), line.expanded_dirty_range(),);
+    }
+
+    #[test]
+    fn test_dirty_range_expansion_clamps_to_line_len() {
+        let mut line = Line::new(147);
+        for cell in &mut line.line {
+            cell.ch = "a".to_owned();
+        }
+        line.dirty_range = Some(0..148);
+
+        assert_eq!(Some(0..147), line.expanded_dirty_range(),);
+    }
+
+    #[test]
+    fn test_stale_item_mapping_outside_line_is_ignored() {
+        let mut line = Line::new(3);
+        line.cell_to_item[2] = 3;
+
+        assert_eq!(None, line.item_bounds(2));
     }
 
     #[test]
