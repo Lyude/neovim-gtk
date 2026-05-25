@@ -1,8 +1,11 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fmt::Write;
 use std::ops::Deref;
-use std::path::PathBuf;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, mpsc};
 use std::{env, thread};
@@ -1645,7 +1648,7 @@ fn init_nvim_async(
         }
 
         if set_runtime_path {
-            let set_rtp_command = format!("set runtimepath+={}", gui_runtime_path.display());
+            let set_rtp_command = runtimepath_append_command(&gui_runtime_path);
             if let Err(ref e) = session
                 .timeout(session.command(&set_rtp_command))
                 .await
@@ -2073,8 +2076,109 @@ impl State {
     }
 }
 
+fn runtimepath_append_command(path: &Path) -> String {
+    // Keep escape() before fnameescape(): :set consumes one backslash while
+    // parsing the command, leaving the escaped comma in the runtimepath value.
+    // See :help option-backslash and :help 'runtimepath'.
+    format!(
+        "execute 'set runtimepath+=' . fnameescape(escape({}, ','))",
+        viml_path_string_literal(path)
+    )
+}
+
+#[cfg(unix)]
+fn viml_path_string_literal(path: &Path) -> String {
+    viml_bytes_literal(path.as_os_str().as_bytes())
+}
+
+#[cfg(not(unix))]
+fn viml_path_string_literal(path: &Path) -> String {
+    viml_string_literal(&path.to_string_lossy())
+}
+
+#[cfg(not(unix))]
+fn viml_string_literal(value: &str) -> String {
+    viml_bytes_literal(value.as_bytes())
+}
+
+fn viml_bytes_literal(value: &[u8]) -> String {
+    let mut literal = String::with_capacity(value.len() + 2);
+    literal.push('"');
+
+    for &byte in value {
+        match byte {
+            b'\\' => literal.push_str(r"\\"),
+            b'"' => literal.push_str(r#"\""#),
+            b'\n' => literal.push_str(r"\n"),
+            b'\r' => literal.push_str(r"\r"),
+            b'\t' => literal.push_str(r"\t"),
+            0x08 => literal.push_str(r"\b"),
+            0x1b => literal.push_str(r"\e"),
+            0x00..=0x1f | 0x7f..=0xff => {
+                // Byte escapes are always exactly two hex digits.
+                write!(literal, r"\x{byte:02x}").unwrap();
+            }
+            byte => literal.push(char::from(byte)),
+        }
+    }
+
+    literal.push('"');
+    literal
+}
+
 impl CursorRedrawCb for State {
     fn queue_redraw_cursor(&mut self) {
         self.nvim_viewport.queue_draw();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtimepath_command_escapes_path_as_fnameescape_expression() {
+        let command = runtimepath_append_command(Path::new("/tmp/runtime|quit\nnext"));
+
+        assert_eq!(
+            r#"execute 'set runtimepath+=' . fnameescape(escape("/tmp/runtime|quit\nnext", ','))"#,
+            command
+        );
+        // The \n below is an actual U+000A newline, not the two-character escape.
+        assert!(!command.contains("runtime|quit\nnext"));
+    }
+
+    #[test]
+    fn runtimepath_command_escapes_commas_for_runtimepath_entries() {
+        let command = runtimepath_append_command(Path::new("/tmp/foo,bar"));
+
+        assert_eq!(
+            r#"execute 'set runtimepath+=' . fnameescape(escape("/tmp/foo,bar", ','))"#,
+            command
+        );
+    }
+
+    #[test]
+    fn runtimepath_command_escapes_spaces_and_commas_in_the_right_order() {
+        let command = runtimepath_append_command(Path::new("/tmp/foo ,bar"));
+
+        assert_eq!(
+            r#"execute 'set runtimepath+=' . fnameescape(escape("/tmp/foo ,bar", ','))"#,
+            command
+        );
+        assert!(command.contains("fnameescape(escape("));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn runtimepath_command_preserves_non_utf8_unix_bytes() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let path = Path::new(OsStr::from_bytes(b"/tmp/runtime-\xff"));
+        let command = runtimepath_append_command(path);
+
+        assert!(command.contains(r#""/tmp/runtime-\xff""#));
+        assert!(!command.contains('\u{fffd}'));
     }
 }
