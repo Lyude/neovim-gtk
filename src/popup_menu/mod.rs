@@ -386,12 +386,15 @@ impl PopupMenu {
 
         let list_state_ref = state_ref.list_row_state.clone();
         item_factory.connect_setup(move |_, list_item| {
+            let list_item = list_item.downcast_ref::<gtk::ListItem>().unwrap();
             list_item.set_child(Some(&PopupMenuListRow::new(&list_state_ref)));
         });
         item_factory.connect_teardown(|_, list_item| {
+            let list_item = list_item.downcast_ref::<gtk::ListItem>().unwrap();
             list_item.set_child(Option::<&gtk::Widget>::None);
         });
         item_factory.connect_bind(|_, list_item| {
+            let list_item = list_item.downcast_ref::<gtk::ListItem>().unwrap();
             let row: PopupMenuListRow = list_item.child().unwrap().downcast().unwrap();
             row.set_row(
                 list_item
@@ -406,6 +409,7 @@ impl PopupMenu {
             );
         });
         item_factory.connect_unbind(|_, list_item| {
+            let list_item = list_item.downcast_ref::<gtk::ListItem>().unwrap();
             let row: PopupMenuListRow = list_item.child().unwrap().downcast().unwrap();
             row.set_row(Option::<&PopupMenuItemRef>::None);
         });
