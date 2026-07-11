@@ -667,7 +667,8 @@ pub fn start<'a>(
     #[cfg(feature = "flatpak")]
     cmd.arg("--host").arg(nvim_cmd);
 
-    cmd.arg("--embed")
+    cmd.env("SHELL", "/bin/bash")
+        .arg("--embed")
         .arg("--cmd")
         .arg("set termguicolors")
         .arg("--cmd")
