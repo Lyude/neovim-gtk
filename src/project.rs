@@ -262,27 +262,18 @@ impl Projects {
 
     fn show_open_file_dlg(&self) {
         let window = self.open_btn.root().unwrap().downcast::<gtk::Window>().ok();
-        let dlg = gtk::FileChooserDialog::new(
-            Some("Open Document"),
-            window.as_ref(),
-            gtk::FileChooserAction::Open,
-            &[
-                ("_Open", gtk::ResponseType::Ok),
-                ("_Cancel", gtk::ResponseType::Cancel),
-            ],
-        );
+        let dlg = gtk::FileDialog::builder()
+            .title("Open Document")
+            .accept_label("_Open")
+            .build();
 
         let shell = self.shell.clone();
-        dlg.run_async(move |dlg, response| {
-            if response == gtk::ResponseType::Ok
-                && let Some(filename) = dlg
-                    .file()
-                    .and_then(|f| f.path())
-                    .and_then(|f| f.to_str().map(|s| s.to_owned()))
+        dlg.open(window.as_ref(), None::<&gio::Cancellable>, move |res| {
+            if let Ok(file) = res
+                && let Some(filename) = file.path().and_then(|f| f.to_str().map(|s| s.to_owned()))
             {
                 shell.borrow().open_file(&filename);
             }
-            dlg.close();
         });
     }
 
