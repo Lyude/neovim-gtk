@@ -22,7 +22,7 @@ futures = { version = "0.3.0", features = ["io-compat", "thread-pool"] }
 tokio = { version = "1.0", features = ["full"] }
 tokio-util = { version = "0.7.0", features = ["full"] }
 nvim-rs = { version = "0.9.0", features = ["use_tokio"] }
-phf = "0.13.0"
+phf = "0.14.0"
 log = "0.4.0"
 env_logger = "0.11.0"
 html-escape = "0.2.0"
@@ -41,13 +41,13 @@ serde_json = "1.0"
 is-terminal = "0.4.0"
 
 [target.'cfg(unix)'.dependencies]
-fork = "0.7.0"
+fork = "0.8.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.0"
 
 [build-dependencies]
-phf_codegen = "0.13.0"
+phf_codegen = "0.14.0"
 build-version = "0.1.0"
 
 [dev-dependencies]
@@ -60,14 +60,14 @@ features = ["v1_46"]
 [dependencies.gtk]
 package = "gtk4"
 version = "0.11.0"
-features = ["v4_4"]
+features = ["v4_10"]
 
 [dependencies.gdk]
 package = "gdk4"
 version = "0.11.0"
-features = ["v4_4"]
+features = ["v4_10"]
 
 [dependencies.gsk]
 package = "gsk4"
 version = "0.11.0"
-features = ["v4_4"]
+features = ["v4_10"]
