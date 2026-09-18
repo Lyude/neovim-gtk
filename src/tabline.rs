@@ -129,10 +129,10 @@ impl Tabline {
         tabs: Vec<(Tabpage, Option<String>)>,
     ) {
         if tabs.len() <= 1 {
-            self.tabs.hide();
+            self.tabs.set_visible(false);
             return;
         } else {
-            self.tabs.show();
+            self.tabs.set_visible(true);
         }
 
         self.update_state(nvim, &selected, &tabs);

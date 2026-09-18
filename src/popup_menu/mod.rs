@@ -326,7 +326,7 @@ impl State {
             self.show_info_column(selected);
         } else {
             self.list_model.set_selected(gtk::INVALID_LIST_POSITION);
-            self.info_scroll.hide();
+            self.info_scroll.set_visible(false);
         }
         self.prev_selected = selected;
     }
@@ -340,11 +340,11 @@ impl State {
                 self.info_scroll.vadjustment().set_value(0.0);
                 self.info_scroll.hadjustment().set_value(0.0);
             }
-            self.info_scroll.show();
+            self.info_scroll.set_visible(true);
             return;
         }
 
-        self.info_scroll.hide();
+        self.info_scroll.set_visible(false);
         if !self.info_label.text().is_empty() {
             self.info_label.set_text("");
         }

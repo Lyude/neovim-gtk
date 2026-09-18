@@ -55,7 +55,7 @@ impl ErrorArea {
             encode_text_minimal(err),
             shell::MINIMUM_SUPPORTED_NVIM_VERSION
         ));
-        self.base.show();
+        self.base.set_visible(true);
     }
 
     pub fn show_nvim_start_error(&self, err: &str, cmd: &str) {
@@ -73,7 +73,7 @@ impl ErrorArea {
             encode_text_minimal(err),
             shell::MINIMUM_SUPPORTED_NVIM_VERSION
         ));
-        self.base.show();
+        self.base.set_visible(true);
     }
 
     pub fn show_nvim_tcp_connect_error(&self, err: &str, addr: &str) {
@@ -89,7 +89,7 @@ impl ErrorArea {
             encode_text_minimal(err),
             shell::MINIMUM_SUPPORTED_NVIM_VERSION
         ));
-        self.base.show();
+        self.base.set_visible(true);
     }
 
     #[cfg(unix)]
@@ -106,7 +106,7 @@ impl ErrorArea {
             encode_text_minimal(err),
             shell::MINIMUM_SUPPORTED_NVIM_VERSION
         ));
-        self.base.show();
+        self.base.set_visible(true);
     }
 }
 

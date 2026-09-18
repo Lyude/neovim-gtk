@@ -395,7 +395,7 @@ impl CmdLine {
         }
 
         if state.levels.is_empty() {
-            self.popover.hide();
+            self.popover.set_visible(false);
             self.displayed = false;
         }
     }
@@ -484,11 +484,11 @@ impl CmdLine {
 
         self.wild_scroll.set_max_content_height(treeview_height);
 
-        self.wild_scroll.show();
+        self.wild_scroll.set_visible(true);
     }
 
     pub fn hide_wildmenu(&self) {
-        self.wild_scroll.hide();
+        self.wild_scroll.set_visible(false);
     }
 
     pub fn wildmenu_select(&self, selected: i64) {

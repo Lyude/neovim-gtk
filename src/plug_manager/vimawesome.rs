@@ -68,7 +68,7 @@ pub fn build_result_panel<F: Fn(PlugInfo) + 'static>(
         panel.append(&row);
     }
 
-    scroll.show();
+    scroll.set_visible(true);
     scroll
 }
 

@@ -51,7 +51,7 @@ impl<'a> Ui<'a> {
             .build();
 
         let add_plug_btn = gtk::Button::with_label("Add..");
-        add_plug_btn.style_context().add_class("suggested-action");
+        add_plug_btn.add_css_class("suggested-action");
         header_bar.pack_end(&add_plug_btn);
 
         let enable_swc = gtk::Switch::new();
@@ -65,9 +65,9 @@ impl<'a> Ui<'a> {
             #[strong]
             add_plug_btn,
             move |row_name| if row_name == "plugins" {
-                add_plug_btn.show();
+                add_plug_btn.set_visible(true);
             } else {
-                add_plug_btn.hide();
+                add_plug_btn.set_visible(false);
             }
         ));
 
@@ -415,7 +415,7 @@ fn add_vimawesome_tab(
         move |se| {
             let spinner = gtk::Spinner::new();
             list_panel.append(&spinner);
-            spinner.show();
+            spinner.set_visible(true);
             spinner.start();
             populate_get_plugins(
                 Some(se.text().to_string()),
