@@ -295,8 +295,11 @@ impl CmdLine {
         let css_provider = gtk::CssProvider::new();
 
         let tree = gtk::TreeView::new();
-        let style_context = tree.style_context();
-        style_context.add_provider(&css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+        gtk::style_context_add_provider_for_display(
+            &tree.display(),
+            &css_provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
 
         tree.selection().set_mode(gtk::SelectionMode::Single);
         tree.set_headers_visible(false);

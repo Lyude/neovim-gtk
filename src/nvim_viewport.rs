@@ -1,6 +1,11 @@
 use once_cell::sync::Lazy;
 
-use gtk::{graphene::Rect, prelude::*, subclass::prelude::*};
+use gtk::{
+    gdk,
+    graphene::{Point, Rect},
+    prelude::*,
+    subclass::prelude::*,
+};
 
 use std::{
     cell::RefCell,
@@ -327,12 +332,11 @@ impl NvimViewportObject {
         layout.set_attributes(Some(&attr_list));
 
         let (width, height) = layout.pixel_size();
-        snapshot.render_layout(
-            &obj.style_context(),
-            obj.allocated_width() as f64 / 2.0 - width as f64 / 2.0,
-            obj.allocated_height() as f64 / 2.0 - height as f64 / 2.0,
-            &layout,
-        );
+        snapshot.translate(&Point::new(
+            (obj.allocated_width() as f64 / 2.0 - width as f64 / 2.0) as f32,
+            (obj.allocated_height() as f64 / 2.0 - height as f64 / 2.0) as f32,
+        ));
+        snapshot.append_layout(&layout, &gdk::RGBA::from(render_state.hl.fg()));
     }
 }
 
