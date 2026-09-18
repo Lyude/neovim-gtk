@@ -355,15 +355,11 @@ async fn add_plugin(
         true
     } else {
         drop(manager_ref);
-        let dlg = gtk::MessageDialog::new(
-            None::<&gtk::Window>,
-            gtk::DialogFlags::empty(),
-            gtk::MessageType::Error,
-            gtk::ButtonsType::Ok,
-            "Plugin with this name or path already exists",
-        );
-        dlg.run_future().await;
-        dlg.close();
+        let dlg = gtk::AlertDialog::builder()
+            .message("Plugin with this name or path already exists")
+            .buttons(["Ok"])
+            .build();
+        let _ = dlg.choose_future(None::<&gtk::Window>).await;
         false
     }
 }

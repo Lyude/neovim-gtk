@@ -2,8 +2,7 @@ use std::{cell::RefCell, convert::*, rc::Rc, sync::Arc};
 
 use log::{error, warn};
 
-use gtk::prelude::*;
-use gtk::{ButtonsType, MessageDialog, MessageType};
+use gtk::AlertDialog;
 
 use crate::nvim::{NeovimClient, NormalError, NvimSession, SessionError};
 use crate::shell::Shell;
@@ -62,23 +61,13 @@ async fn show_not_saved_dlg(
         .fold(String::new(), |acc, v| acc + v + "\n");
     changed_files.pop();
 
-    let flags = gtk::DialogFlags::MODAL | gtk::DialogFlags::DESTROY_WITH_PARENT;
-    let dlg = MessageDialog::new(
-        Some(comps.borrow().window()),
-        flags,
-        MessageType::Question,
-        ButtonsType::None,
-        format!("Save changes to '{changed_files}'?"),
-    );
+    let dlg = AlertDialog::builder()
+        .message(format!("Save changes to '{changed_files}'?"))
+        .buttons(["_Yes", "_No", "_Cancel"])
+        .build();
 
-    dlg.add_buttons(&[
-        ("_Yes", gtk::ResponseType::Yes),
-        ("_No", gtk::ResponseType::No),
-        ("_Cancel", gtk::ResponseType::Cancel),
-    ]);
-
-    let res = match dlg.run_future().await {
-        gtk::ResponseType::Yes => {
+    let res = match dlg.choose_future(Some(comps.borrow().window())).await {
+        Ok(0) => {
             let nvim = shell.borrow().state.borrow().nvim().clone();
             if let Some(nvim) = nvim {
                 // FIXME: Figure out a way to use timeouts with nvim interactions when using glib for
@@ -97,11 +86,9 @@ async fn show_not_saved_dlg(
                 false
             }
         }
-        gtk::ResponseType::No => true,
+        Ok(1) => true,
         _ => false,
     };
-
-    dlg.close();
 
     comps.borrow_mut().exit_confirmed = res;
 
