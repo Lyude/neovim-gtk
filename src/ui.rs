@@ -272,7 +272,7 @@ impl Ui {
         main.set_end_child(Some(&**shell));
         window.set_child(Some(&main));
 
-        window.show();
+        window.set_visible(true);
 
         if !args.disable_win_restore {
             // Hide sidebar, if it wasn't shown last time.
@@ -723,7 +723,7 @@ fn on_help_about(window: &gtk::ApplicationWindow) {
     about.set_comments(Some(misc::about_comments().as_str()));
     about.set_modal(true);
 
-    about.show();
+    about.set_visible(true);
 }
 
 fn gtk_close_request(

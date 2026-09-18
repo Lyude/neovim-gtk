@@ -80,7 +80,7 @@ impl FileBrowserWidget {
             .width_request(150)
             .orientation(gtk::Orientation::Vertical)
             .build();
-        widget.style_context().add_class("view");
+        widget.add_css_class("view");
 
         let dir_list_model =
             gtk::TreeStore::new(&[glib::Type::STRING, glib::Type::STRING, glib::Type::STRING]);
