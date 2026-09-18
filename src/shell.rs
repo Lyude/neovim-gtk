@@ -364,7 +364,6 @@ impl State {
         let font_description = FontDescription::from_string(desc);
 
         if font_description.size() <= 0 {
-            error!("Font size must be > 0");
             return;
         }
 
