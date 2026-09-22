@@ -181,6 +181,18 @@ pub struct Args {
     pub nvim_bin_path: Option<String>,
 
     #[arg(long)]
+    /// Hide header bar
+    pub no_header_bar: bool,
+
+    #[arg(long)]
+    /// Disable window decoration
+    pub no_window_decoration: bool,
+
+    #[arg(long)]
+    /// Allow to use the dark theme variant
+    pub prefer_dark_theme: bool,
+
+    #[arg(long)]
     #[cfg_attr(unix, doc = "Nvim server to connect to (TCP address or Unix socket)")]
     #[cfg_attr(not(unix), doc = "Nvim server to connect to (TCP only)")]
     pub server: Option<NvimTransport>,
