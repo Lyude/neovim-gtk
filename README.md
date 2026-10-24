@@ -46,7 +46,9 @@ TODO
 ## Arch Linux
 TODO
 ## openSUSE
-TODO
+```
+sudo zypper install neovim-gtk
+```
 ## Windows
 TODO
 
